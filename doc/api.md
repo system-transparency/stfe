@@ -29,23 +29,73 @@ possible, and no client should trust that something is logged until an inclusion
 proof can be provided that references a trustworthy STH.  **SCTs are not
 promises of public logging, and should only be used for debugging purposes**.
 
+To avoid confusion we shall refer to our "debugging SCT" as... TODO: name.
+
 ## Minimum acceptance criteria
 A log should accept a submission if it is:
 - Well-formed, see below.
-- Signed by (or chain back to) a valid trust anchor.
+- Digitally signed
+	- Proves who submitted the entry for logging
+	- TODO: can we avoid the complexity of trust anchors?
 
-## Leaf data, appendix and serialization
+## Merkle tree leaf data
+```
+struct {
+	uint64 timestamp; // defined in RFC 6962/bis
+	opaque artifact<0..2^8-1>; // a string that identifies a system artifact
+	opaque hash<32..2^8-1>; // an artifact hash, produced with the log's H()
+	ArtifactInfo info; // additional info that may be artifact-dependent
+	opaque signature<0..2^16-1> // submitter signature, covers the above fields
+} LeafData;
+```
+
+A leaf hash is computed as described in RFC 6962.
+
+### Artifact types
+Each type identifies a group of artifacts that share common properties.
+```
+enum {
+	none(65535)
+} ArtifactType;
+
+struct {
+	ArtifactType type;
+	opaque data<0..2^16-1>;  // defined based on the artifact type
+} ArtifactInfo;
+```
+
+TODO: examples of needed extra-info for, say, reproducible Debian packages?
+
+#### None
+The `none` type references a group of artifacts that need no further
+information.  For example, Firefox could use it to [enforce public binary
+logging before accepting a new software
+update](https://wiki.mozilla.org/Security/Binary_Transparency).  It is assumed
+that the entities relying on the `none` type know how to find the source (if
+not already at hand) and then reproduce the logged hash from it.
+
+The opaque `data` field must be empty if the `none` type is used.
+
+## Merkle tree leaf appendix
+TODO: captures who submitted this entry for logging
+
+## Serialization
+Similar to RFC 6962 we encode everything that is digitally signed as in [RFC
+5246](https://tools.ietf.org/html/rfc5246).
 
 ## Public endpoints
-Clients talk to the log via HTTPS GET/POST requests.  Details can be found in
-[RFC 6962, §4](https://tools.ietf.org/html/rfc6962#section-4.1):
-- POST parameters are JSON objects
-- GET parameters are URL encoded
-- Binary data is first expressed as base-64.
+The log's Merkle tree follows the specification in [RFC 6962,
+§2](https://tools.ietf.org/html/rfc6962#section-2).  We reuse the signed tree
+head (STH) as specified in [§3.5](https://tools.ietf.org/html/rfc6962#section-3.5),
+and clients talk to the log with HTTPS GET/POST requests as in
+[§4](https://tools.ietf.org/html/rfc6962#section-4).  Namely, POST parameters
+are JSON objects, GET parameters are URL encoded, and binary data is first
+expressed as base-64.
 
 ### add-entry
 ### get-entries
 ### get-trust-anchors
+TODO: can we avoid this complexity?
 ### get-proof-by-hash
 ### get-consistency-proof
 ### get-sth
