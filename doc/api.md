@@ -81,8 +81,8 @@ general-purpose checksums.  For now we only define the latter.
 #### Checksum
 A checksum entry contains a timestamp that corresponds to `UTC.now()`, a package
 identifier such as `foobar-1.2.3`, and an artifact hash that uses the log's
-configured hash function.  An entry must be signed by the submitter to be
-accepted by the log, and the resulting signature is part of the leaf's Appendix.
+configured hash function.
+
 ```
 struct {
 	uint64 timestamp; // format defined by RFC 6962/bis, added by submitter
@@ -101,6 +101,10 @@ Note that the entry timestamp allows anyone to derive rough statistics on the
 time between submission and merge into the log's Merkle tree.  Base such a diff
 on the first STH (timestamp) that incorporated a given entry.
 
+TODO: move timestamp outside of the (signed) structure that is submitted?  It is
+less error-prone if the log does the time-stamping at its own discretion.  E.g.,
+a `leaf_v1` that then switches onto a `checksum_v1`?
+
 ### Signed Debug Info
 RFC 6962 uses Signed Certificate Timestamps (SCTs) as promises of public
 logging within a time known as the Maximum Merge Delay (MMD).  We provide no
@@ -113,18 +117,99 @@ to the log operator (who can then investigate the underlying reason further).
 struct {
 	LogID log_id; // defined in RFC 6962
 	opaque message<0..2^16-1> // debug string that is only meant for the log
-	opaque signature; // computed by the log over LeafChecksumV1
+	opaque signature; // computed by the log over the entire Item
 } SignedDebugInfoV1;
 ```
 ## Public endpoints
-Clients talk to the log with HTTPS GET/POST requests as in RFC 6962,
-[§4](https://tools.ietf.org/html/rfc6962#section-4).  Namely, POST parameters
-are JSON objects, GET parameters are URL encoded, and binary data is first
-expressed as base-64.
+Clients talk to the log with HTTPS GET/POST requests.  POST parameters
+are JSON objects, GET parameters are URL encoded, and serialized data is
+expressed as base-64.  See details in as in RFC 6962,
+[§4](https://tools.ietf.org/html/rfc6962#section-4).
 
-### add-checksum
+Unless specified otherwise, the data in question is serialized.
+
+### add-entry
+```
+POST https://<base url>/st/v1/add-entry
+```
+
+Input:
+- item: an `Item` that corresponds to a valid leaf type.  Only
+`leaf_checksum_v1` at this time.
+- signature: a `DigitallySigned` object as defined in RFC 6962,
+[§4.7](https://tools.ietf.org/html/rfc5246#section-4.7), that covers this item.
+- certificate: base-64 encoded X.509 certificate that is vouched for by a trust
+anchor and which produced the above signature.
+
+Output:
+- sdi: an `Item` structure of type `signed_debug_info_v1` that covers the added
+item.
+
 ### get-entries
-### get-trust-anchors
+```
+GET https://<base url>/st/v1/get-entries
+```
+
+Input:
+- start: 0-based index of first entry to retrieve in decimal.
+- end: 0-based index of last entry to retrieve in decimal.
+
+Output:
+- entries: an array of objects, each consisting of
+	- leaf: `Item` that corresponds to the leaf's type.
+	- signature: `DigitallySigned` object that covers the retrieved item.
+	- chain: an array of base-64 encoded certificates, where the first
+	corresponds to the signing certificate and the final one a trust anchor.
+
+The signature and chain can be viewed as a leaf's appendix, i.e., something that
+is stored by the log but not part of the leaf itself.
+
+### get-anchors
+```
+GET https://<base url>/st/v1/get-anchors
+```
+
+No input.
+
+Output:
+- certificates: an array of base-64 encoded trust anchors that the log accept.
+
 ### get-proof-by-hash
+```
+GET https://<base url>/st/v1/get-proof-by-hash
+```
+
+Input:
+- hash: a base-64 encoded leaf hash.
+- tree_size: the thee size that the proof should be based on in decimal.
+
+The leaf hash value is computed as in RFC 6962/bis,
+[§4.7](https://datatracker.ietf.org/doc/html/draft-ietf-trans-rfc6962-bis-34#section-4.7).
+
+Output:
+- inclusion: an `Item` of type `inclusion_proof_v1`.  Note that this structure
+includes both the leaf index and an audit path for the tree size.
+
 ### get-consistency-proof
+```
+GET https://<base url>/st/v1/get-consistency-proof
+```
+
+Input:
+- first: the `tree_size` of the older tree in decimal.
+- second: the `tree_size` of the newer tree in decimal.
+
+Output:
+- consistency: an `Item` of type `consistency_proof_v1` that corresponds to the
+requested tree sizes.
+
 ### get-sth
+```
+GET https://<base url>/st/v1/get-sth
+```
+
+No input.
+
+Output:
+- sth: an `Item` of type `signed_tree_head_v1`, which corresponds to the most
+recently known STH, which corresponds to the most recently known STH.
