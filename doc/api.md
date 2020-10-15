@@ -3,8 +3,8 @@ This document provides a sketch of System Transparency (ST) logging.  The basic
 idea is to insert hashes of system artifacts into a public, append-only, and
 tamper-evident transparency log, such that any enforcing client can be sure that
 they see the same system artifacts as everyone else.  A system artifact could
-be a Debian package, an operating system image, or something similar that
-ideally builds reproducibly.
+be an operating system image, a Debian package, or generally just a checksum of
+something opaque.
 
 An ST log can be implemented on-top of
 [Trillian](https://trillian.transparency.dev) using a custom STFE personality.
@@ -12,9 +12,9 @@ For reference you may look at Certificate Transparency (CT) logging and
 [CTFE](https://github.com/google/certificate-transparency-go/tree/master/trillian/ctfe),
 which implements [RFC 6962](https://tools.ietf.org/html/rfc6962).
 
-Disclaimer: to the largest extent possible we will reuse RFC 6962 and/or its
-follow-up specification
-[CT/bis](https://datatracker.ietf.org/doc/draft-ietf-trans-rfc6962-bis/).
+We reuse RFC 6962 and its follow-up specification [RFC
+6962/bis](https://datatracker.ietf.org/doc/draft-ietf-trans-rfc6962-bis/) to the
+largest extent possible.
 
 ## Log parameters
 A log is defined by the following immutable parameters:
@@ -26,76 +26,105 @@ A log is defined by the following immutable parameters:
 
 Note that **there is no MMD**.  The idea is to merge added entries as soon as
 possible, and no client should trust that something is logged until an inclusion
-proof can be provided that references a trustworthy STH.  **SCTs are not
-promises of public logging, and should only be used for debugging purposes**.
-
-To avoid confusion we shall refer to our "debugging SCT" as... TODO: name.
+proof can be provided that references a trustworthy STH. 
 
 ## Minimum acceptance criteria
 A log should accept a submission if it is:
 - Well-formed, see below.
 - Digitally signed
-	- Proves who submitted the entry for logging
-	- TODO: can we avoid the complexity of trust anchors?
+	- Proves who submitted an entry for logging
+	- The signing key must chain back to a valid trust anchor
 
-## Merkle tree leaf data
-```
-struct {
-	uint64 timestamp; // defined in RFC 6962/bis
-	opaque artifact<0..2^8-1>; // a string that identifies a system artifact
-	opaque hash<32..2^8-1>; // an artifact hash, produced with the log's H()
-	ArtifactInfo info; // additional info that may be artifact-dependent
-	opaque signature<0..2^16-1> // submitter signature, covers the above fields
-} LeafData;
-```
+## Data structure definitions
+We encode everything that is digitally signed as in [RFC
+5246](https://tools.ietf.org/html/rfc5246).  Therefore, we use the same
+description language for our data structures.  A definition of the log's Merkle
+tree can be found in RFC 6962, see
+[§2](https://tools.ietf.org/html/rfc6962#section-2).
 
-A leaf hash is computed as described in RFC 6962.
+### Repurposing `TransItem` as `Item`
+A general-purpose `TransItem` is defined by RFC 6962/bis.  Below we define our
+own `TransItem`, but name it `Item` to emphasize that they are not the same.
+Some definitions are re-used and others are added.
 
-### Artifact types
-Each type identifies a group of artifacts that share common properties.
 ```
 enum {
-	none(65535)
-} ArtifactType;
+	reserved(0),
+	signed_tree_head_v1(1), // defined in RFC 6962/bis, §4.10
+	signed_debug_info_v1(2), // defined below, think "almost SCT"
+	consistency_proof_v1(3), // defined in RFC 6962/bis, §4.11
+	inclusion_proof_v1(4), // defined in RFC 6962/bis, §4.12
+	leaf_checksum_v1(5), // defined below, think "leaf data"
+	(65535)
+} Format;
 
 struct {
-	ArtifactType type;
-	opaque data<0..2^16-1>;  // defined based on the artifact type
-} ArtifactInfo;
+	Format format;
+	select (format) {
+		case signed_tree_head_v1: SignedTreeHeadV1;
+		case signed_debug_info_v1: SignedDebugInfoV1;
+		case consistency_proof_v1: ConsistencyProofV1;
+		case inclusion_proof_v1: InclusionProofV1;
+		case leaf_checksum_v1: LeafChecksumV1;
+	} message;
+} Item;
 ```
 
-TODO: examples of needed extra-info for, say, reproducible Debian packages?
+An `Item` can be serialized into an `ItemList` as described in RFC 6962/bis, see
+[§6.2](https://datatracker.ietf.org/doc/html/draft-ietf-trans-rfc6962-bis-34#section-6.2).
 
-#### None
-The `none` type references a group of artifacts that need no further
-information.  For example, Firefox could use it to [enforce public binary
-logging before accepting a new software
+### Merkle tree leaf types
+In the future there will likely be several types of leaves.  Say, one for
+operating system packages, another one for Debian packages, and a third one for
+general-purpose checksums.  For now we only define the latter.
+
+#### Checksum
+A checksum entry contains a timestamp that corresponds to `UTC.now()`, a package
+identifier such as `foobar-1.2.3`, and an artifact hash that uses the log's
+configured hash function.  An entry must be signed by the submitter to be
+accepted by the log, and the resulting signature is part of the leaf's Appendix.
+```
+struct {
+	uint64 timestamp; // format defined by RFC 6962/bis, added by submitter
+	opaque package<0..2^8-1>; // package identifier
+	opaque checksum<32..2^8-1>; // artifact hash that used the log's hash func
+} LeafChecksumV1;
+```
+
+For example, the checksum type could be used by Firefox to [enforce public
+binary logging before accepting a new software
 update](https://wiki.mozilla.org/Security/Binary_Transparency).  It is assumed
-that the entities relying on the `none` type know how to find the source (if
-not already at hand) and then reproduce the logged hash from it.
+that the entities relying on the checksum type know how to find the artifact
+source (if not already at hand) and then reproduce the logged hash from it.
 
-The opaque `data` field must be empty if the `none` type is used.
+Note that the entry timestamp allows anyone to derive rough statistics on the
+time between submission and merge into the log's Merkle tree.  Base such a diff
+on the first STH (timestamp) that incorporated a given entry.
 
-## Merkle tree leaf appendix
-TODO: captures who submitted this entry for logging
-
-## Serialization
-Similar to RFC 6962 we encode everything that is digitally signed as in [RFC
-5246](https://tools.ietf.org/html/rfc5246).
-
+### Signed Debug Info
+RFC 6962 uses Signed Certificate Timestamps (SCTs) as promises of public
+logging within a time known as the Maximum Merge Delay (MMD).  We provide no
+such promise: a Signed Debug Info (SDI) is an intent to log because the
+submitter is authorized to do so and the entry appears to be valid.  It will be
+merged into the log's Merkle tree as soon as possible on a best-effort basis.
+If an unexpected delay is encountered, the submitter can present the issued SFI
+to the log operator (who can then investigate the underlying reason further).
+```
+struct {
+	LogID log_id; // defined in RFC 6962
+	opaque message<0..2^16-1> // debug string that is only meant for the log
+	opaque signature; // computed by the log over LeafChecksumV1
+} SignedDebugInfoV1;
+```
 ## Public endpoints
-The log's Merkle tree follows the specification in [RFC 6962,
-§2](https://tools.ietf.org/html/rfc6962#section-2).  We reuse the signed tree
-head (STH) as specified in [§3.5](https://tools.ietf.org/html/rfc6962#section-3.5),
-and clients talk to the log with HTTPS GET/POST requests as in
+Clients talk to the log with HTTPS GET/POST requests as in RFC 6962,
 [§4](https://tools.ietf.org/html/rfc6962#section-4).  Namely, POST parameters
 are JSON objects, GET parameters are URL encoded, and binary data is first
 expressed as base-64.
 
-### add-entry
+### add-checksum
 ### get-entries
 ### get-trust-anchors
-TODO: can we avoid this complexity?
 ### get-proof-by-hash
 ### get-consistency-proof
 ### get-sth
