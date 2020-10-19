@@ -111,7 +111,7 @@ logging within a time known as the Maximum Merge Delay (MMD).  We provide no
 such promise: a Signed Debug Info (SDI) is an intent to log because the
 submitter is authorized to do so and the entry appears to be valid.  It will be
 merged into the log's Merkle tree as soon as possible on a best-effort basis.
-If an unexpected delay is encountered, the submitter can present the issued SFI
+If an unexpected delay is encountered, the submitter can present the issued SDI
 to the log operator (who can then investigate the underlying reason further).
 ```
 struct {
