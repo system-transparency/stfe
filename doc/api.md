@@ -65,7 +65,7 @@ struct {
 		case signed_debug_info_v1: SignedDebugInfoV1;
 		case consistency_proof_v1: ConsistencyProofV1;
 		case inclusion_proof_v1: InclusionProofV1;
-		case leaf_checksum_v1: LeafChecksumV1;
+		case checksum_v1: ChecksumV1;
 	} message;
 } Item;
 ```
@@ -74,18 +74,16 @@ An `Item` can be serialized into an `ItemList` as described in RFC 6962/bis, see
 [§6.2](https://datatracker.ietf.org/doc/html/draft-ietf-trans-rfc6962-bis-34#section-6.2).
 
 ### Merkle tree leaf types
-In the future there will likely be several types of leaves.  Say, one for
-operating system packages, another one for Debian packages, and a third one for
+In the future there might be several types of leaves.  Say, one for operating
+system packages, another one for Debian packages, and a third one for
 general-purpose checksums.  For now we only define the latter.
 
 #### Checksum
-A checksum entry contains a timestamp that corresponds to `UTC.now()`, a package
-identifier such as `foobar-1.2.3`, and an artifact hash that uses the log's
-configured hash function.
+A checksum entry contains a package identifier such as `foobar-1.2.3` and an
+artifact hash that uses the log's configured hash function.
 
 ```
 struct {
-	uint64 timestamp; // format defined by RFC 6962/bis, added by submitter
 	opaque package<0..2^8-1>; // package identifier
 	opaque checksum<32..2^8-1>; // artifact hash that used the log's hash func
 } LeafChecksumV1;
@@ -96,14 +94,6 @@ binary logging before accepting a new software
 update](https://wiki.mozilla.org/Security/Binary_Transparency).  It is assumed
 that the entities relying on the checksum type know how to find the artifact
 source (if not already at hand) and then reproduce the logged hash from it.
-
-Note that the entry timestamp allows anyone to derive rough statistics on the
-time between submission and merge into the log's Merkle tree.  Base such a diff
-on the first STH (timestamp) that incorporated a given entry.
-
-TODO: move timestamp outside of the (signed) structure that is submitted?  It is
-less error-prone if the log does the time-stamping at its own discretion.  E.g.,
-a `leaf_v1` that then switches onto a `checksum_v1`?
 
 ### Signed Debug Info
 RFC 6962 uses Signed Certificate Timestamps (SCTs) as promises of public
