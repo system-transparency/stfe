@@ -21,7 +21,7 @@ A log is defined by the following immutable parameters:
 - Log identifier: a unique identifier
 - Public key: a unique public key
 - Base URL: where can this log be reached?  E.g., example.com:1234/log
-- Hash algorithm: e.g., SHA256
+- Hash algorithm: e.g., SHA-256
 - Signature algorithm: e.g., ECDSA on a given curve.
 
 Note that **there is no MMD**.  The idea is to merge added entries as soon as
@@ -42,9 +42,9 @@ description language for our data structures.  A definition of the log's Merkle
 tree can be found in RFC 6962, see
 [§2](https://tools.ietf.org/html/rfc6962#section-2).
 
-### Repurposing `TransItem` as `Item`
+### Repurposing `TransItem` as `StItem`
 A general-purpose `TransItem` is defined by RFC 6962/bis.  Below we define our
-own `TransItem`, but name it `Item` to emphasize that they are not the same.
+own `TransItem`, but name it `STItem` to emphasize that they are not the same.
 Some definitions are re-used and others are added.
 
 ```
@@ -54,12 +54,12 @@ enum {
 	signed_debug_info_v1(2), // defined below, think "almost SCT"
 	consistency_proof_v1(3), // defined in RFC 6962/bis, §4.11
 	inclusion_proof_v1(4), // defined in RFC 6962/bis, §4.12
-	leaf_checksum_v1(5), // defined below, think "leaf data"
+	checksum_v1(5), // defined below, think "leaf data"
 	(65535)
-} Format;
+} StFormat;
 
 struct {
-	Format format;
+	StFormat format;
 	select (format) {
 		case signed_tree_head_v1: SignedTreeHeadV1;
 		case signed_debug_info_v1: SignedDebugInfoV1;
@@ -67,10 +67,10 @@ struct {
 		case inclusion_proof_v1: InclusionProofV1;
 		case checksum_v1: ChecksumV1;
 	} message;
-} Item;
+} StItem;
 ```
 
-An `Item` can be serialized into an `ItemList` as described in RFC 6962/bis, see
+An `StItem` can be serialized into a list as described in RFC 6962/bis,
 [§6.2](https://datatracker.ietf.org/doc/html/draft-ietf-trans-rfc6962-bis-34#section-6.2).
 
 ### Merkle tree leaf types
@@ -86,7 +86,7 @@ artifact hash that uses the log's configured hash function.
 struct {
 	opaque package<0..2^8-1>; // package identifier
 	opaque checksum<32..2^8-1>; // artifact hash that used the log's hash func
-} LeafChecksumV1;
+} ChecksumV1;
 ```
 
 For example, the checksum type could be used by Firefox to [enforce public
@@ -107,7 +107,7 @@ to the log operator (who can then investigate the underlying reason further).
 struct {
 	LogID log_id; // defined in RFC 6962
 	opaque message<0..2^16-1> // debug string that is only meant for the log
-	opaque signature; // computed by the log over the entire Item
+	opaque signature; // computed by the log over the StItem in question
 } SignedDebugInfoV1;
 ```
 ## Public endpoints
@@ -124,16 +124,16 @@ POST https://<base url>/st/v1/add-entry
 ```
 
 Input:
-- item: an `Item` that corresponds to a valid leaf type.  Only
-`leaf_checksum_v1` at this time.
-- signature: a `DigitallySigned` object as defined in RFC 6962,
+- item: an `StItem` that corresponds to a valid leaf type.  Only
+`checksum_v1` at this time.
+- signature: a `DigitallySigned` object as defined in RFC 5246,
 [§4.7](https://tools.ietf.org/html/rfc5246#section-4.7), that covers this item.
 - certificate: base-64 encoded X.509 certificate that is vouched for by a trust
 anchor and which produced the above signature.
 
 Output:
-- sdi: an `Item` structure of type `signed_debug_info_v1` that covers the added
-item.
+- sdi: an `StItem` structure of type `signed_debug_info_v1` that covers the
+added item.
 
 ### get-entries
 ```
@@ -146,7 +146,7 @@ Input:
 
 Output:
 - entries: an array of objects, each consisting of
-	- leaf: `Item` that corresponds to the leaf's type.
+	- leaf: `StItem` that corresponds to the leaf's type.
 	- signature: `DigitallySigned` object that covers the retrieved item.
 	- chain: an array of base-64 encoded certificates, where the first
 	corresponds to the signing certificate and the final one a trust anchor.
@@ -177,7 +177,7 @@ The leaf hash value is computed as in RFC 6962/bis,
 [§4.7](https://datatracker.ietf.org/doc/html/draft-ietf-trans-rfc6962-bis-34#section-4.7).
 
 Output:
-- inclusion: an `Item` of type `inclusion_proof_v1`.  Note that this structure
+- inclusion: an `StItem` of type `inclusion_proof_v1`.  Note that this structure
 includes both the leaf index and an audit path for the tree size.
 
 ### get-consistency-proof
@@ -190,8 +190,8 @@ Input:
 - second: the `tree_size` of the newer tree in decimal.
 
 Output:
-- consistency: an `Item` of type `consistency_proof_v1` that corresponds to the
-requested tree sizes.
+- consistency: an `StItem` of type `consistency_proof_v1` that corresponds to
+the requested tree sizes.
 
 ### get-sth
 ```
@@ -201,5 +201,5 @@ GET https://<base url>/st/v1/get-sth
 No input.
 
 Output:
-- sth: an `Item` of type `signed_tree_head_v1`, which corresponds to the most
+- sth: an `StItem` of type `signed_tree_head_v1`, which corresponds to the most
 recently known STH, which corresponds to the most recently known STH.
