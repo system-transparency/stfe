@@ -55,6 +55,22 @@ func (i StItem) String() string {
 	}
 }
 
+func StItemFromB64(s string) (*StItem, error) {
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("base64 decoding failed: %v", err)
+	}
+
+	var item StItem
+	extra, err := tls.Unmarshal(b, &item)
+	if err != nil {
+		return nil, fmt.Errorf("tls unmarshal failed: %v", err)
+	} else if len(extra) > 0 {
+		return nil, fmt.Errorf("tls unmarshal found extra data: %v", extra)
+	}
+	return &item, nil
+}
+
 // ChecksumV1 associates a package name with an arbitrary checksum value
 type ChecksumV1 struct {
 	Package  []byte `tls:"minlen:0,maxlen:255"`
@@ -74,4 +90,11 @@ func NewChecksumV1(name string, checksum []byte) (StItem, error) {
 
 func (i ChecksumV1) String() string {
 	return fmt.Sprintf("%v %v", string(i.Package), base64.StdEncoding.EncodeToString(i.Checksum))
+}
+
+// AddEntryRequest is a collection of add-entry input parameters
+type AddEntryRequest struct {
+	Item        string `json:"item"`
+	Signature   string `json:"signature"`
+	Certificate string `json:"certificate"`
 }
