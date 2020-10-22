@@ -44,8 +44,9 @@ func (f StFormat) String() string {
 
 // StItem references a versioned item based on a given format specifier.
 type StItem struct {
-	Format     StFormat    `tls:"maxval:65535"`
-	ChecksumV1 *ChecksumV1 `tls:"selector:Format,val:5"`
+	Format           StFormat          `tls:"maxval:65535"`
+	InclusionProofV1 *InclusionProofV1 `tls:"selector:Format,val:4"`
+	ChecksumV1       *ChecksumV1       `tls:"selector:Format,val:5"`
 	// TODO: add more items
 }
 
@@ -106,17 +107,20 @@ type InclusionProofV1 struct {
 	InclusionPath []NodeHash `tls:"minlen:1,maxlen:65535"`
 }
 
-func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) InclusionProofV1 {
+func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) StItem {
 	inclusionPath := make([]NodeHash, 0, len(proof.Hashes))
 	for _, hash := range proof.Hashes {
 		inclusionPath = append(inclusionPath, NodeHash{Data: hash})
 	}
 
-	return InclusionProofV1{
-		LogID:         logID,
-		TreeSize:      treeSize,
-		LeafIndex:     uint64(proof.LeafIndex),
-		InclusionPath: inclusionPath,
+	return StItem{
+		Format: StFormatInclusionProofV1,
+		InclusionProofV1: &InclusionProofV1{
+			LogID:         logID,
+			TreeSize:      treeSize,
+			LeafIndex:     uint64(proof.LeafIndex),
+			InclusionPath: inclusionPath,
+		},
 	}
 }
 
