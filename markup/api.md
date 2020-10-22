@@ -177,8 +177,8 @@ The leaf hash value is computed as in RFC 6962/bis,
 [§4.7](https://datatracker.ietf.org/doc/html/draft-ietf-trans-rfc6962-bis-34#section-4.7).
 
 Output:
-- inclusion: an `StItem` of type `inclusion_proof_v1`.  Note that this structure
-includes both the leaf index and an audit path for the tree size.
+- inclusion_proof: an `StItem` of type `inclusion_proof_v1`.  Note that this
+structure includes both the leaf index and an audit path for the tree size.
 
 ### get-consistency-proof
 ```
