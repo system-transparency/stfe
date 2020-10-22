@@ -95,6 +95,31 @@ func (i ChecksumV1) String() string {
 	return fmt.Sprintf("%v %v", string(i.Package), base64.StdEncoding.EncodeToString(i.Checksum))
 }
 
+type NodeHash struct {
+	Data []byte `tls:"minlen:32,maxlen:255"`
+}
+
+type InclusionProofV1 struct {
+	LogID []byte `tls:"minlen:2,maxlen:127"`
+	TreeSize uint64
+	LeafIndex uint64
+	InclusionPath []NodeHash `tls:"minlen:1,maxlen:65535"`
+}
+
+func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) InclusionProofV1 {
+	inclusionPath := make([]NodeHash, 0, len(proof.Hashes))
+	for _, hash := range proof.Hashes {
+		inclusionPath = append(inclusionPath, NodeHash{ Data: hash })
+	}
+
+	return InclusionProofV1{
+		LogID: logID,
+		TreeSize: treeSize,
+		LeafIndex: uint64(proof.LeafIndex),
+		InclusionPath: inclusionPath,
+	}
+}
+
 // AddEntryRequest is a collection of add-entry input parameters
 type AddEntryRequest struct {
 	Item        string `json:"item"`
@@ -154,4 +179,44 @@ func NewGetEntriesResponse(leaves []*trillian.LogLeaf) (GetEntriesResponse, erro
 		entries = append(entries, NewGetEntryResponse(leaf.GetLeafValue())) // TODO: add signature and chain
 	}
 	return GetEntriesResponse{entries}, nil
+}
+
+type GetProofByHashRequest struct {
+	Hash []byte
+	TreeSize int64
+}
+
+func NewGetProofByHashRequest(httpRequest *http.Request) (*GetProofByHashRequest, error) {
+	var r GetProofByHashRequest
+	var err error
+
+	r.TreeSize, err = strconv.ParseInt(httpRequest.FormValue("tree_size"), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("bad tree_size parameter: %v", err)
+	}
+	if r.TreeSize < 0 {
+		return nil, fmt.Errorf("bad tree_size parameter: negative value")
+	}
+	// TODO: check that tree size is not past STH.tree_size
+
+	r.Hash, err = base64.StdEncoding.DecodeString(httpRequest.FormValue("hash"))
+	if err != nil {
+		return nil, fmt.Errorf("bad hash parameter: %v", err)
+	}
+	return &r, nil
+}
+
+type GetProofByHashResponse struct {
+	InclusionProof string `json:"inclusion_proof"`
+}
+
+func NewGetProofByHashResponse(treeSize uint64, inclusionProof *trillian.Proof) (*GetProofByHashResponse, error) {
+	item := NewInclusionProofV1([]byte("TODO: add log ID"), treeSize, inclusionProof)
+	b, err := tls.Marshal(item)
+	if err != nil {
+		return nil, fmt.Errorf("tls marshal failed: %v", err)
+	}
+	return &GetProofByHashResponse{
+		InclusionProof: base64.StdEncoding.EncodeToString(b),
+	}, nil
 }

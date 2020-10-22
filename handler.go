@@ -169,6 +169,43 @@ func getAnchors(ctx context.Context, i *instance, w http.ResponseWriter, r *http
 // getProofByHash provides an inclusion proof based on a given leaf hash
 func getProofByHash(ctx context.Context, i *instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.Info("in getProofByHash")
+	request, err := NewGetProofByHashRequest(r)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+
+	trillianRequest := trillian.GetInclusionProofByHashRequest{
+		LogId: i.logID,
+		LeafHash: request.Hash,
+		TreeSize: request.TreeSize,
+		OrderBySequence: true,
+	}
+	trillianResponse, err := i.client.GetInclusionProofByHash(ctx, &trillianRequest)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed fetching inclusion proof from Trillian backend: %v", err)
+	}
+	// TODO: check the returned tree size in response?
+
+	// Santity check
+	if len(trillianResponse.Proof) == 0 {
+		return http.StatusNotFound, fmt.Errorf("get-proof-by-hash backend returned no proof")
+	}
+	// TODO: verify that proof is valid?
+
+	w.Header().Set("Content-Type", "application/json")
+	data, err := NewGetProofByHashResponse(uint64(request.TreeSize), trillianResponse.Proof[0])
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed creating get-proof-by-hash response: %v", err)
+	}
+	json, err := json.Marshal(data)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed json-encoding GetProofByHashResponse: %v", err)
+	}
+	_, err = w.Write(json)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed writing get-entries response: %v", err)
+	}
+
 	return http.StatusOK, nil // TODO
 }
 
