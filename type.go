@@ -100,22 +100,22 @@ type NodeHash struct {
 }
 
 type InclusionProofV1 struct {
-	LogID []byte `tls:"minlen:2,maxlen:127"`
-	TreeSize uint64
-	LeafIndex uint64
+	LogID         []byte `tls:"minlen:2,maxlen:127"`
+	TreeSize      uint64
+	LeafIndex     uint64
 	InclusionPath []NodeHash `tls:"minlen:1,maxlen:65535"`
 }
 
 func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) InclusionProofV1 {
 	inclusionPath := make([]NodeHash, 0, len(proof.Hashes))
 	for _, hash := range proof.Hashes {
-		inclusionPath = append(inclusionPath, NodeHash{ Data: hash })
+		inclusionPath = append(inclusionPath, NodeHash{Data: hash})
 	}
 
 	return InclusionProofV1{
-		LogID: logID,
-		TreeSize: treeSize,
-		LeafIndex: uint64(proof.LeafIndex),
+		LogID:         logID,
+		TreeSize:      treeSize,
+		LeafIndex:     uint64(proof.LeafIndex),
 		InclusionPath: inclusionPath,
 	}
 }
@@ -182,7 +182,7 @@ func NewGetEntriesResponse(leaves []*trillian.LogLeaf) (GetEntriesResponse, erro
 }
 
 type GetProofByHashRequest struct {
-	Hash []byte
+	Hash     []byte
 	TreeSize int64
 }
 

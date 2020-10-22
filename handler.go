@@ -175,9 +175,9 @@ func getProofByHash(ctx context.Context, i *instance, w http.ResponseWriter, r *
 	}
 
 	trillianRequest := trillian.GetInclusionProofByHashRequest{
-		LogId: i.logID,
-		LeafHash: request.Hash,
-		TreeSize: request.TreeSize,
+		LogId:           i.logID,
+		LeafHash:        request.Hash,
+		TreeSize:        request.TreeSize,
 		OrderBySequence: true,
 	}
 	trillianResponse, err := i.client.GetInclusionProofByHash(ctx, &trillianRequest)
