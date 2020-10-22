@@ -2,8 +2,10 @@ package stfe
 
 import (
 	"fmt"
+	"strconv"
 
 	"encoding/base64"
+	"net/http"
 
 	"github.com/google/certificate-transparency-go/tls"
 )
@@ -97,4 +99,33 @@ type AddEntryRequest struct {
 	Item        string `json:"item"`
 	Signature   string `json:"signature"`
 	Certificate string `json:"certificate"`
+}
+
+// GetEntriesRequest is a collection of get-entry input parameters
+type GetEntriesRequest struct {
+	Start int64
+	End int64
+}
+
+func (r *GetEntriesRequest) Unpack(httpRequest *http.Request) error {
+	var err error
+
+	r.Start, err = strconv.ParseInt(httpRequest.FormValue("start"), 10, 64)
+	if err != nil {
+		return fmt.Errorf("bad start parameter: %v", err)
+	}
+	r.End, err = strconv.ParseInt(httpRequest.FormValue("end"), 10, 64)
+	if err != nil {
+		return fmt.Errorf("bad end parameter: %v", err)
+	}
+
+	if r.Start < 0 {
+		return fmt.Errorf("bad parameters: start(%v) must have a non-negative value", r.Start)
+	}
+	if r.Start > r.End {
+		return fmt.Errorf("bad parameters: start(%v) must be larger than end(%v)", r.Start, r.End)
+	}
+	// TODO: check that range is not larger than the max range. Yes -> truncate
+	// TODO: check that end is not past the most recent STH. Yes -> truncate
+	return nil
 }
