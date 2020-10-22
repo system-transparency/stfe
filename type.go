@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/google/certificate-transparency-go/tls"
+	"github.com/google/trillian"
 )
 
 // StFormat defines a particular StItem type that is versioned
@@ -104,7 +105,7 @@ type AddEntryRequest struct {
 // GetEntriesRequest is a collection of get-entry input parameters
 type GetEntriesRequest struct {
 	Start int64
-	End int64
+	End   int64
 }
 
 func (r *GetEntriesRequest) Unpack(httpRequest *http.Request) error {
@@ -128,4 +129,29 @@ func (r *GetEntriesRequest) Unpack(httpRequest *http.Request) error {
 	// TODO: check that range is not larger than the max range. Yes -> truncate
 	// TODO: check that end is not past the most recent STH. Yes -> truncate
 	return nil
+}
+
+type GetEntryResponse struct {
+	Leaf      string   `json:"leaf"`
+	Signature string   `json:"signature"`
+	Chain     []string `json:chain`
+}
+
+func NewGetEntryResponse(leaf []byte) GetEntryResponse {
+	return GetEntryResponse{
+		Leaf: base64.StdEncoding.EncodeToString(leaf),
+		// TODO: add signature and chain
+	}
+}
+
+type GetEntriesResponse struct {
+	Entries []GetEntryResponse `json:"entries"`
+}
+
+func NewGetEntriesResponse(leaves []*trillian.LogLeaf) (GetEntriesResponse, error) {
+	entries := make([]GetEntryResponse, 0, len(leaves))
+	for _, leaf := range leaves {
+		entries = append(entries, NewGetEntryResponse(leaf.GetLeafValue())) // TODO: add signature and chain
+	}
+	return GetEntriesResponse{entries}, nil
 }

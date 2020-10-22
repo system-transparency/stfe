@@ -120,9 +120,44 @@ func getEntries(ctx context.Context, i *instance, w http.ResponseWriter, r *http
 	if err := request.Unpack(r); err != nil {
 		return http.StatusBadRequest, err
 	}
-	glog.Infof("valid request: %v", request)
 
-	return http.StatusOK, nil // TODO
+	trillianRequest := trillian.GetLeavesByRangeRequest{
+		LogId:      i.logID,
+		StartIndex: request.Start,
+		Count:      request.End - request.Start + 1,
+	}
+	trillianResponse, err := i.client.GetLeavesByRange(ctx, &trillianRequest)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange request failed: %v", err)
+	}
+
+	// Santity check
+	if len(trillianResponse.Leaves) > int(request.End-request.Start+1) {
+		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange returned too many leaves: %d for [%d,%d]", len(trillianResponse.Leaves), request.Start, request.End)
+	}
+	for i, leaf := range trillianResponse.Leaves {
+		if leaf.LeafIndex != request.Start+int64(i) {
+			return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange returned unexpected leaf index: wanted %d, got %d", request.Start+int64(i), leaf.LeafIndex)
+		}
+
+		glog.Infof("Entry(%d) => %v", request.Start+int64(i), leaf.GetLeafValue())
+	}
+	// TODO: use the returned root for tree_size santity checking against start?
+
+	w.Header().Set("Content-Type", "application/json")
+	data, err := NewGetEntriesResponse(trillianResponse.Leaves)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed createing GetEntriesResponse: %v", err)
+	}
+	json, err := json.Marshal(&data)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed json-encoding GetEntriesResponse: %v", err)
+	}
+	_, err = w.Write(json)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed writing get-entries response: %v", err)
+	}
+	return http.StatusOK, nil
 }
 
 // getAnchors provides a list of configured trust anchors
