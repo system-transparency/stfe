@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/certificate-transparency-go/trillian/ctfe"
+	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/trillian"
 )
 
@@ -48,6 +49,11 @@ type GetEntriesResponse struct {
 // GetProofByHashResponse is an assembled inclusion proof response
 type GetProofByHashResponse struct {
 	InclusionProof string `json:"inclusion_proof"` // base64-encoded StItem
+}
+
+// GetAnchorsResponse
+type GetAnchorsResponse struct {
+	Certificates []string `json:"certificates"`
 }
 
 // NewAddEntryRequest parses and sanitizes the JSON-encoded add-entry
@@ -140,6 +146,14 @@ func NewGetProofByHashResponse(treeSize uint64, inclusionProof *trillian.Proof) 
 	return &GetProofByHashResponse{
 		InclusionProof: base64.StdEncoding.EncodeToString(b),
 	}, nil
+}
+
+func NewGetAnchorsResponse(anchors []*x509.Certificate) GetAnchorsResponse {
+	certificates := make([]string, 0, len(anchors))
+	for _, certificate := range anchors {
+		certificates = append(certificates, base64.StdEncoding.EncodeToString(certificate.Raw))
+	}
+	return GetAnchorsResponse{Certificates: certificates}
 }
 
 // VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should

@@ -120,9 +120,20 @@ func getEntries(ctx context.Context, i *instance, w http.ResponseWriter, r *http
 }
 
 // getAnchors provides a list of configured trust anchors
-func getAnchors(ctx context.Context, i *instance, w http.ResponseWriter, r *http.Request) (int, error) {
+func getAnchors(_ context.Context, i *instance, w http.ResponseWriter, _ *http.Request) (int, error) {
 	glog.Info("in getAnchors")
-	return http.StatusOK, nil // TODO
+	data := NewGetAnchorsResponse(i.anchorsPool.RawCertificates())
+	json, err := json.Marshal(&data)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed json-encoding GetAnchorsResponse: %v", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(json)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed writing get-anchors response: %v", err)
+	}
+	return http.StatusOK, nil
 }
 
 // getProofByHash provides an inclusion proof based on a given leaf hash

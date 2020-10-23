@@ -14,23 +14,25 @@ import (
 
 // instance groups information about a specific STFE instance.
 type instance struct {
-	prefix     string
-	logID      int64
-	client     trillian.TrillianLogClient
-	deadline   time.Duration
-	anchors    ctfe.CertValidationOpts
-	timesource ctutil.TimeSource
+	prefix      string
+	logID       int64
+	client      trillian.TrillianLogClient
+	deadline    time.Duration
+	anchors     ctfe.CertValidationOpts
+	anchorsPool ctfe.PEMCertPool // TODO: merge anchors and anchorsPool
+	timesource  ctutil.TimeSource
 }
 
 // NewInstance returns a new STFE instance
-func NewInstance(prefix string, id int64, client trillian.TrillianLogClient, deadline time.Duration, timesource ctutil.TimeSource, anchors ctfe.CertValidationOpts) *instance {
+func NewInstance(prefix string, id int64, client trillian.TrillianLogClient, deadline time.Duration, timesource ctutil.TimeSource, anchors ctfe.CertValidationOpts, anchorsPool ctfe.PEMCertPool) *instance {
 	return &instance{
-		prefix:     prefix,
-		logID:      id,
-		client:     client,
-		deadline:   deadline,
-		timesource: timesource,
-		anchors:    anchors,
+		prefix:      prefix,
+		logID:       id,
+		client:      client,
+		deadline:    deadline,
+		timesource:  timesource,
+		anchors:     anchors,
+		anchorsPool: anchorsPool,
 	}
 }
 

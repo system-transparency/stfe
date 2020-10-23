@@ -48,7 +48,7 @@ func main() {
 	glog.Infof("%v", cert_pool.Subjects())
 
 	glog.Info("Creating STFE server instance")
-	stfe_server := stfe.NewInstance(*prefix, *trillianID, trillian.NewTrillianLogClient(conn), *rpcDeadline, new(ctutil.SystemTimeSource), anchors)
+	stfe_server := stfe.NewInstance(*prefix, *trillianID, trillian.NewTrillianLogClient(conn), *rpcDeadline, new(ctutil.SystemTimeSource), anchors, *cert_pool)
 	stfe_server.AddEndpoints(mux)
 
 	glog.Infof("Serving on %v%v", *httpEndpoint, *prefix)
