@@ -82,7 +82,7 @@ func getEntries(ctx context.Context, i *instance, w http.ResponseWriter, r *http
 	request, err := NewGetEntriesRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	}
+	} // request can be decoded and is valid
 
 	trillianRequest := trillian.GetLeavesByRangeRequest{
 		LogId:      i.logID,
@@ -135,7 +135,7 @@ func getProofByHash(ctx context.Context, i *instance, w http.ResponseWriter, r *
 	request, err := NewGetProofByHashRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	}
+	} // request can be decoded and is valid
 
 	trillianRequest := trillian.GetInclusionProofByHashRequest{
 		LogId:           i.logID,
