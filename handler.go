@@ -50,7 +50,7 @@ func addEntry(ctx context.Context, i *instance, w http.ResponseWriter, r *http.R
 		return http.StatusBadRequest, err
 	} // request can be decoded
 
-	leaf, err := VerifyAddEntryRequest(request)
+	leaf, err := VerifyAddEntryRequest(i.anchors, request)
 	if err != nil {
 		return http.StatusBadRequest, err
 	} // leaf is valid, e.g., signed by a trust anchor
@@ -65,7 +65,7 @@ func addEntry(ctx context.Context, i *instance, w http.ResponseWriter, r *http.R
 	trillianResponse, err := i.client.QueueLeaf(ctx, &trillianRequest)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("backend QueueLeaf request failed: %v", err)
-	} // note: more detail could be provided here, see addChainInternal in ctfe 
+	} // note: more detail could be provided here, see addChainInternal in ctfe
 	glog.Infof("Queued leaf: %v", trillianResponse.QueuedLeaf.Leaf.LeafValue)
 
 	// TODO: respond with an SDI

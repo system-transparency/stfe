@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/google/trillian"
 
+	"github.com/google/certificate-transparency-go/trillian/ctfe"
 	ctutil "github.com/google/certificate-transparency-go/trillian/util"
 )
 
@@ -17,17 +18,19 @@ type instance struct {
 	logID      int64
 	client     trillian.TrillianLogClient
 	deadline   time.Duration
+	anchors    ctfe.CertValidationOpts
 	timesource ctutil.TimeSource
 }
 
 // NewInstance returns a new STFE instance
-func NewInstance(prefix string, id int64, client trillian.TrillianLogClient, deadline time.Duration, timesource ctutil.TimeSource) *instance {
+func NewInstance(prefix string, id int64, client trillian.TrillianLogClient, deadline time.Duration, timesource ctutil.TimeSource, anchors ctfe.CertValidationOpts) *instance {
 	return &instance{
 		prefix:     prefix,
 		logID:      id,
 		client:     client,
 		deadline:   deadline,
 		timesource: timesource,
+		anchors:    anchors,
 	}
 }
 

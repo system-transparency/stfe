@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/google/certificate-transparency-go/tls"
+	"github.com/google/certificate-transparency-go/trillian/ctfe"
 	"github.com/google/trillian"
 )
 
@@ -143,10 +144,23 @@ func NewGetProofByHashResponse(treeSize uint64, inclusionProof *trillian.Proof) 
 
 // VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should
 // be inserted into the log.  If so, the serialized leaf value is returned.
-func VerifyAddEntryRequest(r AddEntryRequest) ([]byte, error) {
+func VerifyAddEntryRequest(a ctfe.CertValidationOpts, r AddEntryRequest) ([]byte, error) {
 	item, _ := StItemFromB64(r.Item) // r.Item is a well-formed ChecksumV1
-	// TODO: verify r.Signature and r.Certificate
-	leaf, _ := tls.Marshal(item) // again, r.Item is well-formed
+	leaf, _ := tls.Marshal(item)     // again, r.Item is well-formed
+
+	chainBytes, err := base64.StdEncoding.DecodeString(r.Certificate)
+	if err != nil {
+		return nil, fmt.Errorf("failed decoding certificate: %v", err)
+	}
+
+	chain := make([][]byte, 0, 1)
+	chain = append(chain, chainBytes)
+	_, err = ctfe.ValidateChain(chain, a)
+	if err != nil {
+		return nil, fmt.Errorf("chain verification failed: %v", err)
+	}
+
+	// TODO: verify signature
 	return leaf, nil
 }
 
