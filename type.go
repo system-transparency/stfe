@@ -121,18 +121,18 @@ func (i InclusionProofV1) String() string {
 }
 
 // StItemFromB64 creates an StItem from a serialized and base64-encoded string
-func StItemFromB64(s string) (*StItem, error) {
+func StItemFromB64(s string) (StItem, error) {
 	b, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
-		return nil, fmt.Errorf("base64 decoding failed: %v", err)
+		return StItem{}, fmt.Errorf("base64 decoding failed: %v", err)
 	}
 
 	var item StItem
 	extra, err := tls.Unmarshal(b, &item)
 	if err != nil {
-		return nil, fmt.Errorf("tls unmarshal failed: %v", err)
+		return StItem{}, fmt.Errorf("tls unmarshal failed: %v", err)
 	} else if len(extra) > 0 {
-		return nil, fmt.Errorf("tls unmarshal found extra data: %v", extra)
+		return StItem{}, fmt.Errorf("tls unmarshal found extra data: %v", extra)
 	}
-	return &item, nil
+	return item, nil
 }

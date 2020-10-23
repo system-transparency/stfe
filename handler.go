@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/golang/glog"
-	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/trillian"
 )
 
@@ -47,29 +45,23 @@ func (a appHandler) sendHTTPError(w http.ResponseWriter, statusCode int, err err
 
 func addEntry(ctx context.Context, i *instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.Info("in addEntry")
-	var request AddEntryRequest
-	if err := unpackRequest(r, &request); err != nil {
-		return http.StatusBadRequest, err
-	}
-
-	item, err := verifyAddEntryRequest(request)
+	request, err := NewAddEntryRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	}
-	glog.Infof("got item: %s", item)
+	} // request can be decoded
 
-	serializedItem, err := tls.Marshal(*item)
+	leaf, err := VerifyAddEntryRequest(request)
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("tls marshal failed: %v", err)
-	}
+		return http.StatusBadRequest, err
+	} // leaf is valid, e.g., signed by a trust anchor
+
 	trillianRequest := trillian.QueueLeafRequest{
 		LogId: i.logID,
 		Leaf: &trillian.LogLeaf{
-			LeafValue: serializedItem,
+			LeafValue: leaf,
 			//TODO: add appendix here w/ chain + signature
 		},
 	}
-
 	trillianResponse, err := i.client.QueueLeaf(ctx, &trillianRequest)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("backend QueueLeaf request failed: %v", err)
@@ -78,38 +70,10 @@ func addEntry(ctx context.Context, i *instance, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, fmt.Errorf("missing QueueLeaf response")
 	}
 	// TODO: check that we got gRPC OK as specified in Trillian's API doc
+	glog.Infof("Queued leaf: %v", trillianResponse.QueuedLeaf.Leaf.LeafValue)
 
-	queuedLeaf := trillianResponse.QueuedLeaf
-	glog.Infof("Queued leaf: %v", queuedLeaf.Leaf.LeafValue)
 	// TODO: respond with an SDI
-
 	return http.StatusOK, nil
-}
-
-// verifyAddEntryRequest
-func verifyAddEntryRequest(r AddEntryRequest) (*StItem, error) {
-	item, err := StItemFromB64(r.Item)
-	if err != nil {
-		return nil, fmt.Errorf("failed decoding StItem: %v", err)
-	}
-	if item.Format != StFormatChecksumV1 {
-		return nil, fmt.Errorf("invalid StItem format: %s", item.Format)
-	}
-	// TODO: verify checksum length
-	// TODO: verify r.Signature and r.Certificate
-	return item, nil
-}
-
-// unpackRequest tries to unpack a json-encoded HTTP POST request into `unpack`
-func unpackRequest(r *http.Request, unpack interface{}) error {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return fmt.Errorf("failed reading request body: %v", err)
-	}
-	if err := json.Unmarshal(body, &unpack); err != nil {
-		return fmt.Errorf("failed parsing json body: %v", err)
-	}
-	return nil
 }
 
 // getEntries provides a list of entries from the Trillian backend

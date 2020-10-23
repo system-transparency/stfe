@@ -5,7 +5,9 @@ import (
 	"strconv"
 
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
+	"io/ioutil"
 
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/trillian"
@@ -13,21 +15,21 @@ import (
 
 // AddEntryRequest is a collection of add-entry input parameters
 type AddEntryRequest struct {
-	Item        string `json:"item"`
-	Signature   string `json:"signature"`
-	Certificate string `json:"certificate"`
+	Item        string `json:"item"`        // base64-encoded StItem
+	Signature   string `json:"signature"`   // base64-encoded DigitallySigned
+	Certificate string `json:"certificate"` // base64-encoded X.509 certificate
 }
 
 // GetEntriesRequest is a collection of get-entry input parameters
 type GetEntriesRequest struct {
-	Start int64 `json:"start"`
-	End   int64 `json:"end"`
+	Start int64 `json:"start"` // 0-based and inclusive start-index
+	End   int64 `json:"end"`   // 0-based and inclusive end-index
 }
 
 // GetProofByHashRequest is a collection of get-proof-by-hash input parameters
 type GetProofByHashRequest struct {
-	Hash     []byte `json:"hash"`
-	TreeSize int64  `json:"tree_size"`
+	Hash     []byte `json:"hash"`      // base64-encoded leaf hash
+	TreeSize int64  `json:"tree_size"` // Tree head size to base proof on
 }
 
 // GetEntryResponse is an assembled log entry and its associated appendix
@@ -45,6 +47,27 @@ type GetEntriesResponse struct {
 // GetProofByHashResponse is an assembled inclusion proof response
 type GetProofByHashResponse struct {
 	InclusionProof string `json:"inclusion_proof"` // base64-encoded StItem
+}
+
+// NewAddEntryRequest parses and sanitizes the JSON-encoded add-entry
+// parameters from an incoming HTTP post.  The resulting AddEntryRequest is
+// well-formed, but not necessarily trusted (further sanitization is needed).
+func NewAddEntryRequest(r *http.Request) (AddEntryRequest, error) {
+	var ret AddEntryRequest
+	if err := UnpackJsonPost(r, &ret); err != nil {
+		return ret, err
+	}
+
+	item, err := StItemFromB64(ret.Item)
+	if err != nil {
+		return ret, fmt.Errorf("failed decoding StItem: %v", err)
+	}
+	if item.Format != StFormatChecksumV1 {
+		return ret, fmt.Errorf("invalid StItem format: %s", item.Format)
+	}
+	// TODO: verify that we got a checksum length
+	// TODO: verify that we got a signature and certificate
+	return ret, nil
 }
 
 // NewGetEntriesRequest parses and sanitizes the URL-encoded get-entries
@@ -116,4 +139,25 @@ func NewGetProofByHashResponse(treeSize uint64, inclusionProof *trillian.Proof) 
 	return &GetProofByHashResponse{
 		InclusionProof: base64.StdEncoding.EncodeToString(b),
 	}, nil
+}
+
+// VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should
+// be inserted into the log.  If so, the serialized leaf value is returned.
+func VerifyAddEntryRequest(r AddEntryRequest) ([]byte, error) {
+	item, _ := StItemFromB64(r.Item) // r.Item is a well-formed ChecksumV1
+	// TODO: verify r.Signature and r.Certificate
+	leaf, _ := tls.Marshal(item) // again, r.Item is well-formed
+	return leaf, nil
+}
+
+// UnpackJsonPost unpacks a json-encoded HTTP POST request into `unpack`
+func UnpackJsonPost(r *http.Request, unpack interface{}) error {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return fmt.Errorf("failed reading request body: %v", err)
+	}
+	if err := json.Unmarshal(body, &unpack); err != nil {
+		return fmt.Errorf("failed parsing json body: %v", err)
+	}
+	return nil
 }
