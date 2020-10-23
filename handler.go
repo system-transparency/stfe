@@ -115,9 +115,8 @@ func unpackRequest(r *http.Request, unpack interface{}) error {
 // getEntries provides a list of entries from the Trillian backend
 func getEntries(ctx context.Context, i *instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.Info("in getEntries")
-
-	var request GetEntriesRequest
-	if err := request.Unpack(r); err != nil {
+	request, err := NewGetEntriesRequest(r)
+	if err != nil {
 		return http.StatusBadRequest, err
 	}
 

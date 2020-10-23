@@ -9,27 +9,18 @@ import (
 )
 
 func ExampleNewChecksumV1() {
-	name := "foobar-1.2.3"
+	name := []byte("foobar-1.2.3")
 	hasher := sha256.New()
 	hasher.Write([]byte(name))
 	checksum := hasher.Sum(nil) // hash of package name
 
-	item, err := NewChecksumV1(name, checksum)
-	if err != nil {
-		fmt.Printf("failed creating checksum item: %v", err)
-		return
-	}
+	item := NewChecksumV1(name, checksum)
 	fmt.Printf("%s\n", item)
-	// Output: checksum_v1 foobar-1.2.3 UOeWe84malBvj2FLtQlr66WA0gUEa5GPR9I7LsYm114=
+	// Output: Format(checksum_v1): Package(foobar-1.2.3) Checksum(UOeWe84malBvj2FLtQlr66WA0gUEa5GPR9I7LsYm114=)
 }
 
 func ExampleMarshalChecksumV1() {
-	item, err := NewChecksumV1("foobar-1.2.3", make([]byte, 32))
-	if err != nil {
-		fmt.Printf("failed creating checksum item: %v", err)
-		return
-	}
-
+	item := NewChecksumV1([]byte("foobar-1.2.3"), make([]byte, 32))
 	b, err := tls.Marshal(item)
 	if err != nil {
 		fmt.Printf("tls.Marshal() failed: %v", err)
@@ -52,5 +43,5 @@ func ExampleUnmarshalChecksumV1() {
 		return
 	}
 	fmt.Printf("%v\n", item)
-	// Output: checksum_v1 foobar-1.2.3 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+	// Output: Format(checksum_v1): Package(foobar-1.2.3) Checksum(AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=)
 }

@@ -2,10 +2,8 @@ package stfe
 
 import (
 	"fmt"
-	"strconv"
 
 	"encoding/base64"
-	"net/http"
 
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/trillian"
@@ -22,6 +20,62 @@ const (
 	StFormatInclusionProofV1   StFormat = 4
 	StFormatChecksumV1                  = 5
 )
+
+// StItem references a versioned item based on a given format specifier.
+type StItem struct {
+	Format           StFormat          `tls:"maxval:65535"`
+	InclusionProofV1 *InclusionProofV1 `tls:"selector:Format,val:4"`
+	ChecksumV1       *ChecksumV1       `tls:"selector:Format,val:5"`
+	// TODO: add more items
+}
+
+// ChecksumV1 associates a package name with an arbitrary checksum value
+type ChecksumV1 struct {
+	Package  []byte `tls:"minlen:0,maxlen:255"`
+	Checksum []byte `tls:"minlen:32,maxlen:255"`
+}
+
+// InclusionProofV1 is a Merkle tree inclusion proof, see RFC 6962/bis (§4.12)
+type InclusionProofV1 struct {
+	LogID         []byte `tls:"minlen:2,maxlen:127"`
+	TreeSize      uint64
+	LeafIndex     uint64
+	InclusionPath []NodeHash `tls:"minlen:1,maxlen:65535"`
+}
+
+// NodeHash is a hashed Merkle tree node, see RFC 6962/bis (§4.9)
+type NodeHash struct {
+	Data []byte `tls:"minlen:32,maxlen:255"`
+}
+
+// NewChecksumV1 creates a new StItem of type checksum_v1
+func NewChecksumV1(identifier []byte, checksum []byte) StItem {
+	return StItem{
+		Format: StFormatChecksumV1,
+		ChecksumV1: &ChecksumV1{
+			Package:  identifier,
+			Checksum: checksum,
+		},
+	}
+}
+
+// NewInclusionProofV1 creates a new StItem of type inclusion_proof_v1
+func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) StItem {
+	inclusionPath := make([]NodeHash, 0, len(proof.Hashes))
+	for _, hash := range proof.Hashes {
+		inclusionPath = append(inclusionPath, NodeHash{Data: hash})
+	}
+
+	return StItem{
+		Format: StFormatInclusionProofV1,
+		InclusionProofV1: &InclusionProofV1{
+			LogID:         logID,
+			TreeSize:      treeSize,
+			LeafIndex:     uint64(proof.LeafIndex),
+			InclusionPath: inclusionPath,
+		},
+	}
+}
 
 func (f StFormat) String() string {
 	switch f {
@@ -42,23 +96,31 @@ func (f StFormat) String() string {
 	}
 }
 
-// StItem references a versioned item based on a given format specifier.
-type StItem struct {
-	Format           StFormat          `tls:"maxval:65535"`
-	InclusionProofV1 *InclusionProofV1 `tls:"selector:Format,val:4"`
-	ChecksumV1       *ChecksumV1       `tls:"selector:Format,val:5"`
-	// TODO: add more items
-}
-
 func (i StItem) String() string {
 	switch i.Format {
 	case StFormatChecksumV1:
-		return fmt.Sprintf("%s %s", i.Format, *i.ChecksumV1)
+		return fmt.Sprintf("Format(%s): %s", i.Format, *i.ChecksumV1)
+	case StFormatInclusionProofV1:
+		return fmt.Sprintf("Format(%s): %s", i.Format, *i.InclusionProofV1)
 	default:
 		return fmt.Sprintf("unknown StItem: %s", i.Format)
 	}
 }
 
+func (i ChecksumV1) String() string {
+	return fmt.Sprintf("Package(%v) Checksum(%v)", string(i.Package), base64.StdEncoding.EncodeToString(i.Checksum))
+}
+
+func (i InclusionProofV1) String() string {
+	path := make([]string, 0, len(i.InclusionPath))
+	for _, hash := range i.InclusionPath {
+		path = append(path, base64.StdEncoding.EncodeToString(hash.Data))
+	}
+
+	return fmt.Sprintf("LogID(%s) TreeSize(%d) LeafIndex(%d) AuditPath(%v)", base64.StdEncoding.EncodeToString(i.LogID), i.TreeSize, i.LeafIndex, path)
+}
+
+// StItemFromB64 creates an StItem from a serialized and base64-encoded string
 func StItemFromB64(s string) (*StItem, error) {
 	b, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
@@ -73,154 +135,4 @@ func StItemFromB64(s string) (*StItem, error) {
 		return nil, fmt.Errorf("tls unmarshal found extra data: %v", extra)
 	}
 	return &item, nil
-}
-
-// ChecksumV1 associates a package name with an arbitrary checksum value
-type ChecksumV1 struct {
-	Package  []byte `tls:"minlen:0,maxlen:255"`
-	Checksum []byte `tls:"minlen:32,maxlen:255"`
-}
-
-// NewChecksumV1 creates a new StItem of type checksum_v1
-func NewChecksumV1(name string, checksum []byte) (StItem, error) {
-	return StItem{
-		Format: StFormatChecksumV1,
-		ChecksumV1: &ChecksumV1{
-			Package:  []byte(name),
-			Checksum: checksum,
-		},
-	}, nil // TODO: error handling
-}
-
-func (i ChecksumV1) String() string {
-	return fmt.Sprintf("%v %v", string(i.Package), base64.StdEncoding.EncodeToString(i.Checksum))
-}
-
-type NodeHash struct {
-	Data []byte `tls:"minlen:32,maxlen:255"`
-}
-
-type InclusionProofV1 struct {
-	LogID         []byte `tls:"minlen:2,maxlen:127"`
-	TreeSize      uint64
-	LeafIndex     uint64
-	InclusionPath []NodeHash `tls:"minlen:1,maxlen:65535"`
-}
-
-func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) StItem {
-	inclusionPath := make([]NodeHash, 0, len(proof.Hashes))
-	for _, hash := range proof.Hashes {
-		inclusionPath = append(inclusionPath, NodeHash{Data: hash})
-	}
-
-	return StItem{
-		Format: StFormatInclusionProofV1,
-		InclusionProofV1: &InclusionProofV1{
-			LogID:         logID,
-			TreeSize:      treeSize,
-			LeafIndex:     uint64(proof.LeafIndex),
-			InclusionPath: inclusionPath,
-		},
-	}
-}
-
-// AddEntryRequest is a collection of add-entry input parameters
-type AddEntryRequest struct {
-	Item        string `json:"item"`
-	Signature   string `json:"signature"`
-	Certificate string `json:"certificate"`
-}
-
-// GetEntriesRequest is a collection of get-entry input parameters
-type GetEntriesRequest struct {
-	Start int64
-	End   int64
-}
-
-func (r *GetEntriesRequest) Unpack(httpRequest *http.Request) error {
-	var err error
-
-	r.Start, err = strconv.ParseInt(httpRequest.FormValue("start"), 10, 64)
-	if err != nil {
-		return fmt.Errorf("bad start parameter: %v", err)
-	}
-	r.End, err = strconv.ParseInt(httpRequest.FormValue("end"), 10, 64)
-	if err != nil {
-		return fmt.Errorf("bad end parameter: %v", err)
-	}
-
-	if r.Start < 0 {
-		return fmt.Errorf("bad parameters: start(%v) must have a non-negative value", r.Start)
-	}
-	if r.Start > r.End {
-		return fmt.Errorf("bad parameters: start(%v) must be larger than end(%v)", r.Start, r.End)
-	}
-	// TODO: check that range is not larger than the max range. Yes -> truncate
-	// TODO: check that end is not past the most recent STH. Yes -> truncate
-	return nil
-}
-
-type GetEntryResponse struct {
-	Leaf      string   `json:"leaf"`
-	Signature string   `json:"signature"`
-	Chain     []string `json:chain`
-}
-
-func NewGetEntryResponse(leaf []byte) GetEntryResponse {
-	return GetEntryResponse{
-		Leaf: base64.StdEncoding.EncodeToString(leaf),
-		// TODO: add signature and chain
-	}
-}
-
-type GetEntriesResponse struct {
-	Entries []GetEntryResponse `json:"entries"`
-}
-
-func NewGetEntriesResponse(leaves []*trillian.LogLeaf) (GetEntriesResponse, error) {
-	entries := make([]GetEntryResponse, 0, len(leaves))
-	for _, leaf := range leaves {
-		entries = append(entries, NewGetEntryResponse(leaf.GetLeafValue())) // TODO: add signature and chain
-	}
-	return GetEntriesResponse{entries}, nil
-}
-
-type GetProofByHashRequest struct {
-	Hash     []byte
-	TreeSize int64
-}
-
-func NewGetProofByHashRequest(httpRequest *http.Request) (*GetProofByHashRequest, error) {
-	var r GetProofByHashRequest
-	var err error
-
-	r.TreeSize, err = strconv.ParseInt(httpRequest.FormValue("tree_size"), 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("bad tree_size parameter: %v", err)
-	}
-	if r.TreeSize < 0 {
-		return nil, fmt.Errorf("bad tree_size parameter: negative value")
-	}
-	// TODO: check that tree size is not past STH.tree_size
-
-	r.Hash, err = base64.StdEncoding.DecodeString(httpRequest.FormValue("hash"))
-	if err != nil {
-		return nil, fmt.Errorf("bad hash parameter: %v", err)
-	}
-	return &r, nil
-}
-
-type GetProofByHashResponse struct {
-	InclusionProof string `json:"inclusion_proof"`
-}
-
-func NewGetProofByHashResponse(treeSize uint64, inclusionProof *trillian.Proof) (*GetProofByHashResponse, error) {
-	item := NewInclusionProofV1([]byte("TODO: add log ID"), treeSize, inclusionProof)
-	b, err := tls.Marshal(item)
-	if err != nil {
-		return nil, fmt.Errorf("tls marshal failed: %v", err)
-	}
-	return &GetProofByHashResponse{
-		InclusionProof: base64.StdEncoding.EncodeToString(b),
-	}, nil
 }
