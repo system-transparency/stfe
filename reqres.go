@@ -34,7 +34,7 @@ type GetProofByHashRequest struct {
 type GetEntryResponse struct {
 	Leaf      string   `json:"leaf"`      // base64-encoded StItem
 	Signature string   `json:"signature"` // base64-encoded DigitallySigned
-	Chain     []string `json:chain`       // base64-encoded X.509 certificates
+	Chain     []string `json:"chain"`     // base64-encoded X.509 certificates
 }
 
 // GetEntriesResponse is an assembled get-entries responses
