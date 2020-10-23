@@ -6,8 +6,8 @@ import (
 
 	"encoding/base64"
 	"encoding/json"
-	"net/http"
 	"io/ioutil"
+	"net/http"
 
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/trillian"
