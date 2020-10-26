@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
@@ -185,10 +187,24 @@ func VerifyAddEntryRequest(anchors ctfe.CertValidationOpts, r AddEntryRequest) (
 	if err != nil {
 		return nil, fmt.Errorf("failed decoding signature: %v", err)
 	}
-	if err := c.CheckSignature(c.SignatureAlgorithm, leaf, signature); err != nil {
+
+	var algo x509.SignatureAlgorithm
+	switch t := c.PublicKey.(type) {
+	case *rsa.PublicKey:
+		algo = x509.SHA256WithRSA
+	case *ecdsa.PublicKey:
+		algo = x509.ECDSAWithSHA256
+	default:
+		return nil, fmt.Errorf("unsupported public key algorithm: %v", t)
+	}
+
+	if err := c.CheckSignature(algo, leaf, signature); err != nil {
 		return nil, fmt.Errorf("invalid signature: %v", err)
 	}
 
+	// TODO: update doc of what signature "is", i.e., w/e x509 does
+	// TODO: doc in markdown/api.md what signature schemes we expect
+	// TODO: return sig + chain
 	return leaf, nil
 }
 

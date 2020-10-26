@@ -23,7 +23,7 @@ var (
 	prefix         = flag.String("prefix", "/st/v1", "a prefix that proceeds each endpoint path")
 	trillianID     = flag.Int64("trillian_id", 5991359069696313945, "log identifier in the Trillian database")
 	rpcDeadline    = flag.Duration("rpc_deadline", time.Second*10, "deadline for backend RPC requests")
-	anchorsPemFile = flag.String("anchors_file", "testdata/anchors.pem", "path to a file containing PEM-encoded X.509 root certificates")
+	anchorsPemFile = flag.String("anchors_file", "testdata/chain/rgdd-root.pem", "path to a file containing PEM-encoded X.509 root certificates")
 )
 
 func main() {
