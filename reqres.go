@@ -158,23 +158,37 @@ func NewGetAnchorsResponse(anchors []*x509.Certificate) GetAnchorsResponse {
 
 // VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should
 // be inserted into the log.  If so, the serialized leaf value is returned.
-func VerifyAddEntryRequest(a ctfe.CertValidationOpts, r AddEntryRequest) ([]byte, error) {
-	item, _ := StItemFromB64(r.Item) // r.Item is a well-formed ChecksumV1
-	leaf, _ := tls.Marshal(item)     // again, r.Item is well-formed
+func VerifyAddEntryRequest(anchors ctfe.CertValidationOpts, r AddEntryRequest) ([]byte, error) {
+	item, err := StItemFromB64(r.Item)
+	if err != nil {
+		fmt.Errorf("failed decoding StItem: %v", err)
+	}
 
-	chainBytes, err := base64.StdEncoding.DecodeString(r.Certificate)
+	leaf, err := tls.Marshal(item)
+	if err != nil {
+		return nil, fmt.Errorf("failed tls marshaling StItem: %v", err)
+	}
+
+	certificate, err := base64.StdEncoding.DecodeString(r.Certificate)
 	if err != nil {
 		return nil, fmt.Errorf("failed decoding certificate: %v", err)
 	}
-
 	chain := make([][]byte, 0, 1)
-	chain = append(chain, chainBytes)
-	_, err = ctfe.ValidateChain(chain, a)
+	chain = append(chain, certificate)
+	x509chain, err := ctfe.ValidateChain(chain, anchors)
 	if err != nil {
 		return nil, fmt.Errorf("chain verification failed: %v", err)
 	}
+	c := x509chain[0]
 
-	// TODO: verify signature
+	signature, err := base64.StdEncoding.DecodeString(r.Signature)
+	if err != nil {
+		return nil, fmt.Errorf("failed decoding signature: %v", err)
+	}
+	if err := c.CheckSignature(c.SignatureAlgorithm, leaf, signature); err != nil {
+		return nil, fmt.Errorf("invalid signature: %v", err)
+	}
+
 	return leaf, nil
 }
 
