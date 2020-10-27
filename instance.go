@@ -2,9 +2,11 @@ package stfe
 
 import (
 	"crypto"
-	"crypto/x509"
 	"fmt"
 	"time"
+
+	"crypto/x509"
+	"crypto/sha256"
 
 	"encoding/base64"
 	"net/http"
@@ -42,11 +44,24 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 }
 
 // NewLogParameters returns an initialized LogParameters
-func NewLogParameters(logId []byte, treeId int64, prefix string, anchorPath string) (*LogParameters, error) {
+func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (*LogParameters, error) {
 	anchorList, anchorPool, err := LoadTrustAnchors(anchorPath)
 	if err != nil {
 		return nil, err
 	}
+
+	key, err := LoadEd25519SigningKey(keyPath)
+	if err != nil {
+		return nil, err
+	}
+
+	pub, err := x509.MarshalPKIXPublicKey(key.Public())
+	if err != nil {
+		return nil, fmt.Errorf("failed DER encoding SubjectPublicKeyInfo: %v", err)
+	}
+	hasher := sha256.New()
+	hasher.Write(pub)
+	logId := hasher.Sum(nil)
 
 	return &LogParameters{
 		LogId:      logId,
@@ -54,6 +69,7 @@ func NewLogParameters(logId []byte, treeId int64, prefix string, anchorPath stri
 		Prefix:     prefix,
 		AnchorPool: anchorPool,
 		AnchorList: anchorList,
+		Signer:     key,
 	}, nil
 }
 

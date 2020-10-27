@@ -31,3 +31,5 @@ popd >/dev/null
 
 info "sending add-entry request"
 curl --header "application/json" --request POST --data $json $base_url/add-entry
+newline
+# TODO: try decoding and verifying signature

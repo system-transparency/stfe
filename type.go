@@ -25,6 +25,7 @@ const (
 // StItem references a versioned item based on a given format specifier.
 type StItem struct {
 	Format           StFormat          `tls:"maxval:65535"`
+	SignedDebugInfoV1 *SignedDebugInfoV1 `tls:"selector:Format,val:2"`
 	InclusionProofV1 *InclusionProofV1 `tls:"selector:Format,val:4"`
 	ChecksumV1       *ChecksumV1       `tls:"selector:Format,val:5"`
 	// TODO: add more items
@@ -44,9 +45,30 @@ type InclusionProofV1 struct {
 	InclusionPath []NodeHash `tls:"minlen:1,maxlen:65535"`
 }
 
+// SignedDebugInfoV1 is a signed statement that we intend (but do not promise)
+// to insert an entry into the log.  Only Ed25519 signatures are supported.
+// TODO: double-check that crypto/ed25519 encodes signature as in RFC 8032
+// TODO: need to think about signature format, then update markdown/api.md
+type SignedDebugInfoV1 struct {
+	LogId []byte `tls:"minlen:32,maxlen:127"`
+	Message []byte `tls:"minlen:0,maxlen:65535"`
+	Signature []byte `tls:"minlen:0,maxlen:65535"` // defined in RFC 8032
+}
+
 // NodeHash is a hashed Merkle tree node, see RFC 6962/bis (§4.9)
 type NodeHash struct {
 	Data []byte `tls:"minlen:32,maxlen:255"`
+}
+
+func NewSignedDebugInfoV1(logId, message, signature []byte) StItem {
+	return StItem{
+		Format: StFormatSignedDebugInfoV1,
+		SignedDebugInfoV1: &SignedDebugInfoV1{
+			LogId: logId,
+			Message: message,
+			Signature: signature,
+		},
+	}
 }
 
 // NewChecksumV1 creates a new StItem of type checksum_v1
@@ -103,9 +125,15 @@ func (i StItem) String() string {
 		return fmt.Sprintf("Format(%s): %s", i.Format, *i.ChecksumV1)
 	case StFormatInclusionProofV1:
 		return fmt.Sprintf("Format(%s): %s", i.Format, *i.InclusionProofV1)
+	case StFormatSignedDebugInfoV1:
+		return fmt.Sprintf("Format(%s): %s", i.Format, *i.SignedDebugInfoV1)
 	default:
 		return fmt.Sprintf("unknown StItem: %s", i.Format)
 	}
+}
+
+func (i SignedDebugInfoV1) String() string {
+	return fmt.Sprintf("LogId(%s) Message(%s) Signature(%s)", base64.StdEncoding.EncodeToString(i.LogId), string(i.Message), base64.StdEncoding.EncodeToString(i.Signature))
 }
 
 func (i ChecksumV1) String() string {

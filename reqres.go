@@ -33,6 +33,11 @@ type GetProofByHashRequest struct {
 	TreeSize int64  `json:"tree_size"` // Tree head size to base proof on
 }
 
+// AddEntryResponse is an assembled add-entry response
+type AddEntryResponse struct {
+	SignedDebugInfo string `json:"sdi"`
+}
+
 // GetEntryResponse is an assembled log entry and its associated appendix
 type GetEntryResponse struct {
 	Leaf      string   `json:"leaf"`      // base64-encoded StItem
@@ -116,6 +121,17 @@ func NewGetProofByHashRequest(httpRequest *http.Request) (GetProofByHashRequest,
 		return GetProofByHashRequest{}, fmt.Errorf("bad hash parameter: %v", err)
 	}
 	return GetProofByHashRequest{TreeSize: treeSize, Hash: hash}, nil
+}
+
+// NewAddEntryResponse assembles an add-entry response from an SDI
+func NewAddEntryResponse(sdi StItem) (AddEntryResponse, error) {
+	b, err := tls.Marshal(sdi)
+	if err != nil {
+		return AddEntryResponse{}, fmt.Errorf("tls marshal failed: %v", err)
+	}
+	return AddEntryResponse{
+		SignedDebugInfo: base64.StdEncoding.EncodeToString(b),
+	}, nil
 }
 
 // NewGetEntryResponse assembles a log entry and its appendix

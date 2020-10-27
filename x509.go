@@ -3,6 +3,9 @@ package stfe
 import (
 	"fmt"
 
+	"crypto"
+	"crypto/rand"
+	"crypto/ed25519"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
@@ -44,6 +47,38 @@ func LoadTrustAnchors(path string) ([]*x509.Certificate, *x509.CertPool, error) 
 	return anchors, pool, nil
 }
 
+
+func LoadEd25519SigningKey(path string) (ed25519.PrivateKey, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading private key: %v", err)
+	}
+
+	var block *pem.Block
+	block, data = pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("private key not loaded")
+	}
+	if block.Type != "PRIVATE KEY" {
+		return nil, fmt.Errorf("unexpected PEM block type: %s", block.Type)
+	}
+	if len(data) != 0 {
+		return nil, fmt.Errorf("trailing data found after key: %v", data)
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed parsing signing key: %v", err)
+	}
+
+	switch t := key.(type) {
+	case ed25519.PrivateKey:
+		return key.(ed25519.PrivateKey), nil
+	default:
+		return nil, fmt.Errorf("unexpected signing key type: %v", t)
+	}
+}
+
 func VerifyChain(ld *LogParameters, certificate *x509.Certificate) ([]*x509.Certificate, error) {
 	opts := x509.VerifyOptions{
 		Roots:     ld.AnchorPool,
@@ -75,4 +110,14 @@ func VerifySignature(leaf, signature []byte, certificate *x509.Certificate) erro
 		return fmt.Errorf("invalid signature: %v", err)
 	}
 	return nil
+}
+
+
+func GenV1SDI(ld *LogParameters, leaf []byte) (StItem, error) {
+	// Note that ed25519 does not use the passed io.Reader
+	sig, err := ld.Signer.Sign(rand.Reader, leaf, crypto.Hash(0))
+	if err != nil {
+		return StItem{}, fmt.Errorf("ed25519 signature failed: %v", err)
+	}
+	return NewSignedDebugInfoV1(ld.LogId, []byte("reserved"), sig), nil
 }

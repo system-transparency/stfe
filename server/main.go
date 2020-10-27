@@ -20,6 +20,7 @@ var (
 	trillianID   = flag.Int64("trillian_id", 5991359069696313945, "log identifier in the Trillian database")
 	rpcDeadline  = flag.Duration("rpc_deadline", time.Second*10, "deadline for backend RPC requests")
 	anchorPath   = flag.String("anchor_path", "testdata/chain/rgdd-root.pem", "path to a file containing PEM-encoded X.509 root certificates")
+	keyPath = flag.String("key_path", "testdata/chain/stfe.key", "path to a PEM-encoded ed25519 signing key")
 )
 
 func main() {
@@ -37,7 +38,7 @@ func main() {
 	mux := http.NewServeMux()
 	http.Handle("/", mux)
 
-	lp, err := stfe.NewLogParameters([]byte("rgdd"), *trillianID, *prefix, *anchorPath)
+	lp, err := stfe.NewLogParameters(*trillianID, *prefix, *anchorPath, *keyPath)
 	if err != nil {
 		glog.Fatalf("failed setting up log parameters: %v", err)
 	}

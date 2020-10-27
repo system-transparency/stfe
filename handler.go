@@ -68,7 +68,18 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 	} // note: more detail could be provided here, see addChainInternal in ctfe
 	glog.Infof("Queued leaf: %v", trillianResponse.QueuedLeaf.Leaf.LeafValue)
 
-	// TODO: respond with an SDI
+	sdi, err := GenV1SDI(i.LogParameters, trillianResponse.QueuedLeaf.Leaf.LeafValue)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed creating signed debug info: %v", err)
+	}
+
+	response, err := NewAddEntryResponse(sdi)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed creating AddEntryResponse: %v", err)
+	}
+	if err := WriteJsonResponse(response, w); err != nil {
+		return http.StatusInternalServerError, err
+	}
 	return http.StatusOK, nil
 }
 
