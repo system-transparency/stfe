@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -eo pipefail
+source config
+
+info "downloading trust anchors"
+curl -G $url
+newline

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -eo pipefail
+source config
+
+tree_size=2
+hash_b64="Fl5eY9cAOz9A9c9j3Uibia3YfBxeGH5KQJg5BMIqNrA="
+if [[ ! -z $1 ]] && [[ ! -z $2 ]]; then
+	tree_size=$1
+	hash_b64=$2
+fi
+
+info "fetching proof($hash_b64) against size $tree_size"
+curl -G -d "tree_size=$tree_size" -d "hash=$hash_b64" $base_url/get-proof-by-hash
+newline

@@ -1,20 +1,20 @@
 #!/bin/bash
 
 set -eo pipefail
+source config
 
 algo=ecdsa
 key_path="../chain/rgdd-$algo.key"
 cert_path="../chain/rgdd-$algo.pem"
-name="foobar-0.0.1"
+name="foobar-1.2.3"
 
 if [[ ! -z $1 ]]; then
 	name=$1
 fi
-echo "[Info] package name: $name" >&2
+info "package name: $name"
 
-
-echo "[Info] generating StItem and signature..." >&2
 pushd ../entry >/dev/null
+	info "generating base64-encoded StItem and signature"
 	go run . --dir stitem --name $name
 	openssl dgst -sha256 -sign $key_path -out stitem/$name.sig stitem/$name
 	openssl base64 -A -in stitem/$name -out stitem/$name.b64
@@ -29,6 +29,5 @@ pushd ../entry >/dev/null
 	rm -f stitem/$name{,.sig,.b64,.sig.b64}
 popd >/dev/null
 
-echo "[Info] doing add-entry request"
-curl --header "application/json" --request POST --data $json\
-	localhost:6965/st/v1/add-entry
+info "sending add-entry request"
+curl --header "application/json" --request POST --data $json $base_url/add-entry

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -eo pipefail
+source config
+
+first=0
+second=0
+if [[ ! -z $1 ]] && [[ ! -z $2 ]]; then
+	first=$1
+	second=$2
+fi
+
+info "downloading entries [$first, $second]"
+curl -G -d "start=$first" -d "end=$second" $base_url/get-entries
+newline
