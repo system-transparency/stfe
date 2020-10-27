@@ -6,14 +6,13 @@ import (
 
 	"crypto/ecdsa"
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
 
 	"github.com/google/certificate-transparency-go/tls"
-	"github.com/google/certificate-transparency-go/trillian/ctfe"
-	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/trillian"
 )
 
@@ -137,9 +136,9 @@ func NewGetEntryResponse(leaf, appendix []byte) (GetEntryResponse, error) {
 	}
 
 	return GetEntryResponse{
-		Leaf: base64.StdEncoding.EncodeToString(leaf),
+		Leaf:      base64.StdEncoding.EncodeToString(leaf),
 		Signature: base64.StdEncoding.EncodeToString(app.Signature),
-		Chain: chain,
+		Chain:     chain,
 	}, nil
 }
 
@@ -178,7 +177,7 @@ func NewGetAnchorsResponse(anchors []*x509.Certificate) GetAnchorsResponse {
 
 // VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should
 // be inserted into the log.  The corresponding leaf and appendix is returned.
-func VerifyAddEntryRequest(anchors ctfe.CertValidationOpts, r AddEntryRequest) ([]byte, []byte, error) {
+func VerifyAddEntryRequest(ld *LogParameters, r AddEntryRequest) ([]byte, []byte, error) {
 	item, err := StItemFromB64(r.Item)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed decoding StItem: %v", err)
@@ -193,13 +192,21 @@ func VerifyAddEntryRequest(anchors ctfe.CertValidationOpts, r AddEntryRequest) (
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed decoding certificate: %v", err)
 	}
-	chain := make([][]byte, 0, 1)
-	chain = append(chain, certificate)
-	x509chain, err := ctfe.ValidateChain(chain, anchors)
+	c, err := x509.ParseCertificate(certificate)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed decoding certificate: %v", err)
+	}
+	opts := x509.VerifyOptions{
+		Roots: ld.AnchorPool,
+	}
+	chains, err := c.Verify(opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("chain verification failed: %v", err)
 	}
-	c := x509chain[0]
+	if len(chains) == 0 {
+		return nil, nil, fmt.Errorf("chain verification failed: no chain")
+	}
+	x509chain := chains[0]
 
 	signature, err := base64.StdEncoding.DecodeString(r.Signature)
 	if err != nil {
