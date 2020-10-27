@@ -39,7 +39,7 @@ type GetProofByHashRequest struct {
 // GetEntryResponse is an assembled log entry and its associated appendix
 type GetEntryResponse struct {
 	Leaf      string   `json:"leaf"`      // base64-encoded StItem
-	Signature string   `json:"signature"` // base64-encoded DigitallySigned
+	Signature string   `json:"signature"` // base64-encoded signature
 	Chain     []string `json:"chain"`     // base64-encoded X.509 certificates
 }
 
@@ -122,18 +122,36 @@ func NewGetProofByHashRequest(httpRequest *http.Request) (GetProofByHashRequest,
 }
 
 // NewGetEntryResponse assembles a log entry and its appendix
-func NewGetEntryResponse(leaf []byte) GetEntryResponse {
+func NewGetEntryResponse(leaf, appendix []byte) (GetEntryResponse, error) {
+	var app Appendix
+	extra, err := tls.Unmarshal(appendix, &app)
+	if err != nil {
+		return GetEntryResponse{}, fmt.Errorf("failed tls unmarshaling appendix: %v (%v)", err, extra)
+	} else if len(extra) > 0 {
+		return GetEntryResponse{}, fmt.Errorf("tls umarshal found extra data for appendix: %v", extra)
+	}
+
+	chain := make([]string, 0, len(app.Chain))
+	for _, c := range app.Chain {
+		chain = append(chain, base64.StdEncoding.EncodeToString(c.Data))
+	}
+
 	return GetEntryResponse{
 		Leaf: base64.StdEncoding.EncodeToString(leaf),
-		// TODO: add signature and chain
-	}
+		Signature: base64.StdEncoding.EncodeToString(app.Signature),
+		Chain: chain,
+	}, nil
 }
 
 // NewGetEntriesResponse assembles a get-entries response
 func NewGetEntriesResponse(leaves []*trillian.LogLeaf) (GetEntriesResponse, error) {
 	entries := make([]GetEntryResponse, 0, len(leaves))
 	for _, leaf := range leaves {
-		entries = append(entries, NewGetEntryResponse(leaf.GetLeafValue())) // TODO: add signature and chain
+		entry, err := NewGetEntryResponse(leaf.GetLeafValue(), leaf.GetExtraData())
+		if err != nil {
+			return GetEntriesResponse{}, err
+		}
+		entries = append(entries, entry)
 	}
 	return GetEntriesResponse{entries}, nil
 }
@@ -159,33 +177,33 @@ func NewGetAnchorsResponse(anchors []*x509.Certificate) GetAnchorsResponse {
 }
 
 // VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should
-// be inserted into the log.  If so, the serialized leaf value is returned.
-func VerifyAddEntryRequest(anchors ctfe.CertValidationOpts, r AddEntryRequest) ([]byte, error) {
+// be inserted into the log.  The corresponding leaf and appendix is returned.
+func VerifyAddEntryRequest(anchors ctfe.CertValidationOpts, r AddEntryRequest) ([]byte, []byte, error) {
 	item, err := StItemFromB64(r.Item)
 	if err != nil {
-		fmt.Errorf("failed decoding StItem: %v", err)
+		return nil, nil, fmt.Errorf("failed decoding StItem: %v", err)
 	}
 
 	leaf, err := tls.Marshal(item)
 	if err != nil {
-		return nil, fmt.Errorf("failed tls marshaling StItem: %v", err)
+		return nil, nil, fmt.Errorf("failed tls marshaling StItem: %v", err)
 	}
 
 	certificate, err := base64.StdEncoding.DecodeString(r.Certificate)
 	if err != nil {
-		return nil, fmt.Errorf("failed decoding certificate: %v", err)
+		return nil, nil, fmt.Errorf("failed decoding certificate: %v", err)
 	}
 	chain := make([][]byte, 0, 1)
 	chain = append(chain, certificate)
 	x509chain, err := ctfe.ValidateChain(chain, anchors)
 	if err != nil {
-		return nil, fmt.Errorf("chain verification failed: %v", err)
+		return nil, nil, fmt.Errorf("chain verification failed: %v", err)
 	}
 	c := x509chain[0]
 
 	signature, err := base64.StdEncoding.DecodeString(r.Signature)
 	if err != nil {
-		return nil, fmt.Errorf("failed decoding signature: %v", err)
+		return nil, nil, fmt.Errorf("failed decoding signature: %v", err)
 	}
 
 	var algo x509.SignatureAlgorithm
@@ -195,17 +213,21 @@ func VerifyAddEntryRequest(anchors ctfe.CertValidationOpts, r AddEntryRequest) (
 	case *ecdsa.PublicKey:
 		algo = x509.ECDSAWithSHA256
 	default:
-		return nil, fmt.Errorf("unsupported public key algorithm: %v", t)
+		return nil, nil, fmt.Errorf("unsupported public key algorithm: %v", t)
 	}
 
 	if err := c.CheckSignature(algo, leaf, signature); err != nil {
-		return nil, fmt.Errorf("invalid signature: %v", err)
+		return nil, nil, fmt.Errorf("invalid signature: %v", err)
 	}
-
 	// TODO: update doc of what signature "is", i.e., w/e x509 does
 	// TODO: doc in markdown/api.md what signature schemes we expect
-	// TODO: return sig + chain
-	return leaf, nil
+
+	appendix, err := tls.Marshal(NewAppendix(x509chain, signature))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed tls marshaling appendix: %v", err)
+	}
+
+	return leaf, appendix, nil
 }
 
 // UnpackJsonPost unpacks a json-encoded HTTP POST request into `unpack`

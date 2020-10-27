@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 
 	"github.com/google/certificate-transparency-go/tls"
+	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/trillian"
 )
 
@@ -135,4 +136,24 @@ func StItemFromB64(s string) (StItem, error) {
 		return StItem{}, fmt.Errorf("tls unmarshal found extra data: %v", extra)
 	}
 	return item, nil
+}
+
+// Appendix is extra data that Trillian can store about a leaf
+type Appendix struct {
+	Signature []byte `tls:"minlen:0,maxlen:16383"`
+	Chain []RawCertificate `tls:"minlen:0,maxlen:65535"`
+}
+
+// RawCertificate is a serialized X.509 certificate
+type RawCertificate struct {
+	Data []byte `tls:"minlen:0,maxlen:65535"`
+}
+
+// NewAppendix creates a new leaf Appendix for an X.509 chain and signature
+func NewAppendix(x509Chain []*x509.Certificate, signature []byte) Appendix {
+	chain := make([]RawCertificate, 0, 2) // TODO: base length on config param
+	for _, c := range x509Chain {
+		chain = append(chain, RawCertificate{ c.Raw })
+	}
+	return Appendix{ Signature: signature, Chain: chain }
 }

@@ -50,16 +50,16 @@ func addEntry(ctx context.Context, i *instance, w http.ResponseWriter, r *http.R
 		return http.StatusBadRequest, err
 	} // request can be decoded
 
-	leaf, err := VerifyAddEntryRequest(i.anchors, request)
+	leaf, appendix, err := VerifyAddEntryRequest(i.anchors, request)
 	if err != nil {
 		return http.StatusBadRequest, err
-	} // leaf is valid, e.g., signed by a trust anchor
+	} // valid add-entry request
 
 	trillianRequest := trillian.QueueLeafRequest{
 		LogId: i.logID,
 		Leaf: &trillian.LogLeaf{
 			LeafValue: leaf,
-			//TODO: add appendix here w/ chain + signature
+			ExtraData: appendix,
 		},
 	}
 	trillianResponse, err := i.client.QueueLeaf(ctx, &trillianRequest)
@@ -99,7 +99,7 @@ func getEntries(ctx context.Context, i *instance, w http.ResponseWriter, r *http
 			return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange returned unexpected leaf index: wanted %d, got %d", request.Start+int64(i), leaf.LeafIndex)
 		}
 
-		glog.Infof("Entry(%d) => %v", request.Start+int64(i), leaf.GetLeafValue())
+		glog.Infof("Leaf(%d) => %v", request.Start+int64(i), leaf.GetLeafValue())
 	}
 	// TODO: use the returned root for tree_size santity checking against start?
 
