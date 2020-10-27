@@ -4,5 +4,5 @@ set -eo pipefail
 source config
 
 info "downloading trust anchors"
-curl -G $url
+curl -G $base_url/get-anchors
 newline
