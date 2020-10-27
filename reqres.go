@@ -241,3 +241,17 @@ func UnpackJsonPost(r *http.Request, unpack interface{}) error {
 	}
 	return nil
 }
+
+func WriteJsonResponse(response interface{}, w http.ResponseWriter) error {
+	json, err := json.Marshal(&response)
+	if err != nil {
+		return fmt.Errorf("json-encoding failed: %v", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(json)
+	if err != nil {
+		return fmt.Errorf("failed writing json response: %v", err)
+	}
+	return nil
+}

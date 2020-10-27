@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"encoding/json"
 	"net/http"
 
 	"github.com/golang/glog"
@@ -103,18 +102,12 @@ func getEntries(ctx context.Context, i *instance, w http.ResponseWriter, r *http
 	}
 	// TODO: use the returned root for tree_size santity checking against start?
 
-	w.Header().Set("Content-Type", "application/json")
-	data, err := NewGetEntriesResponse(trillianResponse.Leaves)
+	response, err := NewGetEntriesResponse(trillianResponse.Leaves)
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed createing GetEntriesResponse: %v", err)
+		return http.StatusInternalServerError, fmt.Errorf("failed creating GetEntriesResponse: %v", err)
 	}
-	json, err := json.Marshal(&data)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed json-encoding GetEntriesResponse: %v", err)
-	}
-	_, err = w.Write(json)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed writing get-entries response: %v", err)
+	if err := WriteJsonResponse(response, w); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
 }
@@ -123,15 +116,8 @@ func getEntries(ctx context.Context, i *instance, w http.ResponseWriter, r *http
 func getAnchors(_ context.Context, i *instance, w http.ResponseWriter, _ *http.Request) (int, error) {
 	glog.Info("in getAnchors")
 	data := NewGetAnchorsResponse(i.anchorsPool.RawCertificates())
-	json, err := json.Marshal(&data)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed json-encoding GetAnchorsResponse: %v", err)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(json)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed writing get-anchors response: %v", err)
+	if err := WriteJsonResponse(data, w); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
 }
@@ -162,21 +148,14 @@ func getProofByHash(ctx context.Context, i *instance, w http.ResponseWriter, r *
 	}
 	// TODO: verify that proof is valid?
 
-	w.Header().Set("Content-Type", "application/json")
-	data, err := NewGetProofByHashResponse(uint64(request.TreeSize), trillianResponse.Proof[0])
+	response, err := NewGetProofByHashResponse(uint64(request.TreeSize), trillianResponse.Proof[0])
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating get-proof-by-hash response: %v", err)
 	}
-	json, err := json.Marshal(data)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed json-encoding GetProofByHashResponse: %v", err)
+	if err := WriteJsonResponse(response, w); err != nil {
+		return http.StatusInternalServerError, err
 	}
-	_, err = w.Write(json)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed writing get-entries response: %v", err)
-	}
-
-	return http.StatusOK, nil // TODO
+	return http.StatusOK, nil
 }
 
 // getConsistencyProof provides a consistency proof between two STHs
