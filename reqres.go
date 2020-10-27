@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -186,50 +184,33 @@ func VerifyAddEntryRequest(ld *LogParameters, r AddEntryRequest) ([]byte, []byte
 	leaf, err := tls.Marshal(item)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed tls marshaling StItem: %v", err)
-	}
+	} // leaf is the serialized data that should be added to the tree
 
-	certificate, err := base64.StdEncoding.DecodeString(r.Certificate)
+	c, err := base64.StdEncoding.DecodeString(r.Certificate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed decoding certificate: %v", err)
 	}
-	c, err := x509.ParseCertificate(certificate)
+	certificate, err := x509.ParseCertificate(c)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed decoding certificate: %v", err)
-	}
-	opts := x509.VerifyOptions{
-		Roots: ld.AnchorPool,
-	}
-	chains, err := c.Verify(opts)
+	} // certificate is the end-entity certificate that signed leaf
+
+	chain, err := VerifyChain(ld, certificate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("chain verification failed: %v", err)
-	}
-	if len(chains) == 0 {
-		return nil, nil, fmt.Errorf("chain verification failed: no chain")
-	}
-	x509chain := chains[0]
+	} // chain is a valid path to some trust anchor
 
 	signature, err := base64.StdEncoding.DecodeString(r.Signature)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed decoding signature: %v", err)
 	}
+	if err := VerifySignature(leaf, signature, certificate); err != nil {
+		return nil, nil, fmt.Errorf("signature verification failed: %v", err)
+	} // signature is valid for certificate
 
-	var algo x509.SignatureAlgorithm
-	switch t := c.PublicKey.(type) {
-	case *rsa.PublicKey:
-		algo = x509.SHA256WithRSA
-	case *ecdsa.PublicKey:
-		algo = x509.ECDSAWithSHA256
-	default:
-		return nil, nil, fmt.Errorf("unsupported public key algorithm: %v", t)
-	}
-
-	if err := c.CheckSignature(algo, leaf, signature); err != nil {
-		return nil, nil, fmt.Errorf("invalid signature: %v", err)
-	}
 	// TODO: update doc of what signature "is", i.e., w/e x509 does
 	// TODO: doc in markdown/api.md what signature schemes we expect
-
-	appendix, err := tls.Marshal(NewAppendix(x509chain, signature))
+	appendix, err := tls.Marshal(NewAppendix(chain, signature))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed tls marshaling appendix: %v", err)
 	}
