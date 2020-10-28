@@ -180,8 +180,8 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 	} // request can be decoded and is valid
 
 	trillianRequest := trillian.GetConsistencyProofRequest{
-		LogId: i.LogParameters.TreeId,
-		FirstTreeSize: int64(request.First),
+		LogId:          i.LogParameters.TreeId,
+		FirstTreeSize:  int64(request.First),
 		SecondTreeSize: int64(request.Second),
 	}
 	trillianResponse, err := i.Client.GetConsistencyProof(ctx, &trillianRequest)
@@ -220,7 +220,7 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 		return http.StatusInternalServerError, fmt.Errorf("failed unmarshaling tree head: %v", err)
 	}
 
-	th := NewTreeHeadV1(uint64(lr.TimestampNanos / 1000 / 1000), uint64(lr.TreeSize), lr.RootHash)
+	th := NewTreeHeadV1(uint64(lr.TimestampNanos/1000/1000), uint64(lr.TreeSize), lr.RootHash)
 	sth, err := GenV1STH(i.LogParameters, th)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed tree head: %v", err)

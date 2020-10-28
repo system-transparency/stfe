@@ -36,7 +36,7 @@ type GetProofByHashRequest struct {
 // GetConsistencyProofRequest is a collection of get-consistency-proof input
 // parameters
 type GetConsistencyProofRequest struct {
-	First int64 `json:"first"`
+	First  int64 `json:"first"`
 	Second int64 `json:"second"`
 }
 
@@ -156,7 +156,7 @@ func NewGetConsistencyProofRequest(httpRequest *http.Request) (GetConsistencyPro
 		return GetConsistencyProofRequest{}, fmt.Errorf("bad parameters: second(%v) must be larger than first(%v)", first, second)
 	}
 
-	return GetConsistencyProofRequest{ First: first, Second: second}, nil
+	return GetConsistencyProofRequest{First: first, Second: second}, nil
 }
 
 // NewAddEntryResponse assembles an add-entry response from an SDI

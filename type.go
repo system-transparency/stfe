@@ -25,32 +25,32 @@ const (
 
 // StItem references a versioned item based on a given format specifier.
 type StItem struct {
-	Format           StFormat          `tls:"maxval:65535"`
-	SignedTreeHeadV1 *SignedTreeHeadV1 `tls:"selector:Format,val:1"`
-	SignedDebugInfoV1 *SignedDebugInfoV1 `tls:"selector:Format,val:2"`
+	Format             StFormat            `tls:"maxval:65535"`
+	SignedTreeHeadV1   *SignedTreeHeadV1   `tls:"selector:Format,val:1"`
+	SignedDebugInfoV1  *SignedDebugInfoV1  `tls:"selector:Format,val:2"`
 	ConsistencyProofV1 *ConsistencyProofV1 `tls:"selector:Format,val:3"`
-	InclusionProofV1 *InclusionProofV1 `tls:"selector:Format,val:4"`
-	ChecksumV1       *ChecksumV1       `tls:"selector:Format,val:5"`
+	InclusionProofV1   *InclusionProofV1   `tls:"selector:Format,val:4"`
+	ChecksumV1         *ChecksumV1         `tls:"selector:Format,val:5"`
 }
 
 type ConsistencyProofV1 struct {
-	LogId []byte `tls:"minlen:2,maxlen:127"`
-	TreeSize1 uint64
-	TreeSize2 uint64
+	LogId           []byte `tls:"minlen:2,maxlen:127"`
+	TreeSize1       uint64
+	TreeSize2       uint64
 	ConsistencyPath []NodeHash `tls:"minlen:1,maxlen:65535"`
 }
 
 type SignedTreeHeadV1 struct {
-	LogId []byte `tls:"minlen:2,maxlen:127"`
-	TreeHead TreeHeadV1 `tls:minlen:0, maxlen:65535` // what should maxlen be?
-	Signature []byte `tls:"minlen:0,maxlen:65535"`
+	LogId     []byte     `tls:"minlen:2,maxlen:127"`
+	TreeHead  TreeHeadV1 `tls:minlen:0, maxlen:65535` // what should maxlen be?
+	Signature []byte     `tls:"minlen:0,maxlen:65535"`
 }
 
 type TreeHeadV1 struct {
 	Timestamp uint64
-	TreeSize uint64
-	RootHash NodeHash `tls:minlen:32,maxlen:255`
-	Extension []byte `tls:"minlen:0,maxlen:65535"`
+	TreeSize  uint64
+	RootHash  NodeHash `tls:minlen:32,maxlen:255`
+	Extension []byte   `tls:"minlen:0,maxlen:65535"`
 }
 
 // ChecksumV1 associates a package name with an arbitrary checksum value
@@ -72,8 +72,8 @@ type InclusionProofV1 struct {
 // TODO: double-check that crypto/ed25519 encodes signature as in RFC 8032
 // TODO: need to think about signature format, then update markdown/api.md
 type SignedDebugInfoV1 struct {
-	LogId []byte `tls:"minlen:32,maxlen:127"`
-	Message []byte `tls:"minlen:0,maxlen:65535"`
+	LogId     []byte `tls:"minlen:32,maxlen:127"`
+	Message   []byte `tls:"minlen:0,maxlen:65535"`
 	Signature []byte `tls:"minlen:0,maxlen:65535"` // defined in RFC 8032
 }
 
@@ -86,8 +86,8 @@ func NewSignedTreeHeadV1(th TreeHeadV1, logId, signature []byte) StItem {
 	return StItem{
 		Format: StFormatSignedTreeHeadV1,
 		SignedTreeHeadV1: &SignedTreeHeadV1{
-			LogId: logId,
-			TreeHead: th,
+			LogId:     logId,
+			TreeHead:  th,
 			Signature: signature,
 		},
 	}
@@ -96,7 +96,7 @@ func NewSignedTreeHeadV1(th TreeHeadV1, logId, signature []byte) StItem {
 func NewTreeHeadV1(timestamp, treeSize uint64, rootHash []byte) TreeHeadV1 {
 	return TreeHeadV1{
 		Timestamp: timestamp,
-		TreeSize: treeSize,
+		TreeSize:  treeSize,
 		RootHash: NodeHash{
 			Data: rootHash,
 		},
@@ -108,8 +108,8 @@ func NewSignedDebugInfoV1(logId, message, signature []byte) StItem {
 	return StItem{
 		Format: StFormatSignedDebugInfoV1,
 		SignedDebugInfoV1: &SignedDebugInfoV1{
-			LogId: logId,
-			Message: message,
+			LogId:     logId,
+			Message:   message,
 			Signature: signature,
 		},
 	}
@@ -153,9 +153,9 @@ func NewConsistencyProofV1(logId []byte, first, second int64, proof *trillian.Pr
 	return StItem{
 		Format: StFormatConsistencyProofV1,
 		ConsistencyProofV1: &ConsistencyProofV1{
-			LogId: logId,
-			TreeSize1: uint64(first),
-			TreeSize2: uint64(second),
+			LogId:           logId,
+			TreeSize1:       uint64(first),
+			TreeSize2:       uint64(second),
 			ConsistencyPath: path,
 		},
 	}

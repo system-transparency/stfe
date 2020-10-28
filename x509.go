@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"crypto"
-	"crypto/rand"
-	"crypto/ed25519"
 	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -48,7 +48,6 @@ func LoadTrustAnchors(path string) ([]*x509.Certificate, *x509.CertPool, error) 
 	}
 	return anchors, pool, nil
 }
-
 
 func LoadEd25519SigningKey(path string) (ed25519.PrivateKey, error) {
 	data, err := ioutil.ReadFile(path)
@@ -113,7 +112,6 @@ func VerifySignature(leaf, signature []byte, certificate *x509.Certificate) erro
 	}
 	return nil
 }
-
 
 func GenV1SDI(ld *LogParameters, leaf []byte) (StItem, error) {
 	// Note that ed25519 does not use the passed io.Reader
