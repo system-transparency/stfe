@@ -174,6 +174,30 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 // getConsistencyProof provides a consistency proof between two STHs
 func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.Info("in getConsistencyProof")
+	request, err := NewGetConsistencyProofRequest(r)
+	if err != nil {
+		return http.StatusBadRequest, err
+	} // request can be decoded and is valid
+
+	trillianRequest := trillian.GetConsistencyProofRequest{
+		LogId: i.LogParameters.TreeId,
+		FirstTreeSize: int64(request.First),
+		SecondTreeSize: int64(request.Second),
+	}
+	trillianResponse, err := i.Client.GetConsistencyProof(ctx, &trillianRequest)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed fetching consistency proof from Trillian backend: %v", err)
+	}
+	// TODO: santity-checks?
+
+	response, err := NewGetConsistencyProofResponse(i.LogParameters.LogId, request.First, request.Second, trillianResponse.Proof)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed creating get-consistency-proof response: %v", err)
+	}
+	if err := WriteJsonResponse(response, w); err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
 	return http.StatusOK, nil // TODO
 }
 

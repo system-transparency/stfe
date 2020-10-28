@@ -28,9 +28,16 @@ type StItem struct {
 	Format           StFormat          `tls:"maxval:65535"`
 	SignedTreeHeadV1 *SignedTreeHeadV1 `tls:"selector:Format,val:1"`
 	SignedDebugInfoV1 *SignedDebugInfoV1 `tls:"selector:Format,val:2"`
-	// TODO: add consistency proof
+	ConsistencyProofV1 *ConsistencyProofV1 `tls:"selector:Format,val:3"`
 	InclusionProofV1 *InclusionProofV1 `tls:"selector:Format,val:4"`
 	ChecksumV1       *ChecksumV1       `tls:"selector:Format,val:5"`
+}
+
+type ConsistencyProofV1 struct {
+	LogId []byte `tls:"minlen:2,maxlen:127"`
+	TreeSize1 uint64
+	TreeSize2 uint64
+	ConsistencyPath []NodeHash `tls:"minlen:1,maxlen:65535"`
 }
 
 type SignedTreeHeadV1 struct {
@@ -137,6 +144,23 @@ func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) S
 	}
 }
 
+func NewConsistencyProofV1(logId []byte, first, second int64, proof *trillian.Proof) StItem {
+	path := make([]NodeHash, 0, len(proof.Hashes))
+	for _, hash := range proof.Hashes {
+		path = append(path, NodeHash{Data: hash})
+	}
+
+	return StItem{
+		Format: StFormatConsistencyProofV1,
+		ConsistencyProofV1: &ConsistencyProofV1{
+			LogId: logId,
+			TreeSize1: uint64(first),
+			TreeSize2: uint64(second),
+			ConsistencyPath: path,
+		},
+	}
+}
+
 func (f StFormat) String() string {
 	switch f {
 	case StFormatReserved:
@@ -160,6 +184,8 @@ func (i StItem) String() string {
 	switch i.Format {
 	case StFormatChecksumV1:
 		return fmt.Sprintf("Format(%s): %s", i.Format, *i.ChecksumV1)
+	case StFormatConsistencyProofV1:
+		return fmt.Sprintf("Format(%s): %s", i.Format, *i.ConsistencyProofV1)
 	case StFormatInclusionProofV1:
 		return fmt.Sprintf("Format(%s): %s", i.Format, *i.InclusionProofV1)
 	case StFormatSignedDebugInfoV1:
@@ -194,6 +220,15 @@ func (i InclusionProofV1) String() string {
 	}
 
 	return fmt.Sprintf("LogID(%s) TreeSize(%d) LeafIndex(%d) AuditPath(%v)", base64.StdEncoding.EncodeToString(i.LogID), i.TreeSize, i.LeafIndex, path)
+}
+
+func (i ConsistencyProofV1) String() string {
+	path := make([]string, 0, len(i.ConsistencyPath))
+	for _, hash := range i.ConsistencyPath {
+		path = append(path, base64.StdEncoding.EncodeToString(hash.Data))
+	}
+
+	return fmt.Sprintf("LogID(%s) TreeSize1(%d) TreeSize2(%d) ConsistencyPath(%v)", base64.StdEncoding.EncodeToString(i.LogId), i.TreeSize1, i.TreeSize2, path)
 }
 
 // StItemFromB64 creates an StItem from a serialized and base64-encoded string

@@ -33,6 +33,13 @@ type GetProofByHashRequest struct {
 	TreeSize int64  `json:"tree_size"` // Tree head size to base proof on
 }
 
+// GetConsistencyProofRequest is a collection of get-consistency-proof input
+// parameters
+type GetConsistencyProofRequest struct {
+	First int64 `json:"first"`
+	Second int64 `json:"second"`
+}
+
 // AddEntryResponse is an assembled add-entry response
 type AddEntryResponse struct {
 	SignedDebugInfo string `json:"sdi"`
@@ -53,6 +60,10 @@ type GetEntriesResponse struct {
 // GetProofByHashResponse is an assembled inclusion proof response
 type GetProofByHashResponse struct {
 	InclusionProof string `json:"inclusion_proof"` // base64-encoded StItem
+}
+
+type GetConsistencyProofResponse struct {
+	ConsistencyProof string `json:"consistency_proof"` // base64-encoded StItem
 }
 
 // GetAnchorsResponse is an assembled get-anchor response
@@ -102,7 +113,7 @@ func NewGetEntriesRequest(httpRequest *http.Request) (GetEntriesRequest, error) 
 		return GetEntriesRequest{}, fmt.Errorf("bad parameters: start(%v) must have a non-negative value", start)
 	}
 	if start > end {
-		return GetEntriesRequest{}, fmt.Errorf("bad parameters: start(%v) must be larger than end(%v)", start, end)
+		return GetEntriesRequest{}, fmt.Errorf("bad parameters: start(%v) must be less than or equal to end(%v)", start, end)
 	}
 	// TODO: check that range is not larger than the max range. Yes -> truncate
 	// TODO: check that end is not past the most recent STH. Yes -> truncate
@@ -126,6 +137,26 @@ func NewGetProofByHashRequest(httpRequest *http.Request) (GetProofByHashRequest,
 		return GetProofByHashRequest{}, fmt.Errorf("bad hash parameter: %v", err)
 	}
 	return GetProofByHashRequest{TreeSize: treeSize, Hash: hash}, nil
+}
+
+func NewGetConsistencyProofRequest(httpRequest *http.Request) (GetConsistencyProofRequest, error) {
+	first, err := strconv.ParseInt(httpRequest.FormValue("first"), 10, 64)
+	if err != nil {
+		return GetConsistencyProofRequest{}, fmt.Errorf("bad first parameter: %v", err)
+	}
+	second, err := strconv.ParseInt(httpRequest.FormValue("second"), 10, 64)
+	if err != nil {
+		return GetConsistencyProofRequest{}, fmt.Errorf("bad second parameter: %v", err)
+	}
+
+	if first < 1 {
+		return GetConsistencyProofRequest{}, fmt.Errorf("bad parameters: first(%v) must be a natural number", first)
+	}
+	if first >= second {
+		return GetConsistencyProofRequest{}, fmt.Errorf("bad parameters: second(%v) must be larger than first(%v)", first, second)
+	}
+
+	return GetConsistencyProofRequest{ First: first, Second: second}, nil
 }
 
 // NewAddEntryResponse assembles an add-entry response from an SDI
@@ -183,6 +214,17 @@ func NewGetProofByHashResponse(treeSize uint64, inclusionProof *trillian.Proof) 
 	}
 	return &GetProofByHashResponse{
 		InclusionProof: base64.StdEncoding.EncodeToString(b),
+	}, nil
+}
+
+func NewGetConsistencyProofResponse(logId []byte, first, second int64, consistencyProof *trillian.Proof) (*GetConsistencyProofResponse, error) {
+	item := NewConsistencyProofV1(logId, first, second, consistencyProof)
+	b, err := tls.Marshal(item)
+	if err != nil {
+		return nil, fmt.Errorf("tls marshal failed: %v", err)
+	}
+	return &GetConsistencyProofResponse{
+		ConsistencyProof: base64.StdEncoding.EncodeToString(b),
 	}, nil
 }
 

@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -eo pipefail
+source config
+
+first="1"
+second="2"
+if [[ ! -z $1 ]] && [[ ! -z $2 ]]; then
+	first=$1
+	second=$2
+fi
+
+info "sending get-consistency-proof request"
+curl -G -d "first=$first" -d "second=$second" $base_url/get-consistency-proof
+newline
+# TODO: try decoding and verifying proof
