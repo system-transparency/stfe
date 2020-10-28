@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
+	"github.com/google/trillian/types"
 )
 
 // appHandler implements the http.Handler interface, and contains a reference
@@ -177,7 +178,37 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 }
 
 // getSth provides the most recent STH
-func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
+func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
 	glog.Info("in getSth")
-	return http.StatusOK, nil // TODO
+	trillianRequest := trillian.GetLatestSignedLogRootRequest{
+		LogId: i.LogParameters.TreeId,
+	}
+	trillianResponse, err := i.Client.GetLatestSignedLogRoot(ctx, &trillianRequest)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed fetching signed tree head from Trillian backend: %v", err)
+	}
+	if trillianResponse.SignedLogRoot == nil {
+		return http.StatusInternalServerError, fmt.Errorf("Trillian returned no tree head")
+	}
+
+	var lr types.LogRootV1
+	if err := lr.UnmarshalBinary(trillianResponse.SignedLogRoot.GetLogRoot()); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed unmarshaling tree head: %v", err)
+	}
+
+	th := NewTreeHeadV1(uint64(lr.TimestampNanos / 1000 / 1000), uint64(lr.TreeSize), lr.RootHash)
+	sth, err := GenV1STH(i.LogParameters, th)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed creating signed tree head: %v", err)
+	}
+	glog.Infof("%v", sth)
+
+	response, err := NewGetSthResponse(sth)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed creating GetSthResponse: %v", err)
+	}
+	if err := WriteJsonResponse(response, w); err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
 }

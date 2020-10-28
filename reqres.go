@@ -55,9 +55,14 @@ type GetProofByHashResponse struct {
 	InclusionProof string `json:"inclusion_proof"` // base64-encoded StItem
 }
 
-// GetAnchorsResponse
+// GetAnchorsResponse is an assembled get-anchor response
 type GetAnchorsResponse struct {
 	Certificates []string `json:"certificates"`
+}
+
+// GetSthResponse is an assembled get-sth response
+type GetSthResponse struct {
+	SignedTreeHead string `json:"sth"` // base64-encoded StItem
 }
 
 // NewAddEntryRequest parses and sanitizes the JSON-encoded add-entry
@@ -187,6 +192,16 @@ func NewGetAnchorsResponse(anchors []*x509.Certificate) GetAnchorsResponse {
 		certificates = append(certificates, base64.StdEncoding.EncodeToString(certificate.Raw))
 	}
 	return GetAnchorsResponse{Certificates: certificates}
+}
+
+func NewGetSthResponse(sth StItem) (GetSthResponse, error) {
+	b, err := tls.Marshal(sth)
+	if err != nil {
+		return GetSthResponse{}, fmt.Errorf("tls marshal failed: %v", err)
+	}
+	return GetSthResponse{
+		SignedTreeHead: base64.StdEncoding.EncodeToString(b),
+	}, nil
 }
 
 // VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should

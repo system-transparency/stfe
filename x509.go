@@ -11,6 +11,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io/ioutil"
+
+	"github.com/google/certificate-transparency-go/tls"
 )
 
 // LoadTrustAnchors loads a list of PEM-encoded certificates from file
@@ -120,4 +122,18 @@ func GenV1SDI(ld *LogParameters, leaf []byte) (StItem, error) {
 		return StItem{}, fmt.Errorf("ed25519 signature failed: %v", err)
 	}
 	return NewSignedDebugInfoV1(ld.LogId, []byte("reserved"), sig), nil
+}
+
+func GenV1STH(ld *LogParameters, th TreeHeadV1) (StItem, error) {
+	serialized, err := tls.Marshal(th)
+	if err != nil {
+		return StItem{}, fmt.Errorf("failed tls marshaling tree head: %v", err)
+	}
+
+	// Note that ed25519 does not use the passed io.Reader
+	sig, err := ld.Signer.Sign(rand.Reader, serialized, crypto.Hash(0))
+	if err != nil {
+		return StItem{}, fmt.Errorf("ed25519 signature failed: %v", err)
+	}
+	return NewSignedTreeHeadV1(th, ld.LogId, sig), nil
 }

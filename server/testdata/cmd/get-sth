@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -eo pipefail
+source config
+
+info "fetching signed tree head"
+curl -G $base_url/get-sth
+newline
+# TODO: try decoding and verifying signature
