@@ -30,6 +30,7 @@ type LogParameters struct {
 	AnchorPool *x509.CertPool      // for chain verification
 	AnchorList []*x509.Certificate // for access to the raw certificates
 	Signer     crypto.Signer
+	HashType   crypto.Hash // hash function used by Trillian
 }
 
 // NewInstance returns an initialized Instance
@@ -70,6 +71,7 @@ func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (
 		AnchorPool: anchorPool,
 		AnchorList: anchorList,
 		Signer:     key,
+		HashType:   crypto.SHA256,
 	}, nil
 }
 
