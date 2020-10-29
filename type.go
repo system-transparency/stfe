@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/trillian"
+	"github.com/google/trillian/types"
 )
 
 // StFormat defines a particular StItem type that is versioned
@@ -93,15 +94,29 @@ func NewSignedTreeHeadV1(th TreeHeadV1, logId, signature []byte) StItem {
 	}
 }
 
-func NewTreeHeadV1(timestamp, treeSize uint64, rootHash []byte) TreeHeadV1 {
-	return TreeHeadV1{
-		Timestamp: timestamp,
-		TreeSize:  treeSize,
-		RootHash: NodeHash{
-			Data: rootHash,
-		},
-		Extension: nil,
+// NewTreeHead converts a Trillian-signed log root to a tree head without
+// verifying any signature.  In other words, Trillian <-> STFE is trusted.
+func NewTreeHeadV1(lp *LogParameters, slr *trillian.SignedLogRoot) (TreeHeadV1, error) {
+	if slr == nil {
+		return TreeHeadV1{}, fmt.Errorf("Trillian returned no tree head")
 	}
+
+	var lr types.LogRootV1
+	if err := lr.UnmarshalBinary(slr.GetLogRoot()); err != nil {
+		return TreeHeadV1{}, fmt.Errorf("failed unmarshaling Trillian slr: %v", err)
+	}
+	if lp.HashType.Size() != len(lr.RootHash) {
+		return TreeHeadV1{}, fmt.Errorf("invalid Trillian root hash: %v", lr.RootHash)
+	}
+
+	return TreeHeadV1{
+		Timestamp: uint64(lr.TimestampNanos / 1000 / 1000),
+		TreeSize:  uint64(lr.TreeSize),
+		RootHash: NodeHash{
+			Data: lr.RootHash,
+		},
+		Extension: nil, // no known extensions
+	}, nil
 }
 
 func NewSignedDebugInfoV1(logId, message, signature []byte) StItem {
