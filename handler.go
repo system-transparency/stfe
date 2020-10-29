@@ -160,7 +160,7 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 	}
 	// TODO: verify that proof is valid?
 
-	response, err := NewGetProofByHashResponse(uint64(request.TreeSize), trillianResponse.Proof[0])
+	response, err := NewGetProofByHashResponse(i.LogParameters.LogId, uint64(request.TreeSize), trillianResponse.Proof[0])
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating get-proof-by-hash response: %v", err)
 	}

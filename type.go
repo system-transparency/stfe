@@ -35,34 +35,34 @@ type StItem struct {
 }
 
 type ConsistencyProofV1 struct {
-	LogId           []byte `tls:"minlen:2,maxlen:127"`
+	LogId           []byte `tls:"minlen:32,maxlen:32"`
 	TreeSize1       uint64
 	TreeSize2       uint64
 	ConsistencyPath []NodeHash `tls:"minlen:1,maxlen:65535"`
 }
 
 type SignedTreeHeadV1 struct {
-	LogId     []byte     `tls:"minlen:2,maxlen:127"`
-	TreeHead  TreeHeadV1 `tls:minlen:0, maxlen:65535` // what should maxlen be?
-	Signature []byte     `tls:"minlen:0,maxlen:65535"`
+	LogId     []byte `tls:"minlen:32,maxlen:32"`
+	TreeHead  TreeHeadV1
+	Signature []byte `tls:"minlen:1,maxlen:65535"`
 }
 
 type TreeHeadV1 struct {
 	Timestamp uint64
 	TreeSize  uint64
-	RootHash  NodeHash `tls:minlen:32,maxlen:255`
-	Extension []byte   `tls:"minlen:0,maxlen:65535"`
+	RootHash  NodeHash
+	Extension []byte `tls:"minlen:0,maxlen:65535"`
 }
 
 // ChecksumV1 associates a package name with an arbitrary checksum value
 type ChecksumV1 struct {
-	Package  []byte `tls:"minlen:0,maxlen:255"`
-	Checksum []byte `tls:"minlen:32,maxlen:255"`
+	Package  []byte `tls:"minlen:1,maxlen:255"`
+	Checksum []byte `tls:"minlen:1,maxlen:64"`
 }
 
 // InclusionProofV1 is a Merkle tree inclusion proof, see RFC 6962/bis (§4.12)
 type InclusionProofV1 struct {
-	LogID         []byte `tls:"minlen:2,maxlen:127"`
+	LogID         []byte `tls:"minlen:32,maxlen:32"`
 	TreeSize      uint64
 	LeafIndex     uint64
 	InclusionPath []NodeHash `tls:"minlen:1,maxlen:65535"`
@@ -71,11 +71,10 @@ type InclusionProofV1 struct {
 // SignedDebugInfoV1 is a signed statement that we intend (but do not promise)
 // to insert an entry into the log.  Only Ed25519 signatures are supported.
 // TODO: double-check that crypto/ed25519 encodes signature as in RFC 8032
-// TODO: need to think about signature format, then update markdown/api.md
 type SignedDebugInfoV1 struct {
-	LogId     []byte `tls:"minlen:32,maxlen:127"`
+	LogId     []byte `tls:"minlen:32,maxlen:32"`
 	Message   []byte `tls:"minlen:0,maxlen:65535"`
-	Signature []byte `tls:"minlen:0,maxlen:65535"` // defined in RFC 8032
+	Signature []byte `tls:"minlen:1,maxlen:65535"`
 }
 
 // NodeHash is a hashed Merkle tree node, see RFC 6962/bis (§4.9)

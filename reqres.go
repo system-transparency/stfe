@@ -206,8 +206,8 @@ func NewGetEntriesResponse(leaves []*trillian.LogLeaf) (GetEntriesResponse, erro
 }
 
 // NewGetProofByHashResponse assembles a get-proof-by-hash response
-func NewGetProofByHashResponse(treeSize uint64, inclusionProof *trillian.Proof) (*GetProofByHashResponse, error) {
-	item := NewInclusionProofV1([]byte("TODO: add log ID"), treeSize, inclusionProof)
+func NewGetProofByHashResponse(logId []byte, treeSize uint64, inclusionProof *trillian.Proof) (*GetProofByHashResponse, error) {
+	item := NewInclusionProofV1(logId, treeSize, inclusionProof)
 	b, err := tls.Marshal(item)
 	if err != nil {
 		return nil, fmt.Errorf("tls marshal failed: %v", err)
