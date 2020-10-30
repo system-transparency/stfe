@@ -45,15 +45,10 @@ func (a appHandler) sendHTTPError(w http.ResponseWriter, statusCode int, err err
 
 func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.Info("in addEntry")
-	request, err := NewAddEntryRequest(r)
+	leaf, appendix, err := NewAddEntryRequest(i.LogParameters, r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	} // request can be decoded
-
-	leaf, appendix, err := VerifyAddEntryRequest(i.LogParameters, request)
-	if err != nil {
-		return http.StatusBadRequest, err
-	} // valid add-entry request
+	} // request is well-formed, signed, and chains back to a trust anchor
 
 	trillianRequest := trillian.QueueLeafRequest{
 		LogId: i.LogParameters.TreeId,

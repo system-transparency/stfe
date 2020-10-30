@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	stdtls "crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -16,9 +17,10 @@ import (
 
 // AddEntryRequest is a collection of add-entry input parameters
 type AddEntryRequest struct {
-	Item        string `json:"item"`        // base64-encoded StItem
-	Signature   string `json:"signature"`   // base64-encoded DigitallySigned
-	Certificate string `json:"certificate"` // base64-encoded X.509 certificate
+	Item            string   `json:"item"`             // base64-encoded StItem
+	Signature       string   `json:"signature"`        // base64-encoded DigitallySigned
+	SignatureScheme uint16   `json:"signature_scheme"` // RFC 8446, §4.2.3
+	Chain           []string `json:"chain"`            // base64-encoded X.509 certificates
 }
 
 // GetEntriesRequest is a collection of get-entry input parameters
@@ -48,24 +50,46 @@ type GetEntryResponse struct {
 }
 
 // NewAddEntryRequest parses and sanitizes the JSON-encoded add-entry
-// parameters from an incoming HTTP post.  The resulting AddEntryRequest is
-// well-formed, but not necessarily trusted (further sanitization is needed).
-func NewAddEntryRequest(r *http.Request) (AddEntryRequest, error) {
-	var ret AddEntryRequest
-	if err := UnpackJsonPost(r, &ret); err != nil {
-		return ret, err
+// parameters from an incoming HTTP post.  The serialized leaf value and
+// associated appendix is returned if the submitted data is valid: well-formed,
+// signed using a supported scheme, and chains back to a valid trust anchor.
+func NewAddEntryRequest(lp *LogParameters, r *http.Request) ([]byte, []byte, error) {
+	var entry AddEntryRequest
+	if err := UnpackJsonPost(r, &entry); err != nil {
+		return nil, nil, err
 	}
 
-	item, err := StItemFromB64(ret.Item)
+	item, err := StItemFromB64(entry.Item)
 	if err != nil {
-		return ret, fmt.Errorf("failed decoding StItem: %v", err)
+		return nil, nil, fmt.Errorf("StItem(%s): %v", item.Format, err)
 	}
 	if item.Format != StFormatChecksumV1 {
-		return ret, fmt.Errorf("invalid StItem format: %s", item.Format)
+		return nil, nil, fmt.Errorf("invalid StItem format: %s", item.Format)
+	} // note that decode would have failed if invalid checksum/package length
+
+	chain, err := buildChainFromB64List(lp, entry.Chain)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid certificate chain: %v", err)
+	} // the final entry in chain is a valid trust anchor
+
+	signature, err := base64.StdEncoding.DecodeString(entry.Signature)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid signature encoding: %v", err)
 	}
-	// TODO: verify that we got a checksum length
-	// TODO: verify that we got a signature and certificate
-	return ret, nil
+	serialized, err := tls.Marshal(item)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed tls marshaling StItem(%s): %v", item.Format, err)
+	}
+	if err := verifySignature(lp, chain[0], stdtls.SignatureScheme(entry.SignatureScheme), serialized, signature); err != nil {
+		return nil, nil, fmt.Errorf("invalid signature: %v", err)
+	}
+
+	extra, err := tls.Marshal(NewAppendix(chain, signature, entry.SignatureScheme))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed tls marshaling appendix: %v", err)
+	}
+
+	return serialized, extra, nil
 }
 
 // NewGetEntriesRequest parses and sanitizes the URL-encoded get-entries
@@ -171,51 +195,6 @@ func NewGetAnchorsResponse(anchors []*x509.Certificate) []string {
 		certificates = append(certificates, base64.StdEncoding.EncodeToString(certificate.Raw))
 	}
 	return certificates
-}
-
-// VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should
-// be inserted into the log.  The corresponding leaf and appendix is returned.
-func VerifyAddEntryRequest(ld *LogParameters, r AddEntryRequest) ([]byte, []byte, error) {
-	item, err := StItemFromB64(r.Item)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed decoding StItem: %v", err)
-	}
-
-	leaf, err := tls.Marshal(item)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed tls marshaling StItem: %v", err)
-	} // leaf is the serialized data that should be added to the tree
-
-	c, err := base64.StdEncoding.DecodeString(r.Certificate)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed decoding certificate: %v", err)
-	}
-	certificate, err := x509.ParseCertificate(c)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed decoding certificate: %v", err)
-	} // certificate is the end-entity certificate that signed leaf
-
-	chain, err := VerifyChain(ld, certificate)
-	if err != nil {
-		return nil, nil, fmt.Errorf("chain verification failed: %v", err)
-	} // chain is a valid path to some trust anchor
-
-	signature, err := base64.StdEncoding.DecodeString(r.Signature)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed decoding signature: %v", err)
-	}
-	if err := VerifySignature(leaf, signature, certificate); err != nil {
-		return nil, nil, fmt.Errorf("signature verification failed: %v", err)
-	} // signature is valid for certificate
-
-	// TODO: update doc of what signature "is", i.e., w/e x509 does
-	// TODO: doc in markdown/api.md what signature schemes we expect
-	appendix, err := tls.Marshal(NewAppendix(chain, signature))
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed tls marshaling appendix: %v", err)
-	}
-
-	return leaf, appendix, nil
 }
 
 // UnpackJsonPost unpacks a json-encoded HTTP POST request into `unpack`

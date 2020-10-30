@@ -136,12 +136,12 @@ POST https://<base url>/st/v1/add-entry
 Input:
 - item: an `StItem` that corresponds to a valid leaf type.  Only
 `checksum_v1` at this time.
-- signature_algorithm: decimal, possible values are defined in RFC 8446
+- signature_scheme: decimal, possible values are defined in RFC 8446
 [§4.2.3](https://tools.ietf.org/html/rfc8446#section-4.2.3).  The serialized
 signature encoding follows from this.
 - signature: covers the submitted item.
-- certificate: base-64 encoded X.509 certificate that is vouched for by a trust
-anchor and which produced the above signature.
+- chain: a list of base-64 encoded X.509 certificates that chain back to
+a trust anchor and which produced the above signature.
 
 Output:
 - an `StItem` structure of type `signed_debug_info_v1` that covers the added

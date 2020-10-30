@@ -44,7 +44,7 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 	return i, nil
 }
 
-// NewLogParameters returns an initialized LogParameters
+// NewLogParameters returns initialized log parameters using only ed25519
 func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (*LogParameters, error) {
 	anchorList, anchorPool, err := LoadTrustAnchors(anchorPath)
 	if err != nil {

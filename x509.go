@@ -8,7 +8,9 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	stdtls "crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"io/ioutil"
 
@@ -134,4 +136,70 @@ func GenV1STH(ld *LogParameters, th TreeHeadV1) (StItem, error) {
 		return StItem{}, fmt.Errorf("ed25519 signature failed: %v", err)
 	}
 	return NewSignedTreeHeadV1(th, ld.LogId, sig), nil
+}
+
+// ParseB64Chain parses a list of base64 DER-encoded X.509 certificates, such
+// that the first (zero-index) string is interpretted as an end-entity
+// certificate and the remaining ones as the an intermediate CertPool.
+func ParseB64Chain(chain []string) (*x509.Certificate, *x509.CertPool, error) {
+	var certificate *x509.Certificate
+	intermediatePool := x509.NewCertPool()
+	for index, cert := range chain {
+		der, err := base64.StdEncoding.DecodeString(cert)
+		if err != nil {
+			return nil, nil, fmt.Errorf("certificate decoding failed: %v", err)
+		}
+		c, err := x509.ParseCertificate(der)
+		if err != nil {
+			return nil, nil, fmt.Errorf("certificate decoding failed: %v", err)
+		}
+
+		if index == 0 {
+			certificate = c
+		} else {
+			intermediatePool.AddCert(c)
+		}
+	}
+	if certificate == nil {
+		return nil, nil, fmt.Errorf("certificate chain is empty")
+	}
+	return certificate, intermediatePool, nil
+}
+
+func buildChainFromB64List(lp *LogParameters, b64chain []string) ([]*x509.Certificate, error) {
+	certificate, _, err := ParseB64Chain(b64chain) // TODO: use intermediatePool
+	if err != nil {
+		return nil, err
+	}
+
+	opts := x509.VerifyOptions{
+		Roots:     lp.AnchorPool,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}, // TODO: move to ld
+	}
+
+	chains, err := certificate.Verify(opts)
+	if err != nil {
+		return nil, fmt.Errorf("chain verification failed: %v", err)
+	}
+	if len(chains) == 0 {
+		return nil, fmt.Errorf("chain verification failed: no chain")
+	}
+
+	chain := chains[0] // if we found multiple paths just pick the first one
+	// TODO: check that len(chain) is OK
+
+	return chain, nil
+}
+
+// verifySignature checks if signature is valid for some serialized data.  The
+// only supported signature scheme is ecdsa_secp256r1_sha256(0x0403), see §4.3.2
+// in RFC 8446.  TODO: replace ECDSA with ed25519(0x0807)
+func verifySignature(_ *LogParameters, certificate *x509.Certificate, scheme stdtls.SignatureScheme, serialized, signature []byte) error {
+	if scheme != stdtls.ECDSAWithP256AndSHA256 {
+		return fmt.Errorf("unsupported signature scheme: %v", scheme)
+	}
+	if err := certificate.CheckSignature(x509.ECDSAWithSHA256, serialized, signature); err != nil {
+		return fmt.Errorf("invalid signature: %v", err)
+	}
+	return nil
 }
