@@ -20,7 +20,6 @@ type appHandler struct {
 	handler  func(context.Context, *Instance, http.ResponseWriter, *http.Request) (int, error)
 }
 
-// ServeHTTP docdoc
 func (a appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(a.instance.Deadline))
 	defer cancel()
@@ -38,7 +37,6 @@ func (a appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// sendHTTPError replies to a request with an error message and a status code.
 func (a appHandler) sendHTTPError(w http.ResponseWriter, statusCode int, err error) {
 	http.Error(w, http.StatusText(statusCode), statusCode)
 }
@@ -69,7 +67,7 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed debug info: %v", err)
 	}
-	rsp, err := StItemToB64(sdi)
+	rsp, err := sdi.MarshalB64()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -142,7 +140,7 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 		return status, err
 	}
 
-	rsp, err := StItemToB64(NewInclusionProofV1(i.LogParameters.LogId, uint64(req.TreeSize), trsp.Proof[0]))
+	rsp, err := NewInclusionProofV1(i.LogParameters.LogId, uint64(req.TreeSize), trsp.Proof[0]).MarshalB64()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -173,7 +171,7 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 		return status, err
 	}
 
-	rsp, err := StItemToB64(NewConsistencyProofV1(i.LogParameters.LogId, req.First, req.Second, trsp.Proof))
+	rsp, err := NewConsistencyProofV1(i.LogParameters.LogId, req.First, req.Second, trsp.Proof).MarshalB64()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -205,7 +203,7 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed tree head: %v", err)
 	}
-	rsp, err := StItemToB64(sth)
+	rsp, err := sth.MarshalB64()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

@@ -15,8 +15,6 @@ func checkQueueLeaf(rsp *trillian.QueueLeafResponse) (int, error) {
 	if codes.Code(rsp.QueuedLeaf.GetStatus().GetCode()) == codes.AlreadyExists {
 		// no need to report this as an invalid request, just (re)issue sdi
 		glog.V(3).Infof("queued leaf is a duplicate => %X", rsp.QueuedLeaf.Leaf.LeafValue)
-	} else {
-		glog.V(3).Infof("queued leaf => %X", rsp.QueuedLeaf.Leaf.LeafValue)
 	}
 	return 0, nil
 }

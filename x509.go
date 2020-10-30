@@ -8,13 +8,11 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
-	stdtls "crypto/tls"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
 	"io/ioutil"
-
-	"github.com/google/certificate-transparency-go/tls"
 )
 
 // LoadTrustAnchors loads a list of PEM-encoded certificates from file
@@ -115,25 +113,25 @@ func VerifySignature(leaf, signature []byte, certificate *x509.Certificate) erro
 	return nil
 }
 
-func GenV1SDI(ld *LogParameters, leaf []byte) (StItem, error) {
+func GenV1SDI(ld *LogParameters, leaf []byte) (*StItem, error) {
 	// Note that ed25519 does not use the passed io.Reader
 	sig, err := ld.Signer.Sign(rand.Reader, leaf, crypto.Hash(0))
 	if err != nil {
-		return StItem{}, fmt.Errorf("ed25519 signature failed: %v", err)
+		return nil, fmt.Errorf("ed25519 signature failed: %v", err)
 	}
 	return NewSignedDebugInfoV1(ld.LogId, []byte("reserved"), sig), nil
 }
 
-func GenV1STH(ld *LogParameters, th TreeHeadV1) (StItem, error) {
-	serialized, err := tls.Marshal(th)
+func GenV1STH(ld *LogParameters, th *TreeHeadV1) (*StItem, error) {
+	serialized, err := th.Marshal()
 	if err != nil {
-		return StItem{}, fmt.Errorf("failed tls marshaling tree head: %v", err)
+		return nil, fmt.Errorf("failed tls marshaling tree head: %v", err)
 	}
 
 	// Note that ed25519 does not use the passed io.Reader
 	sig, err := ld.Signer.Sign(rand.Reader, serialized, crypto.Hash(0))
 	if err != nil {
-		return StItem{}, fmt.Errorf("ed25519 signature failed: %v", err)
+		return nil, fmt.Errorf("ed25519 signature failed: %v", err)
 	}
 	return NewSignedTreeHeadV1(th, ld.LogId, sig), nil
 }
@@ -194,8 +192,8 @@ func buildChainFromB64List(lp *LogParameters, b64chain []string) ([]*x509.Certif
 // verifySignature checks if signature is valid for some serialized data.  The
 // only supported signature scheme is ecdsa_secp256r1_sha256(0x0403), see §4.3.2
 // in RFC 8446.  TODO: replace ECDSA with ed25519(0x0807)
-func verifySignature(_ *LogParameters, certificate *x509.Certificate, scheme stdtls.SignatureScheme, serialized, signature []byte) error {
-	if scheme != stdtls.ECDSAWithP256AndSHA256 {
+func verifySignature(_ *LogParameters, certificate *x509.Certificate, scheme tls.SignatureScheme, serialized, signature []byte) error {
+	if scheme != tls.ECDSAWithP256AndSHA256 {
 		return fmt.Errorf("unsupported signature scheme: %v", scheme)
 	}
 	if err := certificate.CheckSignature(x509.ECDSAWithSHA256, serialized, signature); err != nil {

@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 
 	"github.com/golang/glog"
-	"github.com/google/certificate-transparency-go/tls"
 	"github.com/system-transparency/stfe"
 )
 
@@ -26,10 +25,9 @@ func main() {
 	checksum := hasher.Sum(nil)
 
 	// Create and serialize an StItem of type checksum_v1
-	item := stfe.NewChecksumV1([]byte(*name), checksum)
-	serialized, err := tls.Marshal(item)
+	serialized, err := stfe.NewChecksumV1([]byte(*name), checksum).Marshal()
 	if err != nil {
-		glog.Fatalf("tls marshal failed: %v", err)
+		glog.Fatalf("%v", err)
 	}
 
 	// Store the serialized item in *dir/name

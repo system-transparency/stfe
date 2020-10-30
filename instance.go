@@ -7,7 +7,6 @@ import (
 
 	"crypto/sha256"
 	"crypto/x509"
-
 	"encoding/base64"
 	"net/http"
 
@@ -34,7 +33,15 @@ type LogParameters struct {
 	HashType   crypto.Hash // hash function used by Trillian
 }
 
-// NewInstance returns an initialized Instance
+func (i Instance) String() string {
+	return fmt.Sprintf("%s Deadline(%v)\n", i.LogParameters, i.Deadline)
+}
+
+func (p LogParameters) String() string {
+	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) NumAnchors(%d)", base64.StdEncoding.EncodeToString(p.LogId), p.TreeId, p.Prefix, len(p.AnchorList))
+}
+
+// NewInstance returns a new STFE Instance
 func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline time.Duration, mux *http.ServeMux) (*Instance, error) {
 	i := &Instance{
 		LogParameters: lp,
@@ -45,7 +52,7 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 	return i, nil
 }
 
-// NewLogParameters returns initialized log parameters using only ed25519
+// NewLogParameters initializes log parameters, assuming ed25519 signatures.
 func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (*LogParameters, error) {
 	anchorList, anchorPool, err := LoadTrustAnchors(anchorPath)
 	if err != nil {
@@ -75,14 +82,6 @@ func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (
 		Signer:     key,
 		HashType:   crypto.SHA256,
 	}, nil
-}
-
-func (i *Instance) String() string {
-	return fmt.Sprintf("%s Deadline(%v)\n", i.LogParameters, i.Deadline)
-}
-
-func (p *LogParameters) String() string {
-	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) NumAnchors(%d)", base64.StdEncoding.EncodeToString(p.LogId), p.TreeId, p.Prefix, len(p.AnchorList))
 }
 
 func (i *Instance) registerHandlers(mux *http.ServeMux) {

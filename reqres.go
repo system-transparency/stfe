@@ -59,8 +59,8 @@ func NewAddEntryRequest(lp *LogParameters, r *http.Request) ([]byte, []byte, err
 		return nil, nil, err
 	}
 
-	item, err := StItemFromB64(entry.Item)
-	if err != nil {
+	var item StItem
+	if err := item.UnmarshalB64(entry.Item); err != nil {
 		return nil, nil, fmt.Errorf("StItem(%s): %v", item.Format, err)
 	}
 	if item.Format != StFormatChecksumV1 {
@@ -84,9 +84,9 @@ func NewAddEntryRequest(lp *LogParameters, r *http.Request) ([]byte, []byte, err
 		return nil, nil, fmt.Errorf("invalid signature: %v", err)
 	}
 
-	extra, err := tls.Marshal(NewAppendix(chain, signature, entry.SignatureScheme))
+	extra, err := NewAppendix(chain, signature, entry.SignatureScheme).Marshal()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed tls marshaling appendix: %v", err)
+		return nil, nil, fmt.Errorf("failed marshaling appendix: %v", err)
 	}
 
 	return serialized, extra, nil
@@ -159,11 +159,8 @@ func NewGetConsistencyProofRequest(httpRequest *http.Request) (GetConsistencyPro
 // NewGetEntryResponse assembles a log entry and its appendix
 func NewGetEntryResponse(leaf, appendix []byte) (GetEntryResponse, error) {
 	var app Appendix
-	extra, err := tls.Unmarshal(appendix, &app)
-	if err != nil {
-		return GetEntryResponse{}, fmt.Errorf("failed tls unmarshaling appendix: %v (%v)", err, extra)
-	} else if len(extra) > 0 {
-		return GetEntryResponse{}, fmt.Errorf("tls umarshal found extra data for appendix: %v", extra)
+	if err := app.Unmarshal(appendix); err != nil {
+		return GetEntryResponse{}, err
 	}
 
 	chain := make([]string, 0, len(app.Chain))

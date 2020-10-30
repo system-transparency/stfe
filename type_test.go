@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"crypto/sha256"
-
-	"github.com/google/certificate-transparency-go/tls"
 )
 
 func ExampleNewChecksumV1() {
@@ -21,9 +19,9 @@ func ExampleNewChecksumV1() {
 
 func ExampleMarshalChecksumV1() {
 	item := NewChecksumV1([]byte("foobar-1.2.3"), make([]byte, 32))
-	b, err := tls.Marshal(item)
+	b, err := item.Marshal()
 	if err != nil {
-		fmt.Printf("tls.Marshal() failed: %v", err)
+		fmt.Printf("%v", err)
 		return
 	}
 	fmt.Printf("%v\n", b)
@@ -34,12 +32,8 @@ func ExampleUnmarshalChecksumV1() {
 	b := []byte{0, 5, 12, 102, 111, 111, 98, 97, 114, 45, 49, 46, 50, 46, 51, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
 	var item StItem
-	extra, err := tls.Unmarshal(b, &item)
-	if err != nil {
-		fmt.Printf("tls.Unmarshal() failed: %v (%v)", err, extra)
-		return
-	} else if len(extra) > 0 {
-		fmt.Printf("tls.Unmarshal() found extra data: %v", extra)
+	if err := item.Unmarshal(b); err != nil {
+		fmt.Printf("%v", err)
 		return
 	}
 	fmt.Printf("%v\n", item)
