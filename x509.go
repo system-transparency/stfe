@@ -4,10 +4,8 @@ import (
 	"fmt"
 
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -78,39 +76,6 @@ func LoadEd25519SigningKey(path string) (ed25519.PrivateKey, error) {
 	default:
 		return nil, fmt.Errorf("unexpected signing key type: %v", t)
 	}
-}
-
-func VerifyChain(ld *LogParameters, certificate *x509.Certificate) ([]*x509.Certificate, error) {
-	opts := x509.VerifyOptions{
-		Roots:     ld.AnchorPool,
-		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}, // TODO: move to ld
-	} // TODO: add intermediates
-
-	chains, err := certificate.Verify(opts)
-	if err != nil {
-		return nil, fmt.Errorf("chain verification failed: %v", err)
-	}
-	if len(chains) == 0 {
-		return nil, fmt.Errorf("chain verification failed: no chain")
-	}
-	return chains[0], nil // if we found multiple paths just pick the first one
-}
-
-func VerifySignature(leaf, signature []byte, certificate *x509.Certificate) error {
-	var algo x509.SignatureAlgorithm
-	switch t := certificate.PublicKey.(type) {
-	case *rsa.PublicKey:
-		algo = x509.SHA256WithRSA
-	case *ecdsa.PublicKey:
-		algo = x509.ECDSAWithSHA256
-	default:
-		return fmt.Errorf("unsupported public key algorithm: %v", t)
-	}
-
-	if err := certificate.CheckSignature(algo, leaf, signature); err != nil {
-		return fmt.Errorf("invalid signature: %v", err)
-	}
-	return nil
 }
 
 func GenV1SDI(ld *LogParameters, leaf []byte) (*StItem, error) {
