@@ -81,7 +81,3 @@ func checkHashPath(hashSize int, path [][]byte) (int, error) {
 	} // maybe redundant, but would not necessarily be caught by marshal error
 	return 0, nil
 }
-
-func checkLogRoot(hashSize int, rootHash []byte) (int, error) {
-	return 0, nil
-}
