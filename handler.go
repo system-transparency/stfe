@@ -50,29 +50,29 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 		return http.StatusBadRequest, err
 	} // request is well-formed, signed, and chains back to a trust anchor
 
-	trillianRequest := trillian.QueueLeafRequest{
+	treq := trillian.QueueLeafRequest{
 		LogId: i.LogParameters.TreeId,
 		Leaf: &trillian.LogLeaf{
 			LeafValue: leaf,
 			ExtraData: appendix,
 		},
 	}
-	trillianResponse, err := i.Client.QueueLeaf(ctx, &trillianRequest)
+	trsp, err := i.Client.QueueLeaf(ctx, &treq)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("backend QueueLeaf request failed: %v", err)
 	} // note: more detail could be provided here, see addChainInternal in ctfe
-	glog.Infof("Queued leaf: %v", trillianResponse.QueuedLeaf.Leaf.LeafValue)
+	glog.Infof("Queued leaf: %v", trsp.QueuedLeaf.Leaf.LeafValue)
 
-	sdi, err := GenV1SDI(i.LogParameters, trillianResponse.QueuedLeaf.Leaf.LeafValue)
+	sdi, err := GenV1SDI(i.LogParameters, trsp.QueuedLeaf.Leaf.LeafValue)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed debug info: %v", err)
 	}
 
-	response, err := StItemToB64(sdi)
+	rsp, err := StItemToB64(sdi)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	if err := WriteJsonResponse(response, w); err != nil {
+	if err := WriteJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -81,29 +81,29 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 // getEntries provides a list of entries from the Trillian backend
 func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.Info("handling get-entries request")
-	request, err := NewGetEntriesRequest(i.LogParameters, r)
+	req, err := NewGetEntriesRequest(i.LogParameters, r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	} // request can be decoded and is mostly valid (range not cmp vs tree size)
 
-	trillianRequest := trillian.GetLeavesByRangeRequest{
+	treq := trillian.GetLeavesByRangeRequest{
 		LogId:      i.LogParameters.TreeId,
-		StartIndex: request.Start,
-		Count:      request.End - request.Start + 1,
+		StartIndex: req.Start,
+		Count:      req.End - req.Start + 1,
 	}
-	trillianResponse, err := i.Client.GetLeavesByRange(ctx, &trillianRequest)
+	trsp, err := i.Client.GetLeavesByRange(ctx, &treq)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange request failed: %v", err)
 	}
-	if status, err := checkGetLeavesByRange(trillianResponse, request); err != nil {
+	if status, err := checkGetLeavesByRange(trsp, req); err != nil {
 		return status, err
 	}
 
-	response, err := NewGetEntriesResponse(trillianResponse.Leaves)
+	rsp, err := NewGetEntriesResponse(trsp.Leaves)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating GetEntriesResponse: %v", err)
 	}
-	if err := WriteJsonResponse(response, w); err != nil {
+	if err := WriteJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -122,34 +122,34 @@ func getAnchors(_ context.Context, i *Instance, w http.ResponseWriter, _ *http.R
 // getProofByHash provides an inclusion proof based on a given leaf hash
 func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.Info("in getProofByHash")
-	request, err := NewGetProofByHashRequest(r)
+	req, err := NewGetProofByHashRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	} // request can be decoded and is valid
 
-	trillianRequest := trillian.GetInclusionProofByHashRequest{
+	treq := trillian.GetInclusionProofByHashRequest{
 		LogId:           i.LogParameters.TreeId,
-		LeafHash:        request.Hash,
-		TreeSize:        request.TreeSize,
+		LeafHash:        req.Hash,
+		TreeSize:        req.TreeSize,
 		OrderBySequence: true,
 	}
-	trillianResponse, err := i.Client.GetInclusionProofByHash(ctx, &trillianRequest)
+	trsp, err := i.Client.GetInclusionProofByHash(ctx, &treq)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed fetching inclusion proof from Trillian backend: %v", err)
 	}
 	// TODO: check the returned tree size in response?
 
 	// Santity check
-	if len(trillianResponse.Proof) == 0 {
+	if len(trsp.Proof) == 0 {
 		return http.StatusNotFound, fmt.Errorf("get-proof-by-hash backend returned no proof")
 	}
 	// TODO: verify that proof is valid?
 
-	response, err := StItemToB64(NewInclusionProofV1(i.LogParameters.LogId, uint64(request.TreeSize), trillianResponse.Proof[0]))
+	rsp, err := StItemToB64(NewInclusionProofV1(i.LogParameters.LogId, uint64(req.TreeSize), trsp.Proof[0]))
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	if err := WriteJsonResponse(response, w); err != nil {
+	if err := WriteJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -158,27 +158,27 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 // getConsistencyProof provides a consistency proof between two STHs
 func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.Info("in getConsistencyProof")
-	request, err := NewGetConsistencyProofRequest(r)
+	req, err := NewGetConsistencyProofRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	} // request can be decoded and is valid
 
-	trillianRequest := trillian.GetConsistencyProofRequest{
+	treq := trillian.GetConsistencyProofRequest{
 		LogId:          i.LogParameters.TreeId,
-		FirstTreeSize:  int64(request.First),
-		SecondTreeSize: int64(request.Second),
+		FirstTreeSize:  int64(req.First),
+		SecondTreeSize: int64(req.Second),
 	}
-	trillianResponse, err := i.Client.GetConsistencyProof(ctx, &trillianRequest)
+	trsp, err := i.Client.GetConsistencyProof(ctx, &treq)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed fetching consistency proof from Trillian backend: %v", err)
 	}
 	// TODO: santity-checks?
 
-	response, err := StItemToB64(NewConsistencyProofV1(i.LogParameters.LogId, request.First, request.Second, trillianResponse.Proof))
+	rsp, err := StItemToB64(NewConsistencyProofV1(i.LogParameters.LogId, req.First, req.Second, trsp.Proof))
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	if err := WriteJsonResponse(response, w); err != nil {
+	if err := WriteJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -187,15 +187,15 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 // getSth provides the most recent STH
 func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
 	glog.Info("in getSth")
-	trillianRequest := trillian.GetLatestSignedLogRootRequest{
+	treq := trillian.GetLatestSignedLogRootRequest{
 		LogId: i.LogParameters.TreeId,
 	}
-	trillianResponse, err := i.Client.GetLatestSignedLogRoot(ctx, &trillianRequest)
+	trsp, err := i.Client.GetLatestSignedLogRoot(ctx, &treq)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed fetching signed tree head from Trillian backend: %v", err)
 	}
 
-	th, err := NewTreeHeadV1(i.LogParameters, trillianResponse.SignedLogRoot)
+	th, err := NewTreeHeadV1(i.LogParameters, trsp.SignedLogRoot)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating tree head: %v", err)
 	}
@@ -205,11 +205,11 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	}
 	glog.Infof("%v", sth)
 
-	response, err := StItemToB64(sth)
+	rsp, err := StItemToB64(sth)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	if err := WriteJsonResponse(response, w); err != nil {
+	if err := WriteJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
