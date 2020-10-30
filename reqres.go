@@ -128,7 +128,6 @@ func NewGetProofByHashRequest(httpRequest *http.Request) (GetProofByHashRequest,
 	if treeSize < 0 {
 		return GetProofByHashRequest{}, fmt.Errorf("bad tree_size parameter: negative value")
 	}
-	// TODO: check that tree size is not past STH.tree_size
 
 	hash, err := base64.StdEncoding.DecodeString(httpRequest.FormValue("hash"))
 	if err != nil {
