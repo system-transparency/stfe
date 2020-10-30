@@ -262,6 +262,14 @@ func StItemFromB64(s string) (StItem, error) {
 	return item, nil
 }
 
+func StItemToB64(i StItem) (string, error) {
+	b, err := tls.Marshal(i)
+	if err != nil {
+		return "", fmt.Errorf("StItem(%v) tls marshal failed: %v", i.Format, err)
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
 // Appendix is extra data that Trillian can store about a leaf
 type Appendix struct {
 	Signature []byte           `tls:"minlen:0,maxlen:16383"`

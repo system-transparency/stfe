@@ -73,9 +73,9 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed debug info: %v", err)
 	}
 
-	response, err := NewAddEntryResponse(sdi)
+	response, err := StItemToB64(sdi)
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed creating AddEntryResponse: %v", err)
+		return http.StatusInternalServerError, err
 	}
 	if err := WriteJsonResponse(response, w); err != nil {
 		return http.StatusInternalServerError, err
@@ -160,9 +160,9 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 	}
 	// TODO: verify that proof is valid?
 
-	response, err := NewGetProofByHashResponse(i.LogParameters.LogId, uint64(request.TreeSize), trillianResponse.Proof[0])
+	response, err := StItemToB64(NewInclusionProofV1(i.LogParameters.LogId, uint64(request.TreeSize), trillianResponse.Proof[0]))
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed creating get-proof-by-hash response: %v", err)
+		return http.StatusInternalServerError, err
 	}
 	if err := WriteJsonResponse(response, w); err != nil {
 		return http.StatusInternalServerError, err
@@ -189,15 +189,14 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 	}
 	// TODO: santity-checks?
 
-	response, err := NewGetConsistencyProofResponse(i.LogParameters.LogId, request.First, request.Second, trillianResponse.Proof)
+	response, err := StItemToB64(NewConsistencyProofV1(i.LogParameters.LogId, request.First, request.Second, trillianResponse.Proof))
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed creating get-consistency-proof response: %v", err)
+		return http.StatusInternalServerError, err
 	}
 	if err := WriteJsonResponse(response, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
-	return http.StatusOK, nil // TODO
 }
 
 // getSth provides the most recent STH
@@ -221,9 +220,9 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	}
 	glog.Infof("%v", sth)
 
-	response, err := NewGetSthResponse(sth)
+	response, err := StItemToB64(sth)
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed creating GetSthResponse: %v", err)
+		return http.StatusInternalServerError, err
 	}
 	if err := WriteJsonResponse(response, w); err != nil {
 		return http.StatusInternalServerError, err

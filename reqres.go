@@ -36,13 +36,8 @@ type GetProofByHashRequest struct {
 // GetConsistencyProofRequest is a collection of get-consistency-proof input
 // parameters
 type GetConsistencyProofRequest struct {
-	First  int64 `json:"first"`
-	Second int64 `json:"second"`
-}
-
-// AddEntryResponse is an assembled add-entry response
-type AddEntryResponse struct {
-	SignedDebugInfo string `json:"sdi"`
+	First  int64 `json:"first"`  // size of the older Merkle tree
+	Second int64 `json:"second"` // size of the newer Merkle tree
 }
 
 // GetEntryResponse is an assembled log entry and its associated appendix
@@ -50,30 +45,6 @@ type GetEntryResponse struct {
 	Leaf      string   `json:"leaf"`      // base64-encoded StItem
 	Signature string   `json:"signature"` // base64-encoded signature
 	Chain     []string `json:"chain"`     // base64-encoded X.509 certificates
-}
-
-// GetEntriesResponse is an assembled get-entries responses
-type GetEntriesResponse struct {
-	Entries []GetEntryResponse `json:"entries"`
-}
-
-// GetProofByHashResponse is an assembled inclusion proof response
-type GetProofByHashResponse struct {
-	InclusionProof string `json:"inclusion_proof"` // base64-encoded StItem
-}
-
-type GetConsistencyProofResponse struct {
-	ConsistencyProof string `json:"consistency_proof"` // base64-encoded StItem
-}
-
-// GetAnchorsResponse is an assembled get-anchor response
-type GetAnchorsResponse struct {
-	Certificates []string `json:"certificates"`
-}
-
-// GetSthResponse is an assembled get-sth response
-type GetSthResponse struct {
-	SignedTreeHead string `json:"sth"` // base64-encoded StItem
 }
 
 // NewAddEntryRequest parses and sanitizes the JSON-encoded add-entry
@@ -159,17 +130,6 @@ func NewGetConsistencyProofRequest(httpRequest *http.Request) (GetConsistencyPro
 	return GetConsistencyProofRequest{First: first, Second: second}, nil
 }
 
-// NewAddEntryResponse assembles an add-entry response from an SDI
-func NewAddEntryResponse(sdi StItem) (AddEntryResponse, error) {
-	b, err := tls.Marshal(sdi)
-	if err != nil {
-		return AddEntryResponse{}, fmt.Errorf("tls marshal failed: %v", err)
-	}
-	return AddEntryResponse{
-		SignedDebugInfo: base64.StdEncoding.EncodeToString(b),
-	}, nil
-}
-
 // NewGetEntryResponse assembles a log entry and its appendix
 func NewGetEntryResponse(leaf, appendix []byte) (GetEntryResponse, error) {
 	var app Appendix
@@ -193,57 +153,24 @@ func NewGetEntryResponse(leaf, appendix []byte) (GetEntryResponse, error) {
 }
 
 // NewGetEntriesResponse assembles a get-entries response
-func NewGetEntriesResponse(leaves []*trillian.LogLeaf) (GetEntriesResponse, error) {
+func NewGetEntriesResponse(leaves []*trillian.LogLeaf) ([]GetEntryResponse, error) {
 	entries := make([]GetEntryResponse, 0, len(leaves))
 	for _, leaf := range leaves {
 		entry, err := NewGetEntryResponse(leaf.GetLeafValue(), leaf.GetExtraData())
 		if err != nil {
-			return GetEntriesResponse{}, err
+			return nil, err
 		}
 		entries = append(entries, entry)
 	}
-	return GetEntriesResponse{entries}, nil
+	return entries, nil
 }
 
-// NewGetProofByHashResponse assembles a get-proof-by-hash response
-func NewGetProofByHashResponse(logId []byte, treeSize uint64, inclusionProof *trillian.Proof) (*GetProofByHashResponse, error) {
-	item := NewInclusionProofV1(logId, treeSize, inclusionProof)
-	b, err := tls.Marshal(item)
-	if err != nil {
-		return nil, fmt.Errorf("tls marshal failed: %v", err)
-	}
-	return &GetProofByHashResponse{
-		InclusionProof: base64.StdEncoding.EncodeToString(b),
-	}, nil
-}
-
-func NewGetConsistencyProofResponse(logId []byte, first, second int64, consistencyProof *trillian.Proof) (*GetConsistencyProofResponse, error) {
-	item := NewConsistencyProofV1(logId, first, second, consistencyProof)
-	b, err := tls.Marshal(item)
-	if err != nil {
-		return nil, fmt.Errorf("tls marshal failed: %v", err)
-	}
-	return &GetConsistencyProofResponse{
-		ConsistencyProof: base64.StdEncoding.EncodeToString(b),
-	}, nil
-}
-
-func NewGetAnchorsResponse(anchors []*x509.Certificate) GetAnchorsResponse {
+func NewGetAnchorsResponse(anchors []*x509.Certificate) []string {
 	certificates := make([]string, 0, len(anchors))
 	for _, certificate := range anchors {
 		certificates = append(certificates, base64.StdEncoding.EncodeToString(certificate.Raw))
 	}
-	return GetAnchorsResponse{Certificates: certificates}
-}
-
-func NewGetSthResponse(sth StItem) (GetSthResponse, error) {
-	b, err := tls.Marshal(sth)
-	if err != nil {
-		return GetSthResponse{}, fmt.Errorf("tls marshal failed: %v", err)
-	}
-	return GetSthResponse{
-		SignedTreeHead: base64.StdEncoding.EncodeToString(b),
-	}, nil
+	return certificates
 }
 
 // VerifyAddEntryRequest determines whether a well-formed AddEntryRequest should
