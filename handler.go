@@ -44,11 +44,11 @@ func (a appHandler) sendHTTPError(w http.ResponseWriter, statusCode int, err err
 }
 
 func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
-	glog.Info("in addEntry")
+	glog.V(3).Info("handling add-entry request")
 	leaf, appendix, err := NewAddEntryRequest(i.LogParameters, r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	} // request is well-formed, signed, and chains back to a trust anchor
+	}
 
 	treq := trillian.QueueLeafRequest{
 		LogId: i.LogParameters.TreeId,
@@ -60,14 +60,15 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 	trsp, err := i.Client.QueueLeaf(ctx, &treq)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("backend QueueLeaf request failed: %v", err)
-	} // note: more detail could be provided here, see addChainInternal in ctfe
-	glog.Infof("Queued leaf: %v", trsp.QueuedLeaf.Leaf.LeafValue)
+	}
+	if status, err := checkQueueLeaf(trsp); err != nil {
+		return status, err
+	}
 
 	sdi, err := GenV1SDI(i.LogParameters, trsp.QueuedLeaf.Leaf.LeafValue)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed debug info: %v", err)
 	}
-
 	rsp, err := StItemToB64(sdi)
 	if err != nil {
 		return http.StatusInternalServerError, err
@@ -80,11 +81,11 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 
 // getEntries provides a list of entries from the Trillian backend
 func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
-	glog.Info("handling get-entries request")
+	glog.V(3).Info("handling get-entries request")
 	req, err := NewGetEntriesRequest(i.LogParameters, r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	} // request can be decoded and is mostly valid (range not cmp vs tree size)
+	}
 
 	treq := trillian.GetLeavesByRangeRequest{
 		LogId:      i.LogParameters.TreeId,
@@ -95,7 +96,7 @@ func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange request failed: %v", err)
 	}
-	if status, err := checkGetLeavesByRange(trsp, req); err != nil {
+	if status, err := checkGetLeavesByRange(trsp, &req); err != nil {
 		return status, err
 	}
 
@@ -111,7 +112,7 @@ func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http
 
 // getAnchors provides a list of configured trust anchors
 func getAnchors(_ context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
-	glog.Info("in getAnchors")
+	glog.V(3).Info("handling get-anchors request")
 	data := NewGetAnchorsResponse(i.LogParameters.AnchorList)
 	if err := WriteJsonResponse(data, w); err != nil {
 		return http.StatusInternalServerError, err
@@ -121,11 +122,11 @@ func getAnchors(_ context.Context, i *Instance, w http.ResponseWriter, _ *http.R
 
 // getProofByHash provides an inclusion proof based on a given leaf hash
 func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
-	glog.Info("in getProofByHash")
+	glog.V(3).Info("handling get-proof-by-hash request")
 	req, err := NewGetProofByHashRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	} // request can be decoded and is valid
+	}
 
 	treq := trillian.GetInclusionProofByHashRequest{
 		LogId:           i.LogParameters.TreeId,
@@ -137,13 +138,9 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed fetching inclusion proof from Trillian backend: %v", err)
 	}
-	// TODO: check the returned tree size in response?
-
-	// Santity check
-	if len(trsp.Proof) == 0 {
-		return http.StatusNotFound, fmt.Errorf("get-proof-by-hash backend returned no proof")
+	if status, err := checkGetInclusionProofByHash(trsp, i.LogParameters); err != nil {
+		return status, err
 	}
-	// TODO: verify that proof is valid?
 
 	rsp, err := StItemToB64(NewInclusionProofV1(i.LogParameters.LogId, uint64(req.TreeSize), trsp.Proof[0]))
 	if err != nil {
@@ -157,11 +154,11 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 
 // getConsistencyProof provides a consistency proof between two STHs
 func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
-	glog.Info("in getConsistencyProof")
+	glog.V(3).Info("handling get-consistency-proof request")
 	req, err := NewGetConsistencyProofRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	} // request can be decoded and is valid
+	}
 
 	treq := trillian.GetConsistencyProofRequest{
 		LogId:          i.LogParameters.TreeId,
@@ -172,7 +169,9 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed fetching consistency proof from Trillian backend: %v", err)
 	}
-	// TODO: santity-checks?
+	if status, err := checkGetConsistencyProofResponse(trsp, i.LogParameters); err != nil {
+		return status, err
+	}
 
 	rsp, err := StItemToB64(NewConsistencyProofV1(i.LogParameters.LogId, req.First, req.Second, trsp.Proof))
 	if err != nil {
@@ -186,13 +185,16 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 
 // getSth provides the most recent STH
 func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
-	glog.Info("in getSth")
+	glog.V(3).Info("handling get-sth request")
 	treq := trillian.GetLatestSignedLogRootRequest{
 		LogId: i.LogParameters.TreeId,
 	}
 	trsp, err := i.Client.GetLatestSignedLogRoot(ctx, &treq)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed fetching signed tree head from Trillian backend: %v", err)
+	}
+	if status, err := checkTrillianGetLatestSignedLogRoot(trsp, i.LogParameters); err != nil {
+		return status, err
 	}
 
 	th, err := NewTreeHeadV1(i.LogParameters, trsp.SignedLogRoot)
@@ -203,8 +205,6 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed tree head: %v", err)
 	}
-	glog.Infof("%v", sth)
-
 	rsp, err := StItemToB64(sth)
 	if err != nil {
 		return http.StatusInternalServerError, err
