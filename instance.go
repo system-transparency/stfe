@@ -27,6 +27,7 @@ type LogParameters struct {
 	LogId      []byte // used externally by everyone
 	TreeId     int64  // used internally by Trillian
 	Prefix     string
+	MaxRange   int64               // max entries per get-entries request
 	AnchorPool *x509.CertPool      // for chain verification
 	AnchorList []*x509.Certificate // for access to the raw certificates
 	Signer     crypto.Signer
@@ -68,6 +69,7 @@ func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (
 		LogId:      logId,
 		TreeId:     treeId,
 		Prefix:     prefix,
+		MaxRange:   2, // TODO: allow configuration
 		AnchorPool: anchorPool,
 		AnchorList: anchorList,
 		Signer:     key,

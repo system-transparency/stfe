@@ -80,11 +80,11 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 
 // getEntries provides a list of entries from the Trillian backend
 func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
-	glog.Info("in getEntries")
-	request, err := NewGetEntriesRequest(r)
+	glog.Info("handling get-entries request")
+	request, err := NewGetEntriesRequest(i.LogParameters, r)
 	if err != nil {
 		return http.StatusBadRequest, err
-	} // request can be decoded and is valid
+	} // request can be decoded and is mostly valid (range not cmp vs tree size)
 
 	trillianRequest := trillian.GetLeavesByRangeRequest{
 		LogId:      i.LogParameters.TreeId,
@@ -95,19 +95,9 @@ func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange request failed: %v", err)
 	}
-
-	// Santity check
-	if len(trillianResponse.Leaves) > int(request.End-request.Start+1) {
-		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange returned too many leaves: %d for [%d,%d]", len(trillianResponse.Leaves), request.Start, request.End)
+	if status, err := checkGetLeavesByRange(trillianResponse, request); err != nil {
+		return status, err
 	}
-	for i, leaf := range trillianResponse.Leaves {
-		if leaf.LeafIndex != request.Start+int64(i) {
-			return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange returned unexpected leaf index: wanted %d, got %d", request.Start+int64(i), leaf.LeafIndex)
-		}
-
-		glog.Infof("Leaf(%d) => %v", request.Start+int64(i), leaf.GetLeafValue())
-	}
-	// TODO: use the returned root for tree_size santity checking against start?
 
 	response, err := NewGetEntriesResponse(trillianResponse.Leaves)
 	if err != nil {

@@ -93,8 +93,10 @@ func NewAddEntryRequest(lp *LogParameters, r *http.Request) ([]byte, []byte, err
 }
 
 // NewGetEntriesRequest parses and sanitizes the URL-encoded get-entries
-// parameters from an incoming HTTP request.
-func NewGetEntriesRequest(httpRequest *http.Request) (GetEntriesRequest, error) {
+// parameters from an incoming HTTP request.  Too large ranges are truncated
+// based on the log's configured max range, but without taking the log's
+// current tree size into consideration (because it is not know at this point).
+func NewGetEntriesRequest(lp *LogParameters, httpRequest *http.Request) (GetEntriesRequest, error) {
 	start, err := strconv.ParseInt(httpRequest.FormValue("start"), 10, 64)
 	if err != nil {
 		return GetEntriesRequest{}, fmt.Errorf("bad start parameter: %v", err)
@@ -110,8 +112,9 @@ func NewGetEntriesRequest(httpRequest *http.Request) (GetEntriesRequest, error) 
 	if start > end {
 		return GetEntriesRequest{}, fmt.Errorf("bad parameters: start(%v) must be less than or equal to end(%v)", start, end)
 	}
-	// TODO: check that range is not larger than the max range. Yes -> truncate
-	// TODO: check that end is not past the most recent STH. Yes -> truncate
+	if end-start+1 > lp.MaxRange {
+		end = start + lp.MaxRange - 1
+	}
 	return GetEntriesRequest{Start: start, End: end}, nil
 }
 
