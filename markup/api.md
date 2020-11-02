@@ -21,12 +21,12 @@ A log is defined by the following immutable parameters:
 - Log identifier: `SHA256(public key)`, see RFC 6962
 [§3.2](https://tools.ietf.org/html/rfc6962#section-3.2)
 - Public key: DER encoding of the key represented as `SubjectPublicKeyInfo`
-- Supported signature algorithms: a list of signature algorithms that the
+- Supported signature schemes: a list of signature schemes that the
 log recognizes.  Possible values are defined in RFC 8446,
 [§4.2.3](https://tools.ietf.org/html/rfc8446#section-4.2.3).  Submitters must
 use a signature algorithm that the log supports.
-- Signature algorithm: the signature algorithm that the log uses to sign
-tree heads and debug info statements.
+- Signature scheme: the signature scheme that the log uses to sign tree heads
+and debug info statements.
 - Maximum chain length: e.g., three means that we would reject submissions that
 were signed by a certificate chain of length four.
 - Base URL: where can this log be reached?  E.g., example.com:1234/log
