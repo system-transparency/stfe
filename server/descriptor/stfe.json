@@ -1,0 +1,18 @@
+[
+    {
+        "name": "Test operator",
+        "email": "test@example.com",
+        "logs": [
+            {
+                "max_chain": 3,
+                "log_id": "B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM=",
+                "signature_schemes": [
+                    2055
+                ],
+                "base_url": "example.com/st/v1",
+                "signature_scheme": 2055,
+                "public_key": "MCowBQYDK2VwAyEAqM4b/SHOCRId9xgiCPn8D8r6+Nrk9JTZZqW6vj7TGa0="
+            }
+        ]
+    }
+]
