@@ -21,7 +21,6 @@ A log is defined by the following immutable parameters:
 - Log identifier: `SHA256(public key)`, see RFC 6962
 [§3.2](https://tools.ietf.org/html/rfc6962#section-3.2)
 - Public key: DER encoding of the key represented as `SubjectPublicKeyInfo`
-- Hash algorithm: used to maintain the log's Merkle tree, e.g., SHA256
 - Supported signature algorithms: a list of signature algorithms that the
 log recognizes.  Possible values are defined in RFC 8446,
 [§4.2.3](https://tools.ietf.org/html/rfc8446#section-4.2.3).  Submitters must
@@ -35,6 +34,9 @@ were signed by a certificate chain of length four.
 Note that **there is no MMD**.  The idea is to merge added entries as soon as
 possible, and no client should trust that something is logged until an inclusion
 proof can be provided that references a trustworthy STH. 
+
+Moreover, we use the same hash strategy as described in RFC 6962: SHA256 with
+`0x00` as leaf node prefix and `0x01` as interior node prefix.
 
 ## Minimum acceptance criteria
 A log should accept a submission if it is:
