@@ -156,12 +156,12 @@ func buildChainFromB64List(lp *LogParameters, b64chain []string) ([]*x509.Certif
 
 // verifySignature checks if signature is valid for some serialized data.  The
 // only supported signature scheme is ecdsa_secp256r1_sha256(0x0403), see §4.3.2
-// in RFC 8446.  TODO: replace ECDSA with ed25519(0x0807)
+// in RFC 8446.
 func verifySignature(_ *LogParameters, certificate *x509.Certificate, scheme tls.SignatureScheme, serialized, signature []byte) error {
-	if scheme != tls.ECDSAWithP256AndSHA256 {
+	if scheme != tls.Ed25519 {
 		return fmt.Errorf("unsupported signature scheme: %v", scheme)
 	}
-	if err := certificate.CheckSignature(x509.ECDSAWithSHA256, serialized, signature); err != nil {
+	if err := certificate.CheckSignature(x509.PureEd25519, serialized, signature); err != nil {
 		return fmt.Errorf("invalid signature: %v", err)
 	}
 	return nil
