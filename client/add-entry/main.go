@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"encoding/base64"
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/golang/glog"
@@ -62,21 +60,17 @@ func params() ([]byte, []byte, error) {
 func setup() (*client.Client, error) {
 	c, err := stfe.LoadChain(*chain)
 	if err != nil {
-		return nil, fmt.Errorf("failed loading certificate chain: %v", err)
+		return nil, err
 	}
 
 	k, err := stfe.LoadEd25519SigningKey(*key)
 	if err != nil {
-		return nil, fmt.Errorf("failed loading key: %v", err)
+		return nil, err
 	}
 
-	blob, err := ioutil.ReadFile(*operators)
+	ops, err := descriptor.LoadOperators(*operators)
 	if err != nil {
-		return nil, fmt.Errorf("failed reading log operators: %v", err)
-	}
-	var ops []descriptor.Operator
-	if err := json.Unmarshal(blob, &ops); err != nil {
-		return nil, fmt.Errorf("failed decoding log operators: %v", err)
+		return nil, err
 	}
 
 	id, err := base64.StdEncoding.DecodeString(*logId)
