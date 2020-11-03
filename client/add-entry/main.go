@@ -45,7 +45,7 @@ func main() {
 	if err != nil {
 		glog.Fatalf("failed encoding valid signed debug info: %v", err)
 	}
-	glog.Infof("add-request succeeded: %s", str)
+	fmt.Println(str)
 	glog.Flush()
 }
 
@@ -82,5 +82,5 @@ func setup() (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return client.NewClient(log, &http.Client{}, c, &k), nil
+	return client.NewClient(log, &http.Client{}, true, c, &k), nil
 }
