@@ -30,3 +30,7 @@ func (sdi *SignedDebugInfoV1) Verify(scheme tls.SignatureScheme, publicKey, mess
 		return fmt.Errorf("Unsupported public key: %s", t)
 	}
 }
+
+func (sth *SignedTreeHeadV1) Verify(scheme tls.SignatureScheme, publicKey []byte) error {
+	return fmt.Errorf("TODO: verify signature")
+}
