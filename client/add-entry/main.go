@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 
-	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -14,6 +13,7 @@ import (
 	"net/http"
 
 	"github.com/golang/glog"
+	"github.com/system-transparency/stfe"
 	"github.com/system-transparency/stfe/client"
 	"github.com/system-transparency/stfe/server/descriptor"
 )
@@ -71,13 +71,9 @@ func setup() (*client.Client, error) {
 		return nil, fmt.Errorf("failed loading certificate chain: %v", err)
 	}
 
-	blob, err = ioutil.ReadFile(*key)
+	k, err := stfe.LoadEd25519SigningKey(*key)
 	if err != nil {
-		return nil, fmt.Errorf("failed reading ed25519 private key: %v", err)
-	}
-	k, err := parseEd25519PrivateKey(blob)
-	if err != nil {
-		return nil, fmt.Errorf("failed decoding ed25519 private key: %v", err)
+		return nil, fmt.Errorf("failed loading key: %v", err)
 	}
 
 	blob, err = ioutil.ReadFile(*operators)
@@ -101,29 +97,29 @@ func setup() (*client.Client, error) {
 	return client.NewClient(log, &http.Client{}, c, &k), nil
 }
 
-func parseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
-	block, rest := pem.Decode(data)
-	if block == nil {
-		return nil, fmt.Errorf("pem block: is empty")
-	}
-	if block.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("bad pem block type: %v", block.Type)
-	}
-	if len(rest) != 0 {
-		return nil, fmt.Errorf("pem block: trailing data")
-	}
-
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		fmt.Errorf("x509 parser failed: %v", err)
-	}
-	switch t := key.(type) {
-	case ed25519.PrivateKey:
-		return key.(ed25519.PrivateKey), nil
-	default:
-		return nil, fmt.Errorf("unexpected signing key type: %v", t)
-	}
-}
+//func parseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
+//	block, rest := pem.Decode(data)
+//	if block == nil {
+//		return nil, fmt.Errorf("pem block: is empty")
+//	}
+//	if block.Type != "PRIVATE KEY" {
+//		return nil, fmt.Errorf("bad pem block type: %v", block.Type)
+//	}
+//	if len(rest) != 0 {
+//		return nil, fmt.Errorf("pem block: trailing data")
+//	}
+//
+//	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+//	if err != nil {
+//		fmt.Errorf("x509 parser failed: %v", err)
+//	}
+//	switch t := key.(type) {
+//	case ed25519.PrivateKey:
+//		return key.(ed25519.PrivateKey), nil
+//	default:
+//		return nil, fmt.Errorf("unexpected signing key type: %v", t)
+//	}
+//}
 
 func parseChain(rest []byte) ([]*x509.Certificate, error) {
 	var chain []*x509.Certificate

@@ -47,29 +47,32 @@ func LoadTrustAnchors(path string) ([]*x509.Certificate, *x509.CertPool, error) 
 	return anchors, pool, nil
 }
 
+// LoadEd25519SigningKey loads an Ed25519 private key from a given path
 func LoadEd25519SigningKey(path string) (ed25519.PrivateKey, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed reading private key: %v", err)
 	}
+	return ParseEd25519PrivateKey(data)
+}
 
-	var block *pem.Block
-	block, data = pem.Decode(data)
+// ParseEd25519PrivateKey parses a PEM-encoded private key block
+func ParseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
+	block, rest := pem.Decode(data)
 	if block == nil {
-		return nil, fmt.Errorf("private key not loaded")
+		return nil, fmt.Errorf("pem block: is empty")
 	}
 	if block.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("unexpected PEM block type: %s", block.Type)
+		return nil, fmt.Errorf("bad pem block type: %v", block.Type)
 	}
-	if len(data) != 0 {
-		return nil, fmt.Errorf("trailing data found after key: %v", data)
+	if len(rest) != 0 {
+		return nil, fmt.Errorf("pem block: trailing data")
 	}
 
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed parsing signing key: %v", err)
+		fmt.Errorf("x509 parser failed: %v", err)
 	}
-
 	switch t := key.(type) {
 	case ed25519.PrivateKey:
 		return key.(ed25519.PrivateKey), nil
