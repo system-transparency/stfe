@@ -164,13 +164,14 @@ func ParseB64Chain(chain []string) (*x509.Certificate, *x509.CertPool, error) {
 }
 
 func buildChainFromB64List(lp *LogParameters, b64chain []string) ([]*x509.Certificate, error) {
-	certificate, _, err := ParseB64Chain(b64chain) // TODO: use intermediatePool
+	certificate, intermediatePool, err := ParseB64Chain(b64chain)
 	if err != nil {
 		return nil, err
 	}
 
 	opts := x509.VerifyOptions{
 		Roots:     lp.AnchorPool,
+		Intermediates: intermediatePool,
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}, // TODO: move to ld
 	}
 
