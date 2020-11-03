@@ -92,30 +92,20 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 		return nil, fmt.Errorf("failed creating http request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	glog.V(2).Infof("created request: %s %s", req.Method, req.URL)
+	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
 
-	var itemStr string
-	if err := c.doRequest(ctx, req, &itemStr); err != nil {
+	item, err := c.doRequestWithStItemResponse(ctx, req)
+	if err != nil {
 		return nil, err
 	}
-	b, err := base64.StdEncoding.DecodeString(itemStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed decoding base64 body: %v", err)
-	}
-	var item stfe.StItem
-	if err := item.Unmarshal(b); err != nil {
-		return nil, fmt.Errorf("failed decoding StItem: %v", err)
-	}
-	glog.V(3).Infof("got StItem: %s", item)
-
 	if item.Format != stfe.StFormatSignedDebugInfoV1 {
 		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
 	}
-	if err := item.SignedDebugInfoV1.Verify(c.Log.Scheme, c.Log.PublicKey, leaf); err != nil {
+
+	if err := VerifySignedDebugInfoV1(item, c.Log.Scheme, c.Log.Key(), leaf); err != nil {
 		return nil, fmt.Errorf("bad SignedDebugInfoV1 signature: %v", err)
 	}
-	glog.V(2).Infof("add-entry request succeeded")
-	return &item, nil
+	return item, nil
 }
 
 func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
@@ -123,7 +113,7 @@ func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
 	}
-	glog.V(2).Infof("created request: %s %s", req.Method, req.URL)
+	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
 
 	item, err := c.doRequestWithStItemResponse(ctx, req)
 	if err != nil {
@@ -132,10 +122,10 @@ func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 	if item.Format != stfe.StFormatSignedTreeHeadV1 {
 		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
 	}
-	if err := item.SignedTreeHeadV1.Verify(c.Log.Scheme, c.Log.PublicKey); err != nil {
+
+	if err := VerifySignedTreeHeadV1(item, c.Log.Scheme, c.Log.Key()); err != nil {
 		return nil, fmt.Errorf("bad SignedDebugInfoV1 signature: %v", err)
 	}
-	glog.V(2).Infof("get-sth request succeeded")
 	return item, nil
 }
 
@@ -187,6 +177,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, out interface
 	return nil
 }
 
+// doRequestWithStItemResponse sends an HTTP request and returns a decoded
+// StItem that the resulting HTTP response contained json:ed and marshaled
 func (c *Client) doRequestWithStItemResponse(ctx context.Context, req *http.Request) (*stfe.StItem, error) {
 	var itemStr string
 	if err := c.doRequest(ctx, req, &itemStr); err != nil {
@@ -200,6 +192,7 @@ func (c *Client) doRequestWithStItemResponse(ctx context.Context, req *http.Requ
 	if err := item.Unmarshal(b); err != nil {
 		return nil, fmt.Errorf("failed decoding StItem: %v", err)
 	}
+	glog.V(3).Infof("got StItem: %s", item)
 	return &item, nil
 }
 

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 
+	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
@@ -54,4 +56,12 @@ func LoadOperators(path string) ([]Operator, error) {
 		return nil, fmt.Errorf("failed decoding log operators: %v", err)
 	}
 	return ops, nil
+}
+
+func (l *Log) Key() crypto.PublicKey {
+	k, err := x509.ParsePKIXPublicKey(l.PublicKey)
+	if err != nil {
+		panic("TODO: make a new function and parse public key there")
+	}
+	return k
 }
