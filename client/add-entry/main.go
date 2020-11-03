@@ -44,7 +44,12 @@ func main() {
 	if err != nil {
 		glog.Fatalf("add-entry failed: %v", err)
 	}
-	glog.Infof("got valid StItem: %v", sdi)
+
+	str, err := sdi.MarshalB64()
+	if err != nil {
+		glog.Fatalf("failed encoding valid signed debug info: %v", err)
+	}
+	glog.Infof("add-request succeeded: %s", str)
 	glog.Flush()
 }
 
