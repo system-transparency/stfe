@@ -12,12 +12,6 @@ import (
 	"github.com/system-transparency/stfe"
 )
 
-// TODO: fix so that publicKey is already passed as crypto.PublicKey
-//k, err := x509.ParsePKIXPublicKey(publicKey)
-//if err != nil {
-//	return fmt.Errorf("failed parsing public key: %v", err)
-//}
-
 func VerifySignedDebugInfoV1(sdi *stfe.StItem, scheme tls.SignatureScheme, key crypto.PublicKey, message []byte) error {
 	if err := supportedScheme(scheme, key); err != nil {
 		return err

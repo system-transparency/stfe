@@ -13,4 +13,3 @@ fi
 info "sending get-consistency-proof request"
 curl -G -d "first=$first" -d "second=$second" $base_url/get-consistency-proof
 newline
-# TODO: try decoding and verifying proof
