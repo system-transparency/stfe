@@ -104,6 +104,37 @@ func GenV1STH(ld *LogParameters, th *TreeHeadV1) (*StItem, error) {
 	return NewSignedTreeHeadV1(th, ld.LogId, sig), nil
 }
 
+// LoadChain loads a PEM-encoded certificate chain from a given path
+func LoadChain(path string) ([]*x509.Certificate, error) {
+	blob, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading certificate chain: %v", err)
+	}
+	return ParseChain(blob)
+}
+
+// ParseChain parses a PEM-encoded certificate chain
+func ParseChain(rest []byte) ([]*x509.Certificate, error) {
+	var chain []*x509.Certificate
+	for len(rest) > 0 {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			return nil, fmt.Errorf("unexpected pem block type: %v", block.Type)
+		}
+
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing x509 certificate: %v", err)
+		}
+		chain = append(chain, certificate)
+	}
+	return chain, nil
+}
+
 // ParseB64Chain parses a list of base64 DER-encoded X.509 certificates, such
 // that the first (zero-index) string is interpretted as an end-entity
 // certificate and the remaining ones as the an intermediate CertPool.

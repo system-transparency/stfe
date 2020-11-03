@@ -5,10 +5,8 @@ import (
 	"flag"
 	"fmt"
 
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"io/ioutil"
 	"net/http"
 
@@ -62,11 +60,7 @@ func params() ([]byte, []byte, error) {
 }
 
 func setup() (*client.Client, error) {
-	blob, err := ioutil.ReadFile(*chain)
-	if err != nil {
-		return nil, fmt.Errorf("failed reading certificate chain: %v", err)
-	}
-	c, err := parseChain(blob)
+	c, err := stfe.LoadChain(*chain)
 	if err != nil {
 		return nil, fmt.Errorf("failed loading certificate chain: %v", err)
 	}
@@ -76,7 +70,7 @@ func setup() (*client.Client, error) {
 		return nil, fmt.Errorf("failed loading key: %v", err)
 	}
 
-	blob, err = ioutil.ReadFile(*operators)
+	blob, err := ioutil.ReadFile(*operators)
 	if err != nil {
 		return nil, fmt.Errorf("failed reading log operators: %v", err)
 	}
@@ -95,25 +89,4 @@ func setup() (*client.Client, error) {
 		return nil, err
 	}
 	return client.NewClient(log, &http.Client{}, c, &k), nil
-}
-
-func parseChain(rest []byte) ([]*x509.Certificate, error) {
-	var chain []*x509.Certificate
-	for len(rest) > 0 {
-		var block *pem.Block
-		block, rest = pem.Decode(rest)
-		if block == nil {
-			break
-		}
-		if block.Type != "CERTIFICATE" {
-			return nil, fmt.Errorf("unexpected pem block type: %v", block.Type)
-		}
-
-		certificate, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed parsing x509 certificate: %v", err)
-		}
-		chain = append(chain, certificate)
-	}
-	return chain, nil
 }
