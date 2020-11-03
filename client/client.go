@@ -130,8 +130,29 @@ func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 	return item, nil
 }
 
-func (c *Client) GetConsistencyProof(ctx context.Context, first, second uint64) (*stfe.StItem, error) {
-	return nil, fmt.Errorf("TODO")
+func (c *Client) GetConsistencyProof(ctx context.Context, first, second *stfe.StItem) (*stfe.StItem, error) {
+	req, err := http.NewRequest("GET", c.protocol()+c.Log.BaseUrl+"/get-consistency-proof", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating http request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	q := req.URL.Query()
+	q.Add("first", fmt.Sprintf("%d", first.SignedTreeHeadV1.TreeHead.TreeSize))
+	q.Add("second", fmt.Sprintf("%d", second.SignedTreeHeadV1.TreeHead.TreeSize))
+	req.URL.RawQuery = q.Encode()
+	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
+
+	item, err := c.doRequestWithStItemResponse(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if item.Format != stfe.StFormatConsistencyProofV1 {
+		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
+	}
+	if err := VerifyConsistencyProofV1(item, first, second); err != nil {
+		return nil, fmt.Errorf("bad consistency proof: %v", err)
+	}
+	return item, nil
 }
 
 func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, leaf []byte) (*stfe.StItem, error) {
@@ -161,13 +182,11 @@ func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, 
 }
 
 func (c *Client) GetEntries(ctx context.Context, start, end uint64) (*stfe.StItem, error) {
-	glog.V(2).Info("creating get-entries request")
-	return nil, fmt.Errorf("TODO")
+	return nil, fmt.Errorf("TODO: Client.GetEntries()")
 }
 
 func (c *Client) GetAnchors(ctx context.Context, start, end uint64) ([]*x509.Certificate, error) {
-	glog.V(2).Info("creating get-anchors request")
-	return nil, fmt.Errorf("TODO")
+	return nil, fmt.Errorf("TODO: Client.GetAnchors()")
 }
 
 func (c *Client) b64Chain() []string {
