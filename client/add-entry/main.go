@@ -9,9 +9,7 @@ import (
 	"net/http"
 
 	"github.com/golang/glog"
-	"github.com/system-transparency/stfe"
 	"github.com/system-transparency/stfe/client"
-	"github.com/system-transparency/stfe/server/descriptor"
 )
 
 var (
@@ -26,16 +24,16 @@ var (
 func main() {
 	flag.Parse()
 
-	client, err := setup()
+	pname := []byte(*name)
+	psum, err := base64.StdEncoding.DecodeString(*checksum)
+	if err != nil {
+		glog.Fatalf("failed decoding checksum: %v", err)
+	}
+
+	client, err := client.NewClientFromPath(*logId, *chain, *key, *operators, &http.Client{}, true)
 	if err != nil {
 		glog.Fatal(err)
 	}
-
-	pname, psum, err := params()
-	if err != nil {
-		glog.Fatal(err)
-	}
-
 	sdi, err := client.AddEntry(context.Background(), pname, psum)
 	if err != nil {
 		glog.Fatalf("add-entry failed: %v", err)
@@ -46,41 +44,6 @@ func main() {
 		glog.Fatalf("failed encoding valid signed debug info: %v", err)
 	}
 	fmt.Println(str)
+
 	glog.Flush()
-}
-
-func params() ([]byte, []byte, error) {
-	b, err := base64.StdEncoding.DecodeString(*checksum)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed decoding checksum: %v", err)
-	}
-	return []byte(*name), b, nil
-}
-
-func setup() (*client.Client, error) {
-	c, err := stfe.LoadChain(*chain)
-	if err != nil {
-		return nil, err
-	}
-
-	k, err := stfe.LoadEd25519SigningKey(*key)
-	if err != nil {
-		return nil, err
-	}
-
-	ops, err := descriptor.LoadOperators(*operators)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := base64.StdEncoding.DecodeString(*logId)
-	if err != nil {
-		return nil, fmt.Errorf("failed decoding log identifier: %v", err)
-	}
-
-	log, err := descriptor.FindLog(ops, id)
-	if err != nil {
-		return nil, err
-	}
-	return client.NewClient(log, &http.Client{}, true, c, &k), nil
 }

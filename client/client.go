@@ -39,6 +39,37 @@ func NewClient(log *descriptor.Log, client *http.Client, useHttp bool, chain []*
 	}
 }
 
+// NewClientFromPath loads necessary data from file before creating a new
+// client, namely, a pem-encoded certificate chain, a pem-encoded ed25519
+// private key, and a json-encoded list of log operators (see descriptor).
+func NewClientFromPath(logId, chainPath, keyPath, operatorsPath string, cli *http.Client, useHttp bool) (*Client, error) {
+	c, err := stfe.LoadChain(chainPath)
+	if err != nil {
+		return nil, err
+	}
+
+	k, err := stfe.LoadEd25519SigningKey(keyPath)
+	if err != nil {
+		return nil, err
+	}
+
+	ops, err := descriptor.LoadOperators(operatorsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := base64.StdEncoding.DecodeString(logId)
+	if err != nil {
+		return nil, fmt.Errorf("failed decoding log identifier: %v", err)
+	}
+
+	log, err := descriptor.FindLog(ops, id)
+	if err != nil {
+		return nil, err
+	}
+	return NewClient(log, cli, useHttp, c, &k), nil
+}
+
 // AddEntry creates, signs, and adds a new ChecksumV1 entry to the log
 func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StItem, error) {
 	leaf, err := stfe.NewChecksumV1(name, checksum).Marshal()
