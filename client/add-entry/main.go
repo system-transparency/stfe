@@ -97,30 +97,6 @@ func setup() (*client.Client, error) {
 	return client.NewClient(log, &http.Client{}, c, &k), nil
 }
 
-//func parseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
-//	block, rest := pem.Decode(data)
-//	if block == nil {
-//		return nil, fmt.Errorf("pem block: is empty")
-//	}
-//	if block.Type != "PRIVATE KEY" {
-//		return nil, fmt.Errorf("bad pem block type: %v", block.Type)
-//	}
-//	if len(rest) != 0 {
-//		return nil, fmt.Errorf("pem block: trailing data")
-//	}
-//
-//	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-//	if err != nil {
-//		fmt.Errorf("x509 parser failed: %v", err)
-//	}
-//	switch t := key.(type) {
-//	case ed25519.PrivateKey:
-//		return key.(ed25519.PrivateKey), nil
-//	default:
-//		return nil, fmt.Errorf("unexpected signing key type: %v", t)
-//	}
-//}
-
 func parseChain(rest []byte) ([]*x509.Certificate, error) {
 	var chain []*x509.Certificate
 	for len(rest) > 0 {
