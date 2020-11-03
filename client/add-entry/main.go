@@ -89,17 +89,9 @@ func setup() (*client.Client, error) {
 		return nil, fmt.Errorf("failed decoding log identifier: %v", err)
 	}
 
-	// TODO: define FindLog() for []Operator
-	var log *descriptor.Log
-	for _, op := range ops {
-		l, err := op.FindLog(id)
-		if err == nil {
-			log = l
-			break
-		}
-	}
-	if log == nil {
-		return nil, fmt.Errorf("unknown log identifier: %v", err)
+	log, err := descriptor.FindLog(ops, id)
+	if err != nil {
+		return nil, err
 	}
 	return client.NewClient(log, &http.Client{}, c, &k), nil
 }

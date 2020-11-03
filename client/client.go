@@ -50,7 +50,7 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 	}{
 		Item:      base64.StdEncoding.EncodeToString(leaf),
 		Scheme:    uint16(tls.Ed25519),
-		Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(*c.PrivateKey, serialized)),
+		Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(*c.PrivateKey, leaf)),
 		Chain:     c.b64Chain(),
 	})
 	if err != nil {
@@ -79,7 +79,7 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 	if item.Format != stfe.StFormatSignedDebugInfoV1 {
 		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
 	}
-	if err := item.SignedDebugInfoV1.Verify(c.Log.Scheme, c.Log.PublicKey, serialized); err != nil {
+	if err := item.SignedDebugInfoV1.Verify(c.Log.Scheme, c.Log.PublicKey, leaf); err != nil {
 		return nil, fmt.Errorf("bad SignedDebugInfoV1 signature: %v", err)
 	}
 	return &item, nil

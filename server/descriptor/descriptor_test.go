@@ -48,14 +48,14 @@ func TestUnmarshal(t *testing.T) {
 
 func TestFindLog(t *testing.T) {
 	for _, table := range []struct {
-		op        Operator
+		ops       []Operator
 		logId     []byte
 		wantError bool
 	}{
-		{makeOperatorList()[0], deb64("B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM="), false},
-		{makeOperatorList()[0], []byte{0, 1, 2, 3}, true},
+		{makeOperatorList(), deb64("B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM="), false},
+		{makeOperatorList(), []byte{0, 1, 2, 3}, true},
 	} {
-		_, err := table.op.FindLog(table.logId)
+		_, err := FindLog(table.ops, table.logId)
 		if (err != nil) != table.wantError {
 			t.Errorf("wanted log not found for id: %v", table.logId)
 		}

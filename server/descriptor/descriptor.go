@@ -30,10 +30,12 @@ type Log struct {
 	BaseUrl   string                `json:"base_url"`          // E.g., example.com/st/v1
 }
 
-func (op *Operator) FindLog(logId []byte) (*Log, error) {
-	for _, log := range op.Logs {
-		if bytes.Equal(logId, log.Id) {
-			return log, nil
+func FindLog(ops []Operator, logId []byte) (*Log, error) {
+	for _, op := range ops {
+		for _, log := range op.Logs {
+			if bytes.Equal(logId, log.Id) {
+				return log, nil
+			}
 		}
 	}
 	return nil, fmt.Errorf("no such log: %s", base64.StdEncoding.EncodeToString(logId))
