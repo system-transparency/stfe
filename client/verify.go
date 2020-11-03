@@ -7,6 +7,8 @@ import (
 	"crypto/ed25519"
 	"crypto/tls"
 
+	"github.com/google/trillian/merkle"
+	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/system-transparency/stfe"
 )
 
@@ -40,6 +42,15 @@ func VerifySignedTreeHeadV1(sth *stfe.StItem, scheme tls.SignatureScheme, key cr
 		return fmt.Errorf("bad signature")
 	}
 	return nil
+}
+
+// VerifyInclusionProofV1 verifies that an inclusion proof is valid
+func VerifyInclusionProofV1(proof *stfe.StItem, rootHash, leafHash []byte) error {
+	path := make([][]byte, 0, len(proof.InclusionProofV1.InclusionPath))
+	for _, nh := range proof.InclusionProofV1.InclusionPath {
+		path = append(path, nh.Data)
+	}
+	return merkle.NewLogVerifier(rfc6962.DefaultHasher).VerifyInclusionProof(int64(proof.InclusionProofV1.LeafIndex), int64(proof.InclusionProofV1.TreeSize), path, rootHash, leafHash)
 }
 
 // supportedScheme checks whether the client library supports the log's

@@ -14,6 +14,7 @@ import (
 	"net/http"
 
 	"github.com/golang/glog"
+	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/system-transparency/stfe"
 	"github.com/system-transparency/stfe/server/descriptor"
 	"golang.org/x/net/context/ctxhttp"
@@ -130,13 +131,33 @@ func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 }
 
 func (c *Client) GetConsistencyProof(ctx context.Context, first, second uint64) (*stfe.StItem, error) {
-	glog.V(2).Info("creating get-consistency-proof request")
 	return nil, fmt.Errorf("TODO")
 }
 
-func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, hash []byte) (*stfe.StItem, error) {
-	glog.V(2).Info("creating get-proof-by-hash request")
-	return nil, fmt.Errorf("TODO")
+func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, leaf []byte) (*stfe.StItem, error) {
+	leafHash := rfc6962.DefaultHasher.HashLeaf(leaf)
+	req, err := http.NewRequest("GET", c.protocol()+c.Log.BaseUrl+"/get-proof-by-hash", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating http request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	q := req.URL.Query()
+	q.Add("hash", base64.StdEncoding.EncodeToString(leafHash))
+	q.Add("tree_size", fmt.Sprintf("%d", treeSize))
+	req.URL.RawQuery = q.Encode()
+	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
+
+	item, err := c.doRequestWithStItemResponse(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if item.Format != stfe.StFormatInclusionProofV1 {
+		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
+	}
+	if err := VerifyInclusionProofV1(item, rootHash, leafHash); err != nil {
+		return nil, fmt.Errorf("bad inclusion proof: %v", err)
+	}
+	return item, nil
 }
 
 func (c *Client) GetEntries(ctx context.Context, start, end uint64) (*stfe.StItem, error) {
