@@ -27,6 +27,7 @@ type LogParameters struct {
 	TreeId     int64  // used internally by Trillian
 	Prefix     string
 	MaxRange   int64               // max entries per get-entries request
+	MaxChain   int64               // max submitter certificate chain length
 	AnchorPool *x509.CertPool      // for chain verification
 	AnchorList []*x509.Certificate // for access to the raw certificates
 	Signer     crypto.Signer
@@ -77,6 +78,7 @@ func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (
 		TreeId:     treeId,
 		Prefix:     prefix,
 		MaxRange:   2, // TODO: allow configuration
+		MaxChain:   3, // TODO: allow configuration
 		AnchorPool: anchorPool,
 		AnchorList: anchorList,
 		Signer:     key,

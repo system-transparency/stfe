@@ -180,13 +180,16 @@ func buildChainFromB64List(lp *LogParameters, b64chain []string) ([]*x509.Certif
 		return nil, fmt.Errorf("chain verification failed: %v", err)
 	}
 	if len(chains) == 0 {
-		return nil, fmt.Errorf("chain verification failed: no chain")
+		return nil, fmt.Errorf("bad certificate chain length: empty")
 	}
 
-	chain := chains[0] // if we found multiple paths just pick the first one
-	// TODO: check that len(chain) is OK
-
-	return chain, nil
+	// there might be several valid chains
+	for _, chain := range chains {
+		if int64(len(chain)) <= lp.MaxChain {
+			return chain, nil // just pick the first valid chain
+		}
+	}
+	return nil, fmt.Errorf("bad certificate chain length: too large")
 }
 
 // verifySignature checks if signature is valid for some serialized data.  The
