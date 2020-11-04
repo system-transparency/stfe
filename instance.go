@@ -54,7 +54,7 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 }
 
 // NewLogParameters initializes log parameters, assuming ed25519 signatures.
-func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (*LogParameters, error) {
+func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string, maxRange, maxChain int64) (*LogParameters, error) {
 	anchorList, anchorPool, err := LoadTrustAnchors(anchorPath)
 	if err != nil {
 		return nil, err
@@ -77,8 +77,8 @@ func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string) (
 		LogId:      logId,
 		TreeId:     treeId,
 		Prefix:     prefix,
-		MaxRange:   2, // TODO: allow configuration
-		MaxChain:   3, // TODO: allow configuration
+		MaxRange:   maxRange,
+		MaxChain:   maxChain,
 		AnchorPool: anchorPool,
 		AnchorList: anchorList,
 		Signer:     key,

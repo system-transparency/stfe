@@ -21,6 +21,8 @@ var (
 	rpcDeadline  = flag.Duration("rpc_deadline", time.Second*10, "deadline for backend RPC requests")
 	anchorPath   = flag.String("anchor_path", "testdata/x509/root.pem", "path to a file containing PEM-encoded X.509 root certificates")
 	keyPath      = flag.String("key_path", "testdata/log/private.key", "path to a PEM-encoded ed25519 signing key")
+	maxRange     = flag.Int64("max_range", 2, "maximum number of entries that can be retrived in a single request")
+	maxChain     = flag.Int64("max_chain", 3, "maximum number of certificates in a chain, including the trust anchor")
 )
 
 func main() {
@@ -38,7 +40,7 @@ func main() {
 	mux := http.NewServeMux()
 	http.Handle("/", mux)
 
-	lp, err := stfe.NewLogParameters(*trillianID, *prefix, *anchorPath, *keyPath)
+	lp, err := stfe.NewLogParameters(*trillianID, *prefix, *anchorPath, *keyPath, *maxRange, *maxChain)
 	if err != nil {
 		glog.Fatalf("failed setting up log parameters: %v", err)
 	}
