@@ -43,7 +43,6 @@ type SignedTreeHeadV1 struct {
 
 // SignedDebugInfoV1 is a signed statement that we intend (but do not promise)
 // to insert an entry into the log as defined by markdown/api.md
-// TODO: double-check that crypto/ed25519 encodes signature as in RFC 8032
 type SignedDebugInfoV1 struct {
 	LogId     []byte `tls:"minlen:32,maxlen:32"`
 	Message   []byte `tls:"minlen:0,maxlen:65535"`
