@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/system-transparency/stfe"
 	"google.golang.org/grpc"
 )
@@ -39,6 +40,9 @@ func main() {
 	glog.Info("Creating HTTP request multiplexer")
 	mux := http.NewServeMux()
 	http.Handle("/", mux)
+
+	glog.Info("Adding prometheus handler on path: /metrics")
+	http.Handle("/metrics", promhttp.Handler())
 
 	lp, err := stfe.NewLogParameters(*trillianID, *prefix, *anchorPath, *keyPath, *maxRange, *maxChain)
 	if err != nil {

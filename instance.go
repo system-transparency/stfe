@@ -43,6 +43,10 @@ func (p LogParameters) String() string {
 	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) NumAnchors(%d)", base64.StdEncoding.EncodeToString(p.LogId), p.TreeId, p.Prefix, len(p.AnchorList))
 }
 
+func (i *LogParameters) id() string {
+	return base64.StdEncoding.EncodeToString(i.LogId)
+}
+
 // NewInstance returns a new STFE Instance
 func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline time.Duration, mux *http.ServeMux) (*Instance, error) {
 	i := &Instance{
@@ -51,6 +55,7 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 		Deadline:      deadline,
 	}
 	i.registerHandlers(mux)
+	once.Do(metricSetup)
 	return i, nil
 }
 

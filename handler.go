@@ -21,7 +21,16 @@ type appHandler struct {
 }
 
 func (a appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(a.instance.Deadline))
+	// export prometheus metrics
+	var now time.Time = time.Now()
+	var statusCode int
+	defer func() {
+		rspcnt.Inc(a.instance.LogParameters.id(), a.endpoint, fmt.Sprintf("%d", statusCode))
+		latency.Observe(time.Now().Sub(now).Seconds(), a.instance.LogParameters.id(), a.endpoint, fmt.Sprintf("%d", statusCode))
+	}()
+	reqcnt.Inc(a.instance.LogParameters.id(), a.endpoint)
+
+	ctx, cancel := context.WithDeadline(r.Context(), now.Add(a.instance.Deadline))
 	defer cancel()
 
 	if r.Method != a.method {
@@ -71,6 +80,7 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
+	lastSdiTimestamp.Set(float64(time.Now().Unix()), i.LogParameters.id())
 	if err := WriteJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -207,6 +217,8 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
+	lastSthTimestamp.Set(float64(time.Now().Unix()), i.LogParameters.id())
+	lastSthSize.Set(float64(sth.SignedTreeHeadV1.TreeHead.TreeSize), i.LogParameters.id())
 	if err := WriteJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
