@@ -30,6 +30,7 @@ type LogParameters struct {
 	MaxChain   int64               // max submitter certificate chain length
 	AnchorPool *x509.CertPool      // for chain verification
 	AnchorList []*x509.Certificate // for access to the raw certificates
+	KeyUsage   []x509.ExtKeyUsage  // which extended key usages are accepted
 	Signer     crypto.Signer
 	HashType   crypto.Hash // hash function used by Trillian
 }
@@ -81,6 +82,7 @@ func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string, m
 		MaxChain:   maxChain,
 		AnchorPool: anchorPool,
 		AnchorList: anchorList,
+		KeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 		Signer:     key,
 		HashType:   crypto.SHA256,
 	}, nil

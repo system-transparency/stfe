@@ -172,7 +172,7 @@ func buildChainFromB64List(lp *LogParameters, b64chain []string) ([]*x509.Certif
 	opts := x509.VerifyOptions{
 		Roots:         lp.AnchorPool,
 		Intermediates: intermediatePool,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny}, // TODO: move to ld
+		KeyUsages:     lp.KeyUsage, // no extended key usage passes by default
 	}
 
 	chains, err := certificate.Verify(opts)
