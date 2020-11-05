@@ -193,8 +193,24 @@ func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, 
 	return item, nil
 }
 
-func (c *Client) GetEntries(ctx context.Context, start, end uint64) (*stfe.StItem, error) {
-	return nil, fmt.Errorf("TODO: Client.GetEntries()")
+func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.GetEntryResponse, error) {
+	req, err := http.NewRequest("GET", c.protocol()+c.Log.BaseUrl+"/get-entries", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating http request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	q := req.URL.Query()
+	q.Add("start", fmt.Sprintf("%d", start))
+	q.Add("end", fmt.Sprintf("%d", end))
+	req.URL.RawQuery = q.Encode()
+	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
+
+	var rsp []*stfe.GetEntryResponse
+	if err := c.doRequest(ctx, req, &rsp); err != nil {
+		return nil, err
+	}
+	// TODO: verify signature over leaf data
+	return rsp, nil
 }
 
 // GetAnchors fetches the log's trust anchors.  Safe to use without a client
