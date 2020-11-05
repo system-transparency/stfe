@@ -96,14 +96,14 @@ func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string, m
 func (i *Instance) registerHandlers(mux *http.ServeMux) {
 	for _, endpoint := range []struct {
 		path    string
-		handler appHandler
+		handler handler
 	}{
-		{i.LogParameters.Prefix + "/add-entry", appHandler{instance: i, handler: addEntry, endpoint: "add-entry", method: http.MethodPost}},
-		{i.LogParameters.Prefix + "/get-entries", appHandler{instance: i, handler: getEntries, endpoint: "get-entries", method: http.MethodGet}},
-		{i.LogParameters.Prefix + "/get-anchors", appHandler{instance: i, handler: getAnchors, endpoint: "get-anchors", method: http.MethodGet}},
-		{i.LogParameters.Prefix + "/get-proof-by-hash", appHandler{instance: i, handler: getProofByHash, endpoint: "get-proof-by-hash", method: http.MethodGet}},
-		{i.LogParameters.Prefix + "/get-consistency-proof", appHandler{instance: i, handler: getConsistencyProof, endpoint: "get-consistency-proof", method: http.MethodGet}},
-		{i.LogParameters.Prefix + "/get-sth", appHandler{instance: i, handler: getSth, endpoint: "get-sth", method: http.MethodGet}},
+		{i.LogParameters.Prefix + "/add-entry", handler{instance: i, handler: addEntry, endpoint: "add-entry", method: http.MethodPost}},
+		{i.LogParameters.Prefix + "/get-entries", handler{instance: i, handler: getEntries, endpoint: "get-entries", method: http.MethodGet}},
+		{i.LogParameters.Prefix + "/get-anchors", handler{instance: i, handler: getAnchors, endpoint: "get-anchors", method: http.MethodGet}},
+		{i.LogParameters.Prefix + "/get-proof-by-hash", handler{instance: i, handler: getProofByHash, endpoint: "get-proof-by-hash", method: http.MethodGet}},
+		{i.LogParameters.Prefix + "/get-consistency-proof", handler{instance: i, handler: getConsistencyProof, endpoint: "get-consistency-proof", method: http.MethodGet}},
+		{i.LogParameters.Prefix + "/get-sth", handler{instance: i, handler: getSth, endpoint: "get-sth", method: http.MethodGet}},
 	} {
 		glog.Infof("adding handler for %v", endpoint.path)
 		mux.Handle(endpoint.path, endpoint.handler)

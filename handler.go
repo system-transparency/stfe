@@ -11,16 +11,16 @@ import (
 	"github.com/google/trillian"
 )
 
-// appHandler implements the http.Handler interface, and contains a reference
+// handler implements the http.Handler interface, and contains a reference
 // to an STFE server instance as well as a function that uses it.
-type appHandler struct {
+type handler struct {
 	instance *Instance // STFE server instance
 	endpoint string    // e.g., add-entry
 	method   string    // e.g., GET
 	handler  func(context.Context, *Instance, http.ResponseWriter, *http.Request) (int, error)
 }
 
-func (a appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (a handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// export prometheus metrics
 	var now time.Time = time.Now()
 	var statusCode int
@@ -46,7 +46,7 @@ func (a appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a appHandler) sendHTTPError(w http.ResponseWriter, statusCode int, err error) {
+func (a handler) sendHTTPError(w http.ResponseWriter, statusCode int, err error) {
 	http.Error(w, http.StatusText(statusCode), statusCode)
 }
 
