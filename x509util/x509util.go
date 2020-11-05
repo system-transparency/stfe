@@ -112,7 +112,7 @@ func ParseChain(rest []byte) ([]*x509.Certificate, error) {
 // first (zero-index) string is interpretted as an end-entity certificate and
 // the remaining ones as the an intermediate CertPool.
 func ParseDerChain(chain [][]byte) (*x509.Certificate, *x509.CertPool, error) {
-	certificates, err := ParseDerChainToList(chain)
+	certificates, err := ParseDerList(chain)
 	if err != nil || len(certificates) == 0 {
 		return nil, nil, err
 	}
@@ -123,10 +123,10 @@ func ParseDerChain(chain [][]byte) (*x509.Certificate, *x509.CertPool, error) {
 	return certificates[0], intermediatePool, nil
 }
 
-// ParseDerChainToList parses a list of DER-encoded certificates
-func ParseDerChainToList(chain [][]byte) ([]*x509.Certificate, error) {
-	ret := make([]*x509.Certificate, 0, len(chain))
-	for _, der := range chain {
+// ParseDerList parses a list of DER-encoded certificates
+func ParseDerList(certificates [][]byte) ([]*x509.Certificate, error) {
+	ret := make([]*x509.Certificate, 0, len(certificates))
+	for _, der := range certificates {
 		c, err := x509.ParseCertificate(der)
 		if err != nil {
 			return nil, fmt.Errorf("certificate decoding failed: %v", err)

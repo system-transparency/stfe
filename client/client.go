@@ -224,7 +224,7 @@ func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.Get
 		if item.Format != stfe.StFormatChecksumV1 {
 			return nil, fmt.Errorf("bad StFormat: %v (%v)", err, entry)
 		}
-		if chain, err := x509util.ParseDerChainToList(entry.Chain); err != nil {
+		if chain, err := x509util.ParseDerList(entry.Chain); err != nil {
 			return nil, fmt.Errorf("bad certificate chain: %v (%v)", err, entry)
 		} else if err := x509util.VerifyChain(chain); err != nil {
 			return nil, fmt.Errorf("invalid certificate chain: %v (%v)", err, entry)
@@ -246,7 +246,7 @@ func (c *Client) GetAnchors(ctx context.Context) ([]*x509.Certificate, error) {
 	if err := c.doRequest(ctx, req, &rsp); err != nil {
 		return nil, err
 	}
-	return x509util.ParseDerChainToList(rsp)
+	return x509util.ParseDerList(rsp)
 }
 
 func (c *Client) chain() [][]byte {
