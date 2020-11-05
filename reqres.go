@@ -66,13 +66,13 @@ func (lp *LogParameters) newAddEntryRequest(r *http.Request) ([]byte, []byte, er
 	}
 
 	// Check that there is a valid trust anchor
-	chain, err := buildChainFromDerList(lp, entry.Chain)
+	chain, err := lp.buildChainFromDerList(entry.Chain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid certificate chain: %v", err)
 	}
 
 	// Check that there is a valid signature
-	if err := verifySignature(lp, chain[0], tls.SignatureScheme(entry.SignatureScheme), entry.Item, entry.Signature); err != nil {
+	if err := lp.verifySignature(chain[0], tls.SignatureScheme(entry.SignatureScheme), entry.Item, entry.Signature); err != nil {
 		return nil, nil, fmt.Errorf("invalid signature: %v", err)
 	}
 

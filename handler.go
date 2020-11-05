@@ -72,7 +72,7 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 		return status, err
 	}
 
-	sdi, err := GenV1SDI(i.LogParameters, trsp.QueuedLeaf.Leaf.LeafValue)
+	sdi, err := i.LogParameters.genV1Sdi(trsp.QueuedLeaf.Leaf.LeafValue)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed debug info: %v", err)
 	}
@@ -208,7 +208,7 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating tree head: %v", err)
 	}
-	sth, err := GenV1STH(i.LogParameters, th)
+	sth, err := i.LogParameters.genV1Sth(th)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed tree head: %v", err)
 	}

@@ -81,29 +81,6 @@ func ParseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
 	}
 }
 
-func GenV1SDI(lp *LogParameters, serialized []byte) (*StItem, error) {
-	sig, err := lp.Signer.Sign(rand.Reader, serialized, crypto.Hash(0)) // ed25519
-	if err != nil {
-		return nil, fmt.Errorf("ed25519 signature failed: %v", err)
-	}
-	lastSdiTimestamp.Set(float64(time.Now().Unix()), lp.id())
-	return NewSignedDebugInfoV1(lp.LogId, []byte("reserved"), sig), nil
-}
-
-func GenV1STH(lp *LogParameters, th *TreeHeadV1) (*StItem, error) {
-	serialized, err := th.Marshal()
-	if err != nil {
-		return nil, fmt.Errorf("failed tls marshaling tree head: %v", err)
-	}
-	sig, err := lp.Signer.Sign(rand.Reader, serialized, crypto.Hash(0)) // ed25519
-	if err != nil {
-		return nil, fmt.Errorf("ed25519 signature failed: %v", err)
-	}
-	lastSthTimestamp.Set(float64(time.Now().Unix()), lp.id())
-	lastSthSize.Set(float64(th.TreeSize), lp.id())
-	return NewSignedTreeHeadV1(th, lp.LogId, sig), nil
-}
-
 // LoadChain loads a PEM-encoded certificate chain from a given path
 func LoadChain(path string) ([]*x509.Certificate, error) {
 	blob, err := ioutil.ReadFile(path)
@@ -159,7 +136,7 @@ func ParseDerChain(chain [][]byte) (*x509.Certificate, *x509.CertPool, error) {
 	return certificate, intermediatePool, nil
 }
 
-func buildChainFromDerList(lp *LogParameters, derChain [][]byte) ([]*x509.Certificate, error) {
+func (lp *LogParameters) buildChainFromDerList(derChain [][]byte) ([]*x509.Certificate, error) {
 	certificate, intermediatePool, err := ParseDerChain(derChain)
 	if err != nil {
 		return nil, err
@@ -189,9 +166,8 @@ func buildChainFromDerList(lp *LogParameters, derChain [][]byte) ([]*x509.Certif
 }
 
 // verifySignature checks if signature is valid for some serialized data.  The
-// only supported signature scheme is ecdsa_secp256r1_sha256(0x0403), see §4.3.2
-// in RFC 8446.
-func verifySignature(_ *LogParameters, certificate *x509.Certificate, scheme tls.SignatureScheme, serialized, signature []byte) error {
+// only supported signature scheme is ed25519(0x0807), see §4.2.3 in RFC 8446.
+func (lp *LogParameters) verifySignature(certificate *x509.Certificate, scheme tls.SignatureScheme, serialized, signature []byte) error {
 	if scheme != tls.Ed25519 {
 		return fmt.Errorf("unsupported signature scheme: %v", scheme)
 	}
@@ -199,4 +175,29 @@ func verifySignature(_ *LogParameters, certificate *x509.Certificate, scheme tls
 		return fmt.Errorf("invalid signature: %v", err)
 	}
 	return nil
+}
+
+// genV1Sdi issues a new SignedDebugInfoV1 StItem from a serialized leaf value
+func (lp *LogParameters) genV1Sdi(serialized []byte) (*StItem, error) {
+	sig, err := lp.Signer.Sign(rand.Reader, serialized, crypto.Hash(0)) // ed25519
+	if err != nil {
+		return nil, fmt.Errorf("ed25519 signature failed: %v", err)
+	}
+	lastSdiTimestamp.Set(float64(time.Now().Unix()), lp.id())
+	return NewSignedDebugInfoV1(lp.LogId, []byte("reserved"), sig), nil
+}
+
+// genV1Sth issues a new SignedTreeHeadV1 StItem from a TreeHeadV1 structure
+func (lp *LogParameters) genV1Sth(th *TreeHeadV1) (*StItem, error) {
+	serialized, err := th.Marshal()
+	if err != nil {
+		return nil, fmt.Errorf("failed tls marshaling tree head: %v", err)
+	}
+	sig, err := lp.Signer.Sign(rand.Reader, serialized, crypto.Hash(0)) // ed25519
+	if err != nil {
+		return nil, fmt.Errorf("ed25519 signature failed: %v", err)
+	}
+	lastSthTimestamp.Set(float64(time.Now().Unix()), lp.id())
+	lastSthSize.Set(float64(th.TreeSize), lp.id())
+	return NewSignedTreeHeadV1(th, lp.LogId, sig), nil
 }
