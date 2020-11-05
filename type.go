@@ -235,24 +235,16 @@ func B64EncodePath(path []NodeHash) []string {
 // NewSignedTreeHead creates a new StItem of type signed_tree_head_v1
 func NewSignedTreeHeadV1(th *TreeHeadV1, logId, signature []byte) *StItem {
 	return &StItem{
-		Format: StFormatSignedTreeHeadV1,
-		SignedTreeHeadV1: &SignedTreeHeadV1{
-			LogId:     logId,
-			TreeHead:  *th,
-			Signature: signature,
-		},
+		Format:           StFormatSignedTreeHeadV1,
+		SignedTreeHeadV1: &SignedTreeHeadV1{logId, *th, signature},
 	}
 }
 
 // NewSignedDebugInfoV1 creates a new StItem of type inclusion_proof_v1
 func NewSignedDebugInfoV1(logId, message, signature []byte) *StItem {
 	return &StItem{
-		Format: StFormatSignedDebugInfoV1,
-		SignedDebugInfoV1: &SignedDebugInfoV1{
-			LogId:     logId,
-			Message:   message,
-			Signature: signature,
-		},
+		Format:            StFormatSignedDebugInfoV1,
+		SignedDebugInfoV1: &SignedDebugInfoV1{logId, message, signature},
 	}
 }
 
@@ -263,13 +255,8 @@ func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) *
 		inclusionPath = append(inclusionPath, NodeHash{Data: hash})
 	}
 	return &StItem{
-		Format: StFormatInclusionProofV1,
-		InclusionProofV1: &InclusionProofV1{
-			LogId:         logID,
-			TreeSize:      treeSize,
-			LeafIndex:     uint64(proof.LeafIndex),
-			InclusionPath: inclusionPath,
-		},
+		Format:           StFormatInclusionProofV1,
+		InclusionProofV1: &InclusionProofV1{logID, treeSize, uint64(proof.LeafIndex), inclusionPath},
 	}
 }
 
@@ -280,24 +267,16 @@ func NewConsistencyProofV1(logId []byte, first, second int64, proof *trillian.Pr
 		path = append(path, NodeHash{Data: hash})
 	}
 	return &StItem{
-		Format: StFormatConsistencyProofV1,
-		ConsistencyProofV1: &ConsistencyProofV1{
-			LogId:           logId,
-			TreeSize1:       uint64(first),
-			TreeSize2:       uint64(second),
-			ConsistencyPath: path,
-		},
+		Format:             StFormatConsistencyProofV1,
+		ConsistencyProofV1: &ConsistencyProofV1{logId, uint64(first), uint64(second), path},
 	}
 }
 
 // NewChecksumV1 creates a new StItem of type checksum_v1
 func NewChecksumV1(identifier []byte, checksum []byte) *StItem {
 	return &StItem{
-		Format: StFormatChecksumV1,
-		ChecksumV1: &ChecksumV1{
-			Package:  identifier,
-			Checksum: checksum,
-		},
+		Format:     StFormatChecksumV1,
+		ChecksumV1: &ChecksumV1{identifier, checksum},
 	}
 }
 
@@ -311,15 +290,7 @@ func NewTreeHeadV1(lp *LogParameters, slr *trillian.SignedLogRoot) (*TreeHeadV1,
 	if lp.HashType.Size() != len(lr.RootHash) {
 		return nil, fmt.Errorf("invalid Trillian root hash: %v", lr.RootHash)
 	}
-
-	return &TreeHeadV1{
-		Timestamp: uint64(lr.TimestampNanos / 1000 / 1000),
-		TreeSize:  uint64(lr.TreeSize),
-		RootHash: NodeHash{
-			Data: lr.RootHash,
-		},
-		Extension: nil, // no known extensions
-	}, nil
+	return &TreeHeadV1{uint64(lr.TimestampNanos / 1000 / 1000), uint64(lr.TreeSize), NodeHash{lr.RootHash}, nil}, nil
 }
 
 // NewAppendix creates a new leaf Appendix for an X.509 chain and signature
@@ -328,12 +299,7 @@ func NewAppendix(x509Chain []*x509.Certificate, signature []byte, signatureSchem
 	for _, c := range x509Chain {
 		chain = append(chain, RawCertificate{c.Raw})
 	}
-
-	return &Appendix{
-		Signature:       signature,
-		Chain:           chain,
-		SignatureScheme: signatureScheme,
-	}
+	return &Appendix{signature, signatureScheme, chain}
 }
 
 func b64(b []byte) string {
