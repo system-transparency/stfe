@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	operators      = flag.String("operators", "../../server/descriptor/stfe.json", "path to json-encoded list of log operators")
+	operators      = flag.String("operators", "../../descriptor/stfe.json", "path to json-encoded list of log operators")
 	logId          = flag.String("log_id", "B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM=", "base64-encoded log identifier")
 	chain          = flag.String("chain", "../../server/testdata/x509/end-entity.pem", "path to pem-encoded certificate chain that the log accepts")
 	signedTreeHead = flag.String("sth", "AAEgB9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPMAAAF1jnn7fwAAAAAAAAAxICCqLJn4QWYd0aRIRjDWGf4GWalDIb/iH60jSSX89WgvAAAAQF9XPFRdM56KaelHFFg1RqjTw1yFL085zHhdNkLeZh9BCXxVTByqrHEMngAkY69EX45aJMWh9NymmPau0qoigA8=", "base64-encoded StItem of type StFormatSignedTreeHeadV1")

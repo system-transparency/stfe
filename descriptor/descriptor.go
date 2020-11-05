@@ -12,11 +12,6 @@ import (
 	"io/ioutil"
 )
 
-const (
-	// Location is an url to a json-encoded list of stfe log operators
-	Location = "https://github.com/system-transparency/stfe/tree/main/server/descriptor/stfe.json"
-)
-
 // Operator is an stfe log operator that runs zero or more logs
 type Operator struct {
 	Name  string `json:"name"`

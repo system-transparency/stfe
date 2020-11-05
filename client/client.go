@@ -16,7 +16,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/system-transparency/stfe"
-	"github.com/system-transparency/stfe/server/descriptor"
+	"github.com/system-transparency/stfe/descriptor"
 	"github.com/system-transparency/stfe/x509util"
 	"golang.org/x/net/context/ctxhttp"
 )
