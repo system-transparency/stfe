@@ -108,9 +108,9 @@ func ParseChain(rest []byte) ([]*x509.Certificate, error) {
 	return chain, nil
 }
 
-// ParseDerChain parses a list of base64 DER-encoded X.509 certificates, such
-// that the first (zero-index) string is interpretted as an end-entity
-// certificate and the remaining ones as the an intermediate CertPool.
+// ParseDerChain parses a list of DER-encoded X.509 certificates, such that the
+// first (zero-index) string is interpretted as an end-entity certificate and
+// the remaining ones as the an intermediate CertPool.
 func ParseDerChain(chain [][]byte) (*x509.Certificate, *x509.CertPool, error) {
 	var certificate *x509.Certificate
 	intermediatePool := x509.NewCertPool()
@@ -132,3 +132,26 @@ func ParseDerChain(chain [][]byte) (*x509.Certificate, *x509.CertPool, error) {
 	return certificate, intermediatePool, nil
 }
 
+// ParseDerChainToList parses a list of DER-encoded certificates
+func ParseDerChainToList(chain [][]byte) ([]*x509.Certificate, error) {
+	ret := make([]*x509.Certificate, 0, len(chain))
+	for _, der := range chain {
+		c, err := x509.ParseCertificate(der)
+		if err != nil {
+			return nil, fmt.Errorf("certificate decoding failed: %v", err)
+		}
+		ret = append(ret, c)
+	}
+	return ret, nil
+}
+
+// VerifyChain checks whether the listed certificates are chained such
+// that the first is signed by the second, the second by the third, etc.
+func VerifyChain(chain []*x509.Certificate) error {
+	for i := 0; i < len(chain)-1; i++ {
+		if err := chain[i].CheckSignatureFrom(chain[i+1]); err != nil {
+			return err
+		}
+	}
+	return nil
+}

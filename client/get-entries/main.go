@@ -22,39 +22,47 @@ var (
 func main() {
 	flag.Parse()
 
-	client, err := client.NewClientFromPath(*logId, "", "", *operators, &http.Client{}, true)
-	if err != nil {
+	if client, err := client.NewClientFromPath(*logId, "", "", *operators, &http.Client{}, true); err != nil {
+		glog.Fatal(err)
+	} else if items, err := getRange(client, *start, *end); err != nil {
+		glog.Fatal(err)
+	} else if err := printRange(items); err != nil {
 		glog.Fatal(err)
 	}
 
-	items := make([]*stfe.StItem, 0, *end-*start+1)
-	i := *start
+	glog.Flush()
+}
+
+func getRange(client *client.Client, start, end uint64) ([]*stfe.StItem, error) {
+	items := make([]*stfe.StItem, 0, end-start+1)
 	for len(items) != cap(items) {
-		rsps, err := client.GetEntries(context.Background(), i, *end)
+		rsps, err := client.GetEntries(context.Background(), start, end)
 		if err != nil {
-			glog.Fatal(err)
+			return nil, fmt.Errorf("fetching entries failed: %v", err)
 		}
 
 		for _, rsp := range rsps {
 			var item stfe.StItem
-			if err := item.Unmarshal(rsp.Leaf); err != nil {
-				glog.Fatalf("bad StItem: unmarshal failed: %v", err)
+			if err := item.Unmarshal(rsp.Item); err != nil {
+				return nil, fmt.Errorf("expected valid StItem but unmarshal failed: %v", err)
 			} else if item.Format != stfe.StFormatChecksumV1 {
-				glog.Fatalf("bad StFormat: %v", item.Format)
+				return nil, fmt.Errorf("expected checksum_v1 but got: %v", item.Format)
 			}
 			items = append(items, &item)
 		}
-		i += uint64(len(rsps))
+		start += uint64(len(rsps))
 	}
+	return items, nil
+}
 
+func printRange(items []*stfe.StItem) error {
 	for i, item := range items {
-		glog.V(2).Infof("Index(%d): %s", *start+uint64(i), item)
+		glog.V(3).Infof("Index(%d): %s", *start+uint64(i), item)
 		str, err := item.MarshalB64()
 		if err != nil {
-			glog.Fatalf("bad StItem: marshal failed: %v", err)
+			glog.Fatalf("expected valid StItem but marshal failed: %v", err)
 		}
 		fmt.Printf("Index(%d): %s\n", *start+uint64(i), str)
 	}
-
-	glog.Flush()
+	return nil
 }

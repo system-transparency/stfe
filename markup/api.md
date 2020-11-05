@@ -161,8 +161,10 @@ Input:
 Output:
 - an array of objects, each consisting of
 	- leaf: `StItem` that corresponds to the leaf's type.
-	- signature: signature that covers the retrieved item using the log's
-	configured signature algorithm.
+	- signature: signature that covers the retrieved item using the below
+	signature scheme.
+	- signature_scheme: one that the log accepts, see supported signature
+	schemes and how they are represeneted in the log's parameters.
 	- chain: an array of base-64 encoded certificates, where the first
 	corresponds to the signing certificate and the final one a trust anchor.
 

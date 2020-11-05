@@ -39,13 +39,9 @@ type GetConsistencyProofRequest struct {
 	Second int64 `json:"second"` // size of the newer Merkle tree
 }
 
-// GetEntryResponse is an assembled log entry and its associated appendix
-// TODO: fix GetEntryResponse and update doc: should have signature scheme
-type GetEntryResponse struct {
-	Leaf      []byte   `json:"leaf"`      // tls-serialized StItem
-	Signature []byte   `json:"signature"` // Serialized signature using the log's signature scheme
-	Chain     [][]byte `json:"chain"`     // der-encoded certificates
-}
+// GetEntryResponse is an assembled log entry and its associated appendix.  It
+// is identical to the add-entry request that the log once accepted.
+type GetEntryResponse AddEntryRequest
 
 // newAddEntryRequest parses and sanitizes the JSON-encoded add-entry
 // parameters from an incoming HTTP post.  The serialized leaf value and
@@ -158,7 +154,7 @@ func (lp *LogParameters) newGetEntryResponse(leaf, appendix []byte) (*GetEntryRe
 	for _, c := range app.Chain {
 		chain = append(chain, c.Data)
 	}
-	return &GetEntryResponse{leaf, app.Signature, chain}, nil
+	return &GetEntryResponse{leaf, app.Signature, app.SignatureScheme, chain}, nil
 }
 
 // newGetEntriesResponse assembles a get-entries response

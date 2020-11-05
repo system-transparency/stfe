@@ -12,6 +12,7 @@ import (
 	"github.com/system-transparency/stfe"
 )
 
+// VerifySignedDebugInfoV1 verifies an SDI signature
 func VerifySignedDebugInfoV1(sdi *stfe.StItem, scheme tls.SignatureScheme, key crypto.PublicKey, message []byte) error {
 	if err := supportedScheme(scheme, key); err != nil {
 		return err
@@ -31,8 +32,22 @@ func VerifySignedTreeHeadV1(sth *stfe.StItem, scheme tls.SignatureScheme, key cr
 	if err := supportedScheme(scheme, key); err != nil {
 		return err
 	}
-
 	if !ed25519.Verify(key.(ed25519.PublicKey), serialized, sth.SignedTreeHeadV1.Signature) {
+		return fmt.Errorf("bad signature")
+	}
+	return nil
+}
+
+// VerifyChecksumV1 verifies a checksum signature
+func VerifyChecksumV1(checksum *stfe.StItem, key crypto.PublicKey, signature []byte, scheme tls.SignatureScheme) error {
+	serialized, err := checksum.Marshal()
+	if err != nil {
+		return fmt.Errorf("failed marshaling StItem: %v", err)
+	}
+	if err := supportedScheme(scheme, key); err != nil {
+		return err
+	}
+	if !ed25519.Verify(key.(ed25519.PublicKey), serialized, signature) {
 		return fmt.Errorf("bad signature")
 	}
 	return nil

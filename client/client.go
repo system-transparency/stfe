@@ -193,6 +193,13 @@ func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, 
 	return item, nil
 }
 
+// GetEntries fetches a range of entries from the log, verifying that they are
+// of type checksum_v1 and signed by a valid certificate chain in the appendix.
+// Fewer entries may be returned if too large range, in which case the end is
+// truncated. Safe to use without a client chain and corresponding private key.
+//
+// Note that a certificate chain is considered valid if it is chained correctly.
+// In other words, the caller may want to check whether the anchor is trusted.
 func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.GetEntryResponse, error) {
 	req, err := http.NewRequest("GET", c.protocol()+c.Log.BaseUrl+"/get-entries", nil)
 	if err != nil {
@@ -209,7 +216,22 @@ func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.Get
 	if err := c.doRequest(ctx, req, &rsp); err != nil {
 		return nil, err
 	}
-	// TODO: verify signature over leaf data
+	for _, entry := range rsp {
+		var item stfe.StItem
+		if err := item.Unmarshal(entry.Item); err != nil {
+			return nil, fmt.Errorf("unmarshal failed: %v (%v)", err, entry)
+		}
+		if item.Format != stfe.StFormatChecksumV1 {
+			return nil, fmt.Errorf("bad StFormat: %v (%v)", err, entry)
+		}
+		if chain, err := x509util.ParseDerChainToList(entry.Chain); err != nil {
+			return nil, fmt.Errorf("bad certificate chain: %v (%v)", err, entry)
+		} else if err := x509util.VerifyChain(chain); err != nil {
+			return nil, fmt.Errorf("invalid certificate chain: %v (%v)", err, entry)
+		} else if err := VerifyChecksumV1(&item, chain[0].PublicKey, entry.Signature, tls.SignatureScheme(entry.SignatureScheme)); err != nil {
+			return nil, fmt.Errorf("invalid signature: %v (%v)", err, entry)
+		}
+	}
 	return rsp, nil
 }
 
