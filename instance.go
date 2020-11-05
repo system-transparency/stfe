@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
+	"github.com/system-transparency/stfe/x509util"
 )
 
 // Instance is an instance of a particular log front-end
@@ -61,12 +62,12 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 
 // NewLogParameters initializes log parameters, assuming ed25519 signatures.
 func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string, maxRange, maxChain int64) (*LogParameters, error) {
-	anchorList, anchorPool, err := LoadTrustAnchors(anchorPath)
+	anchorList, anchorPool, err := x509util.LoadTrustAnchors(anchorPath)
 	if err != nil {
 		return nil, err
 	}
 
-	key, err := LoadEd25519SigningKey(keyPath)
+	key, err := x509util.LoadEd25519SigningKey(keyPath)
 	if err != nil {
 		return nil, err
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/system-transparency/stfe"
 	"github.com/system-transparency/stfe/server/descriptor"
+	"github.com/system-transparency/stfe/x509util"
 	"golang.org/x/net/context/ctxhttp"
 )
 
@@ -44,12 +45,12 @@ func NewClient(log *descriptor.Log, client *http.Client, useHttp bool, chain []*
 // client, namely, a pem-encoded certificate chain, a pem-encoded ed25519
 // private key, and a json-encoded list of log operators (see descriptor).
 func NewClientFromPath(logId, chainPath, keyPath, operatorsPath string, cli *http.Client, useHttp bool) (*Client, error) {
-	c, err := stfe.LoadChain(chainPath)
+	c, err := x509util.LoadChain(chainPath)
 	if err != nil {
 		return nil, err
 	}
 
-	k, err := stfe.LoadEd25519SigningKey(keyPath)
+	k, err := x509util.LoadEd25519SigningKey(keyPath)
 	if err != nil && keyPath != "" {
 		return nil, err
 	}
