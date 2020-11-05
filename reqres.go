@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -47,28 +46,32 @@ type GetEntryResponse struct {
 	Chain     [][]byte `json:"chain"`     // der-encoded certificates
 }
 
-// NewAddEntryRequest parses and sanitizes the JSON-encoded add-entry
+// newAddEntryRequest parses and sanitizes the JSON-encoded add-entry
 // parameters from an incoming HTTP post.  The serialized leaf value and
 // associated appendix is returned if the submitted data is valid: well-formed,
 // signed using a supported scheme, and chains back to a valid trust anchor.
-func NewAddEntryRequest(lp *LogParameters, r *http.Request) ([]byte, []byte, error) {
+func (lp *LogParameters) newAddEntryRequest(r *http.Request) ([]byte, []byte, error) {
 	var entry AddEntryRequest
-	if err := UnpackJsonPost(r, &entry); err != nil {
+	if err := unpackJsonPost(r, &entry); err != nil {
 		return nil, nil, err
 	}
 
+	// Try decoding as ChecksumV1 StItem
 	var item StItem
 	if err := item.Unmarshal(entry.Item); err != nil {
 		return nil, nil, fmt.Errorf("StItem(%s): %v", item.Format, err)
 	}
 	if item.Format != StFormatChecksumV1 {
 		return nil, nil, fmt.Errorf("invalid StItem format: %s", item.Format)
-	} // note that decode would have failed if invalid checksum/package length
+	}
 
+	// Check that there is a valid trust anchor
 	chain, err := buildChainFromDerList(lp, entry.Chain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid certificate chain: %v", err)
-	} // the final entry in chain is a valid trust anchor
+	}
+
+	// Check that there is a valid signature
 	if err := verifySignature(lp, chain[0], tls.SignatureScheme(entry.SignatureScheme), entry.Item, entry.Signature); err != nil {
 		return nil, nil, fmt.Errorf("invalid signature: %v", err)
 	}
@@ -80,88 +83,88 @@ func NewAddEntryRequest(lp *LogParameters, r *http.Request) ([]byte, []byte, err
 	return entry.Item, extra, nil
 }
 
-// NewGetEntriesRequest parses and sanitizes the URL-encoded get-entries
+// newGetEntriesRequest parses and sanitizes the URL-encoded get-entries
 // parameters from an incoming HTTP request.  Too large ranges are truncated
 // based on the log's configured max range, but without taking the log's
 // current tree size into consideration (because it is not know at this point).
-func NewGetEntriesRequest(lp *LogParameters, httpRequest *http.Request) (GetEntriesRequest, error) {
+func (lp *LogParameters) newGetEntriesRequest(httpRequest *http.Request) (*GetEntriesRequest, error) {
 	start, err := strconv.ParseInt(httpRequest.FormValue("start"), 10, 64)
 	if err != nil {
-		return GetEntriesRequest{}, fmt.Errorf("bad start parameter: %v", err)
+		return nil, fmt.Errorf("bad start parameter: %v", err)
 	}
 	end, err := strconv.ParseInt(httpRequest.FormValue("end"), 10, 64)
 	if err != nil {
-		return GetEntriesRequest{}, fmt.Errorf("bad end parameter: %v", err)
+		return nil, fmt.Errorf("bad end parameter: %v", err)
 	}
 
 	if start < 0 {
-		return GetEntriesRequest{}, fmt.Errorf("bad parameters: start(%v) must have a non-negative value", start)
+		return nil, fmt.Errorf("bad parameters: start(%v) must have a non-negative value", start)
 	}
 	if start > end {
-		return GetEntriesRequest{}, fmt.Errorf("bad parameters: start(%v) must be less than or equal to end(%v)", start, end)
+		return nil, fmt.Errorf("bad parameters: start(%v) must be less than or equal to end(%v)", start, end)
 	}
 	if end-start+1 > lp.MaxRange {
 		end = start + lp.MaxRange - 1
 	}
-	return GetEntriesRequest{Start: start, End: end}, nil
+	return &GetEntriesRequest{Start: start, End: end}, nil
 }
 
-// NewGetProofByHashRequest parses and sanitizes the URL-encoded
+// newGetProofByHashRequest parses and sanitizes the URL-encoded
 // get-proof-by-hash parameters from an incoming HTTP request.
-func NewGetProofByHashRequest(httpRequest *http.Request) (GetProofByHashRequest, error) {
-	treeSize, err := strconv.ParseInt(httpRequest.FormValue("tree_size"), 10, 64)
+func (lp *LogParameters) newGetProofByHashRequest(httpRequest *http.Request) (*GetProofByHashRequest, error) {
+	size, err := strconv.ParseInt(httpRequest.FormValue("tree_size"), 10, 64)
 	if err != nil {
-		return GetProofByHashRequest{}, fmt.Errorf("bad tree_size parameter: %v", err)
+		return nil, fmt.Errorf("bad tree_size parameter: %v", err)
 	}
-	if treeSize < 0 {
-		return GetProofByHashRequest{}, fmt.Errorf("bad tree_size parameter: negative value")
+	if size < 0 {
+		return nil, fmt.Errorf("bad tree_size parameter: negative value")
 	}
-
 	hash, err := deb64(httpRequest.FormValue("hash"))
 	if err != nil {
-		return GetProofByHashRequest{}, fmt.Errorf("bad hash parameter: %v", err)
+		return nil, fmt.Errorf("bad hash parameter: %v", err)
 	}
-	return GetProofByHashRequest{TreeSize: treeSize, Hash: hash}, nil
+	return &GetProofByHashRequest{TreeSize: size, Hash: hash}, nil
 }
 
-func NewGetConsistencyProofRequest(httpRequest *http.Request) (GetConsistencyProofRequest, error) {
+// newGetConsistencyProofRequest parses and sanitizes the URL-encoded
+// get-consistency-proof-request parameters from an incoming HTTP request
+func (lp *LogParameters) newGetConsistencyProofRequest(httpRequest *http.Request) (*GetConsistencyProofRequest, error) {
 	first, err := strconv.ParseInt(httpRequest.FormValue("first"), 10, 64)
 	if err != nil {
-		return GetConsistencyProofRequest{}, fmt.Errorf("bad first parameter: %v", err)
+		return nil, fmt.Errorf("bad first parameter: %v", err)
 	}
 	second, err := strconv.ParseInt(httpRequest.FormValue("second"), 10, 64)
 	if err != nil {
-		return GetConsistencyProofRequest{}, fmt.Errorf("bad second parameter: %v", err)
+		return nil, fmt.Errorf("bad second parameter: %v", err)
 	}
 
 	if first < 1 {
-		return GetConsistencyProofRequest{}, fmt.Errorf("bad parameters: first(%v) must be a natural number", first)
+		return nil, fmt.Errorf("bad parameters: first(%d) must be a natural number", first)
 	}
 	if first >= second {
-		return GetConsistencyProofRequest{}, fmt.Errorf("bad parameters: second(%v) must be larger than first(%v)", first, second)
+		return nil, fmt.Errorf("bad parameters: second(%d) must be larger than first(%d)", first, second)
 	}
-
-	return GetConsistencyProofRequest{First: first, Second: second}, nil
+	return &GetConsistencyProofRequest{First: first, Second: second}, nil
 }
 
-// NewGetEntryResponse assembles a log entry and its appendix
-func NewGetEntryResponse(leaf, appendix []byte) (GetEntryResponse, error) {
+// newGetEntryResponse assembles a log entry and its appendix
+func (lp *LogParameters) newGetEntryResponse(leaf, appendix []byte) (*GetEntryResponse, error) {
 	var app Appendix
 	if err := app.Unmarshal(appendix); err != nil {
-		return GetEntryResponse{}, err
+		return nil, err
 	}
 	chain := make([][]byte, 0, len(app.Chain))
 	for _, c := range app.Chain {
 		chain = append(chain, c.Data)
 	}
-	return GetEntryResponse{leaf, app.Signature, chain}, nil
+	return &GetEntryResponse{leaf, app.Signature, chain}, nil
 }
 
-// NewGetEntriesResponse assembles a get-entries response
-func NewGetEntriesResponse(leaves []*trillian.LogLeaf) ([]GetEntryResponse, error) {
-	entries := make([]GetEntryResponse, 0, len(leaves))
+// newGetEntriesResponse assembles a get-entries response
+func (lp *LogParameters) newGetEntriesResponse(leaves []*trillian.LogLeaf) ([]*GetEntryResponse, error) {
+	entries := make([]*GetEntryResponse, 0, len(leaves))
 	for _, leaf := range leaves {
-		entry, err := NewGetEntryResponse(leaf.GetLeafValue(), leaf.GetExtraData())
+		entry, err := lp.newGetEntryResponse(leaf.GetLeafValue(), leaf.GetExtraData())
 		if err != nil {
 			return nil, err
 		}
@@ -170,16 +173,17 @@ func NewGetEntriesResponse(leaves []*trillian.LogLeaf) ([]GetEntryResponse, erro
 	return entries, nil
 }
 
-func NewGetAnchorsResponse(anchors []*x509.Certificate) [][]byte {
-	certificates := make([][]byte, 0, len(anchors))
-	for _, certificate := range anchors {
+// newGetAnchorsResponse assembles a get-anchors response
+func (lp *LogParameters) newGetAnchorsResponse() [][]byte {
+	certificates := make([][]byte, 0, len(lp.AnchorList))
+	for _, certificate := range lp.AnchorList {
 		certificates = append(certificates, certificate.Raw)
 	}
 	return certificates
 }
 
-// UnpackJsonPost unpacks a json-encoded HTTP POST request into `unpack`
-func UnpackJsonPost(r *http.Request, unpack interface{}) error {
+// unpackJsonPost unpacks a json-encoded HTTP POST request into `unpack`
+func unpackJsonPost(r *http.Request, unpack interface{}) error {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return fmt.Errorf("failed reading request body: %v", err)
@@ -190,12 +194,12 @@ func UnpackJsonPost(r *http.Request, unpack interface{}) error {
 	return nil
 }
 
-func WriteJsonResponse(response interface{}, w http.ResponseWriter) error {
+// writeJsonBody writes a json-body HTTP response
+func writeJsonResponse(response interface{}, w http.ResponseWriter) error {
 	json, err := json.Marshal(&response)
 	if err != nil {
 		return fmt.Errorf("json-encoding failed: %v", err)
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(json)
 	if err != nil {

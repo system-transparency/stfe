@@ -52,7 +52,7 @@ func (a appHandler) sendHTTPError(w http.ResponseWriter, statusCode int, err err
 
 func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.V(3).Info("handling add-entry request")
-	leaf, appendix, err := NewAddEntryRequest(i.LogParameters, r)
+	leaf, appendix, err := i.LogParameters.newAddEntryRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
@@ -81,7 +81,7 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, err
 	}
 	lastSdiTimestamp.Set(float64(time.Now().Unix()), i.LogParameters.id())
-	if err := WriteJsonResponse(rsp, w); err != nil {
+	if err := writeJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -90,7 +90,7 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 // getEntries provides a list of entries from the Trillian backend
 func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.V(3).Info("handling get-entries request")
-	req, err := NewGetEntriesRequest(i.LogParameters, r)
+	req, err := i.LogParameters.newGetEntriesRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
@@ -104,15 +104,15 @@ func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange request failed: %v", err)
 	}
-	if status, err := checkGetLeavesByRange(trsp, &req); err != nil {
+	if status, err := checkGetLeavesByRange(trsp, req); err != nil {
 		return status, err
 	}
 
-	rsp, err := NewGetEntriesResponse(trsp.Leaves)
+	rsp, err := i.LogParameters.newGetEntriesResponse(trsp.Leaves)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating GetEntriesResponse: %v", err)
 	}
-	if err := WriteJsonResponse(rsp, w); err != nil {
+	if err := writeJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -121,8 +121,8 @@ func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http
 // getAnchors provides a list of configured trust anchors
 func getAnchors(_ context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
 	glog.V(3).Info("handling get-anchors request")
-	data := NewGetAnchorsResponse(i.LogParameters.AnchorList)
-	if err := WriteJsonResponse(data, w); err != nil {
+	data := i.LogParameters.newGetAnchorsResponse()
+	if err := writeJsonResponse(data, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -131,7 +131,7 @@ func getAnchors(_ context.Context, i *Instance, w http.ResponseWriter, _ *http.R
 // getProofByHash provides an inclusion proof based on a given leaf hash
 func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.V(3).Info("handling get-proof-by-hash request")
-	req, err := NewGetProofByHashRequest(r)
+	req, err := i.LogParameters.newGetProofByHashRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
@@ -154,7 +154,7 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	if err := WriteJsonResponse(rsp, w); err != nil {
+	if err := writeJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -163,7 +163,7 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 // getConsistencyProof provides a consistency proof between two STHs
 func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.V(3).Info("handling get-consistency-proof request")
-	req, err := NewGetConsistencyProofRequest(r)
+	req, err := i.LogParameters.newGetConsistencyProofRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
@@ -185,7 +185,7 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	if err := WriteJsonResponse(rsp, w); err != nil {
+	if err := writeJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
@@ -219,7 +219,7 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	}
 	lastSthTimestamp.Set(float64(time.Now().Unix()), i.LogParameters.id())
 	lastSthSize.Set(float64(sth.SignedTreeHeadV1.TreeHead.TreeSize), i.LogParameters.id())
-	if err := WriteJsonResponse(rsp, w); err != nil {
+	if err := writeJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
