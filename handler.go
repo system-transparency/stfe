@@ -65,11 +65,8 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 		},
 	}
 	trsp, err := i.Client.QueueLeaf(ctx, &treq)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("backend QueueLeaf request failed: %v", err)
-	}
-	if status, err := checkQueueLeaf(trsp); err != nil {
-		return status, err
+	if status, errInner := checkQueueLeaf(trsp, err); errInner != nil {
+		return status, fmt.Errorf("bad QueueLeafResponse: %v", errInner)
 	}
 
 	sdi, err := i.LogParameters.genV1Sdi(trsp.QueuedLeaf.Leaf.LeafValue)
@@ -100,11 +97,8 @@ func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http
 		Count:      req.End - req.Start + 1,
 	}
 	trsp, err := i.Client.GetLeavesByRange(ctx, &treq)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange request failed: %v", err)
-	}
-	if status, err := checkGetLeavesByRange(trsp, req); err != nil {
-		return status, err
+	if status, errInner := checkGetLeavesByRange(req, trsp, err); errInner != nil {
+		return status, fmt.Errorf("bad GetLeavesByRangeResponse: %v", errInner)
 	}
 
 	rsp, err := i.LogParameters.newGetEntriesResponse(trsp.Leaves)
@@ -142,11 +136,8 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 		OrderBySequence: true,
 	}
 	trsp, err := i.Client.GetInclusionProofByHash(ctx, &treq)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed fetching inclusion proof from Trillian backend: %v", err)
-	}
-	if status, err := checkGetInclusionProofByHash(trsp, i.LogParameters); err != nil {
-		return status, err
+	if status, errInner := checkGetInclusionProofByHash(i.LogParameters, trsp, err); errInner != nil {
+		return status, fmt.Errorf("bad GetInclusionProofByHashResponse: %v", errInner)
 	}
 
 	rsp, err := NewInclusionProofV1(i.LogParameters.LogId, uint64(req.TreeSize), trsp.Proof[0]).MarshalB64()
@@ -173,11 +164,8 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 		SecondTreeSize: int64(req.Second),
 	}
 	trsp, err := i.Client.GetConsistencyProof(ctx, &treq)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed fetching consistency proof from Trillian backend: %v", err)
-	}
-	if status, err := checkGetConsistencyProofResponse(trsp, i.LogParameters); err != nil {
-		return status, err
+	if status, errInner := checkGetConsistencyProof(i.LogParameters, trsp, err); errInner != nil {
+		return status, fmt.Errorf("bad GetConsistencyProofResponse: %v", errInner)
 	}
 
 	rsp, err := NewConsistencyProofV1(i.LogParameters.LogId, req.First, req.Second, trsp.Proof).MarshalB64()
@@ -197,11 +185,8 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 		LogId: i.LogParameters.TreeId,
 	}
 	trsp, err := i.Client.GetLatestSignedLogRoot(ctx, &treq)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed fetching signed tree head from Trillian backend: %v", err)
-	}
-	if status, err := checkTrillianGetLatestSignedLogRoot(trsp, i.LogParameters); err != nil {
-		return status, err
+	if status, errInner := checkGetLatestSignedLogRoot(i.LogParameters, trsp, err); errInner != nil {
+		return status, fmt.Errorf("bad GetLatestSignedLogRootResponse: %v", errInner)
 	}
 
 	th, err := NewTreeHeadV1(i.LogParameters, trsp.SignedLogRoot)

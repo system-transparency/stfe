@@ -11,7 +11,10 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func checkQueueLeaf(rsp *trillian.QueueLeafResponse) (int, error) {
+func checkQueueLeaf(rsp *trillian.QueueLeafResponse, err error) (int, error) {
+	if err != nil || rsp == nil || rsp.QueuedLeaf == nil {
+		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+	}
 	if codes.Code(rsp.QueuedLeaf.GetStatus().GetCode()) == codes.AlreadyExists {
 		// no need to report this as an invalid request, just (re)issue sdi
 		glog.V(3).Infof("queued leaf is a duplicate => %X", rsp.QueuedLeaf.Leaf.LeafValue)
@@ -19,15 +22,18 @@ func checkQueueLeaf(rsp *trillian.QueueLeafResponse) (int, error) {
 	return 0, nil
 }
 
-func checkGetLeavesByRange(rsp *trillian.GetLeavesByRangeResponse, req *GetEntriesRequest) (int, error) {
+func checkGetLeavesByRange(req *GetEntriesRequest, rsp *trillian.GetLeavesByRangeResponse, err error) (int, error) {
+	if err != nil || rsp == nil || len(rsp.Leaves) == 0 || rsp.SignedLogRoot == nil || rsp.SignedLogRoot.LogRoot == nil {
+		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+	}
 	if len(rsp.Leaves) > int(req.End-req.Start+1) {
-		return http.StatusInternalServerError, fmt.Errorf("backend GetLeavesByRange returned too many leaves: %d for [%d,%d]", len(rsp.Leaves), req.Start, req.End)
+		return http.StatusInternalServerError, fmt.Errorf("too many leaves: %d for [%d,%d]", len(rsp.Leaves), req.Start, req.End)
 	}
 
 	// Ensure that a bad start parameter results in an error
 	var lr types.LogRootV1
-	if err := lr.UnmarshalBinary(rsp.GetSignedLogRoot().GetLogRoot()); err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed unmarshaling log root: %v", err)
+	if err := lr.UnmarshalBinary(rsp.SignedLogRoot.LogRoot); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("cannot unmarshal log root: %v", err)
 	}
 	if uint64(req.Start) >= lr.TreeSize {
 		return http.StatusNotFound, fmt.Errorf("invalid start(%d): tree size is %d", req.Start, lr.TreeSize)
@@ -42,32 +48,31 @@ func checkGetLeavesByRange(rsp *trillian.GetLeavesByRangeResponse, req *GetEntri
 	return 0, nil
 }
 
-func checkGetInclusionProofByHash(rsp *trillian.GetInclusionProofByHashResponse, lp *LogParameters) (int, error) {
-	if rsp.Proof == nil || len(rsp.Proof) == 0 {
-		return http.StatusNotFound, fmt.Errorf("incomplete backend response")
-	} // maybe redundant, but better safe than sorry
+func checkGetInclusionProofByHash(lp *LogParameters, rsp *trillian.GetInclusionProofByHashResponse, err error) (int, error) {
+	if err != nil || rsp == nil || len(rsp.Proof) == 0 || rsp.Proof[0] == nil {
+		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+	}
 	return checkHashPath(lp.HashType.Size(), rsp.Proof[0].Hashes)
 }
 
-func checkGetConsistencyProofResponse(rsp *trillian.GetConsistencyProofResponse, lp *LogParameters) (int, error) {
-	if rsp.Proof == nil {
-		return http.StatusNotFound, fmt.Errorf("incomplete backend response")
-	} // not redundant, out-of-range parameters yield an empty proof w/o error
+func checkGetConsistencyProof(lp *LogParameters, rsp *trillian.GetConsistencyProofResponse, err error) (int, error) {
+	if err != nil || rsp == nil || rsp.Proof == nil {
+		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+	}
 	return checkHashPath(lp.HashType.Size(), rsp.Proof.Hashes)
 }
 
-func checkTrillianGetLatestSignedLogRoot(rsp *trillian.GetLatestSignedLogRootResponse, lp *LogParameters) (int, error) {
-	if rsp.SignedLogRoot == nil {
-		return http.StatusInternalServerError, fmt.Errorf("incomplete backend response")
-	} // maybe redundant
-
+func checkGetLatestSignedLogRoot(lp *LogParameters, rsp *trillian.GetLatestSignedLogRootResponse, err error) (int, error) {
+	if err != nil || rsp == nil || rsp.SignedLogRoot == nil || rsp.SignedLogRoot.LogRoot == nil {
+		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+	}
 	var lr types.LogRootV1
-	if err := lr.UnmarshalBinary(rsp.GetSignedLogRoot().GetLogRoot()); err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed unmarshaling log root: %v", err)
+	if err := lr.UnmarshalBinary(rsp.SignedLogRoot.LogRoot); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("cannot unmarshal log root: %v", err)
 	}
 	if len(lr.RootHash) != lp.HashType.Size() {
 		return http.StatusInternalServerError, fmt.Errorf("invalid root hash: %v", lr.RootHash)
-	} // maybe redundant, but would not necessarily be caught by marshal error
+	}
 	return 0, nil
 }
 
@@ -76,6 +81,6 @@ func checkHashPath(hashSize int, path [][]byte) (int, error) {
 		if len(hash) != hashSize {
 			return http.StatusInternalServerError, fmt.Errorf("invalid proof: %v", path)
 		}
-	} // maybe redundant, but would not necessarily be caught by marshal error
+	}
 	return 0, nil
 }
