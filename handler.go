@@ -57,14 +57,13 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 		return http.StatusBadRequest, err
 	}
 
-	treq := trillian.QueueLeafRequest{
+	trsp, err := i.Client.QueueLeaf(ctx, &trillian.QueueLeafRequest{
 		LogId: i.LogParameters.TreeId,
 		Leaf: &trillian.LogLeaf{
 			LeafValue: leaf,
 			ExtraData: appendix,
 		},
-	}
-	trsp, err := i.Client.QueueLeaf(ctx, &treq)
+	})
 	if status, errInner := checkQueueLeaf(trsp, err); errInner != nil {
 		return status, fmt.Errorf("bad QueueLeafResponse: %v", errInner)
 	}
@@ -91,12 +90,11 @@ func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http
 		return http.StatusBadRequest, err
 	}
 
-	treq := trillian.GetLeavesByRangeRequest{
+	trsp, err := i.Client.GetLeavesByRange(ctx, &trillian.GetLeavesByRangeRequest{
 		LogId:      i.LogParameters.TreeId,
 		StartIndex: req.Start,
 		Count:      req.End - req.Start + 1,
-	}
-	trsp, err := i.Client.GetLeavesByRange(ctx, &treq)
+	})
 	if status, errInner := checkGetLeavesByRange(req, trsp, err); errInner != nil {
 		return status, fmt.Errorf("bad GetLeavesByRangeResponse: %v", errInner)
 	}
@@ -129,13 +127,12 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 		return http.StatusBadRequest, err
 	}
 
-	treq := trillian.GetInclusionProofByHashRequest{
+	trsp, err := i.Client.GetInclusionProofByHash(ctx, &trillian.GetInclusionProofByHashRequest{
 		LogId:           i.LogParameters.TreeId,
 		LeafHash:        req.Hash,
 		TreeSize:        req.TreeSize,
 		OrderBySequence: true,
-	}
-	trsp, err := i.Client.GetInclusionProofByHash(ctx, &treq)
+	})
 	if status, errInner := checkGetInclusionProofByHash(i.LogParameters, trsp, err); errInner != nil {
 		return status, fmt.Errorf("bad GetInclusionProofByHashResponse: %v", errInner)
 	}
@@ -158,12 +155,11 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 		return http.StatusBadRequest, err
 	}
 
-	treq := trillian.GetConsistencyProofRequest{
+	trsp, err := i.Client.GetConsistencyProof(ctx, &trillian.GetConsistencyProofRequest{
 		LogId:          i.LogParameters.TreeId,
 		FirstTreeSize:  int64(req.First),
 		SecondTreeSize: int64(req.Second),
-	}
-	trsp, err := i.Client.GetConsistencyProof(ctx, &treq)
+	})
 	if status, errInner := checkGetConsistencyProof(i.LogParameters, trsp, err); errInner != nil {
 		return status, fmt.Errorf("bad GetConsistencyProofResponse: %v", errInner)
 	}
@@ -181,10 +177,9 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 // getSth provides the most recent STH
 func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
 	glog.V(3).Info("handling get-sth request")
-	treq := trillian.GetLatestSignedLogRootRequest{
+	trsp, err := i.Client.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{
 		LogId: i.LogParameters.TreeId,
-	}
-	trsp, err := i.Client.GetLatestSignedLogRoot(ctx, &treq)
+	})
 	if status, errInner := checkGetLatestSignedLogRoot(i.LogParameters, trsp, err); errInner != nil {
 		return status, fmt.Errorf("bad GetLatestSignedLogRootResponse: %v", errInner)
 	}
