@@ -40,6 +40,7 @@ type GetConsistencyProofRequest struct {
 }
 
 // GetEntryResponse is an assembled log entry and its associated appendix
+// TODO: fix GetEntryResponse and update doc: should have signature scheme
 type GetEntryResponse struct {
 	Leaf      []byte   `json:"leaf"`      // tls-serialized StItem
 	Signature []byte   `json:"signature"` // Serialized signature using the log's signature scheme
