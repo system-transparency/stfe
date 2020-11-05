@@ -2,6 +2,7 @@ package stfe
 
 import (
 	"fmt"
+	"time"
 
 	"crypto"
 	"crypto/ed25519"
@@ -80,27 +81,27 @@ func ParseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
 	}
 }
 
-func GenV1SDI(ld *LogParameters, leaf []byte) (*StItem, error) {
-	// Note that ed25519 does not use the passed io.Reader
-	sig, err := ld.Signer.Sign(rand.Reader, leaf, crypto.Hash(0))
+func GenV1SDI(lp *LogParameters, serialized []byte) (*StItem, error) {
+	sig, err := lp.Signer.Sign(rand.Reader, serialized, crypto.Hash(0)) // ed25519
 	if err != nil {
 		return nil, fmt.Errorf("ed25519 signature failed: %v", err)
 	}
-	return NewSignedDebugInfoV1(ld.LogId, []byte("reserved"), sig), nil
+	lastSdiTimestamp.Set(float64(time.Now().Unix()), lp.id())
+	return NewSignedDebugInfoV1(lp.LogId, []byte("reserved"), sig), nil
 }
 
-func GenV1STH(ld *LogParameters, th *TreeHeadV1) (*StItem, error) {
+func GenV1STH(lp *LogParameters, th *TreeHeadV1) (*StItem, error) {
 	serialized, err := th.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("failed tls marshaling tree head: %v", err)
 	}
-
-	// Note that ed25519 does not use the passed io.Reader
-	sig, err := ld.Signer.Sign(rand.Reader, serialized, crypto.Hash(0))
+	sig, err := lp.Signer.Sign(rand.Reader, serialized, crypto.Hash(0)) // ed25519
 	if err != nil {
 		return nil, fmt.Errorf("ed25519 signature failed: %v", err)
 	}
-	return NewSignedTreeHeadV1(th, ld.LogId, sig), nil
+	lastSthTimestamp.Set(float64(time.Now().Unix()), lp.id())
+	lastSthSize.Set(float64(th.TreeSize), lp.id())
+	return NewSignedTreeHeadV1(th, lp.LogId, sig), nil
 }
 
 // LoadChain loads a PEM-encoded certificate chain from a given path

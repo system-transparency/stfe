@@ -80,7 +80,6 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	lastSdiTimestamp.Set(float64(time.Now().Unix()), i.LogParameters.id())
 	if err := writeJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -217,8 +216,6 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	lastSthTimestamp.Set(float64(time.Now().Unix()), i.LogParameters.id())
-	lastSthSize.Set(float64(sth.SignedTreeHeadV1.TreeHead.TreeSize), i.LogParameters.id())
 	if err := writeJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
 	}
