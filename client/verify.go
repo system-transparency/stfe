@@ -61,7 +61,13 @@ func VerifyInclusionProofV1(proof *stfe.StItem, rootHash, leafHash []byte) error
 	for _, nh := range proof.InclusionProofV1.InclusionPath {
 		path = append(path, nh.Data)
 	}
-	return merkle.NewLogVerifier(rfc6962.DefaultHasher).VerifyInclusionProof(int64(proof.InclusionProofV1.LeafIndex), int64(proof.InclusionProofV1.TreeSize), path, rootHash, leafHash)
+	return merkle.NewLogVerifier(rfc6962.DefaultHasher).VerifyInclusionProof(
+		int64(proof.InclusionProofV1.LeafIndex),
+		int64(proof.InclusionProofV1.TreeSize),
+		path,
+		rootHash,
+		leafHash,
+	)
 }
 
 // supportedScheme checks whether the client library supports the log's
