@@ -141,21 +141,11 @@ func (i SignedDebugInfoV1) String() string {
 }
 
 func (i ConsistencyProofV1) String() string {
-	path := make([]string, 0, len(i.ConsistencyPath))
-	for _, hash := range i.ConsistencyPath {
-		path = append(path, b64(hash.Data))
-	}
-
-	return fmt.Sprintf("LogID(%s) TreeSize1(%d) TreeSize2(%d) ConsistencyPath(%v)", b64(i.LogId), i.TreeSize1, i.TreeSize2, path)
+	return fmt.Sprintf("LogID(%s) TreeSize1(%d) TreeSize2(%d) ConsistencyPath(%v)", b64(i.LogId), i.TreeSize1, i.TreeSize2, B64EncodePath(i.ConsistencyPath))
 }
 
 func (i InclusionProofV1) String() string {
-	path := make([]string, 0, len(i.InclusionPath))
-	for _, hash := range i.InclusionPath {
-		path = append(path, b64(hash.Data))
-	}
-
-	return fmt.Sprintf("LogID(%s) TreeSize(%d) LeafIndex(%d) AuditPath(%v)", b64(i.LogId), i.TreeSize, i.LeafIndex, path)
+	return fmt.Sprintf("LogID(%s) TreeSize(%d) LeafIndex(%d) AuditPath(%v)", b64(i.LogId), i.TreeSize, i.LeafIndex, B64EncodePath(i.InclusionPath))
 }
 
 func (i ChecksumV1) String() string {
@@ -231,6 +221,15 @@ func (th *TreeHeadV1) Marshal() ([]byte, error) {
 		return nil, fmt.Errorf("marshal failed for TreeHeadV1: %v", err)
 	}
 	return serialized, nil
+}
+
+// B64EncodePath encodes a path of node hashes as a list of base64 strings
+func B64EncodePath(path []NodeHash) []string {
+	p := make([]string, 0, len(path))
+	for _, hash := range path {
+		p = append(p, b64(hash.Data))
+	}
+	return p
 }
 
 // NewSignedTreeHead creates a new StItem of type signed_tree_head_v1
