@@ -33,7 +33,9 @@ func main() {
 	if err := sth.UnmarshalB64(*signedTreeHead); err != nil {
 		glog.Fatalf("bad signed tree head: %v", err)
 	}
-	if err := client.VerifySignedTreeHeadV1(&sth, cli.Log.Scheme, cli.Log.Key()); err != nil {
+	if k, err := cli.Log.Key(); err != nil {
+		glog.Fatalf("bad public key: %v", err)
+	} else if err := client.VerifySignedTreeHeadV1(&sth, cli.Log.Scheme, k); err != nil {
 		glog.Fatalf("bad signed tree head: %v", err)
 	}
 	glog.V(3).Info("verified sth")

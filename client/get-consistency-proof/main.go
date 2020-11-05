@@ -28,11 +28,16 @@ func main() {
 		glog.Fatal(err)
 	}
 
+	k, err := cli.Log.Key()
+	if err != nil {
+		glog.Fatalf("bad public key: %v", err)
+	}
+
 	var sth1 stfe.StItem
 	if err := sth1.UnmarshalB64(*first); err != nil {
 		glog.Fatalf("bad signed tree head: %v", err)
 	}
-	if err := client.VerifySignedTreeHeadV1(&sth1, cli.Log.Scheme, cli.Log.Key()); err != nil {
+	if err := client.VerifySignedTreeHeadV1(&sth1, cli.Log.Scheme, k); err != nil {
 		glog.Fatalf("bad signed tree head: %v", err)
 	}
 	glog.V(3).Info("verified first sth")
@@ -41,7 +46,7 @@ func main() {
 	if err := sth2.UnmarshalB64(*second); err != nil {
 		glog.Fatalf("bad signed tree head: %v", err)
 	}
-	if err := client.VerifySignedTreeHeadV1(&sth2, cli.Log.Scheme, cli.Log.Key()); err != nil {
+	if err := client.VerifySignedTreeHeadV1(&sth2, cli.Log.Scheme, k); err != nil {
 		glog.Fatalf("bad signed tree head: %v", err)
 	}
 	glog.V(3).Info("verified second sth")

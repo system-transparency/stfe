@@ -104,7 +104,9 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
 	}
 
-	if err := VerifySignedDebugInfoV1(item, c.Log.Scheme, c.Log.Key(), leaf); err != nil {
+	if k, err := c.Log.Key(); err != nil {
+		return nil, fmt.Errorf("bad public key: %v", err)
+	} else if err := VerifySignedDebugInfoV1(item, c.Log.Scheme, k, leaf); err != nil {
 		return nil, fmt.Errorf("bad SignedDebugInfoV1 signature: %v", err)
 	}
 	return item, nil
@@ -125,7 +127,9 @@ func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
 	}
 
-	if err := VerifySignedTreeHeadV1(item, c.Log.Scheme, c.Log.Key()); err != nil {
+	if k, err := c.Log.Key(); err != nil {
+		return nil, fmt.Errorf("bad public key: %v", err)
+	} else if err := VerifySignedTreeHeadV1(item, c.Log.Scheme, k); err != nil {
 		return nil, fmt.Errorf("bad SignedDebugInfoV1 signature: %v", err)
 	}
 	return item, nil

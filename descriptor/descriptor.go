@@ -53,10 +53,7 @@ func LoadOperators(path string) ([]Operator, error) {
 	return ops, nil
 }
 
-func (l *Log) Key() crypto.PublicKey {
-	k, err := x509.ParsePKIXPublicKey(l.PublicKey)
-	if err != nil {
-		panic("TODO: make a new function and parse public key there")
-	}
-	return k
+// Key parses the log's public key
+func (l *Log) Key() (crypto.PublicKey, error) {
+	return x509.ParsePKIXPublicKey(l.PublicKey)
 }
