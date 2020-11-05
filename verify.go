@@ -12,12 +12,14 @@ import (
 	"github.com/system-transparency/stfe/x509util"
 )
 
+// buildChainFromDerList builds an X.509 certificate chain from a list of
+// DER-encoded certificates using the log's configured trust anchors, extended
+// key-usages, and maximum chain length (which includes the trust anchor).
 func (lp *LogParameters) buildChainFromDerList(derChain [][]byte) ([]*x509.Certificate, error) {
 	certificate, intermediatePool, err := x509util.ParseDerChain(derChain)
 	if err != nil {
 		return nil, err
 	}
-
 	opts := x509.VerifyOptions{
 		Roots:         lp.AnchorPool,
 		Intermediates: intermediatePool,
