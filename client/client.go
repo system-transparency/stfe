@@ -44,9 +44,10 @@ func NewClient(log *descriptor.Log, client *http.Client, useHttp bool, chain []*
 // NewClientFromPath loads necessary data from file before creating a new
 // client, namely, a pem-encoded certificate chain, a pem-encoded ed25519
 // private key, and a json-encoded list of log operators (see descriptor).
+// Chain and key paths may be left out by passing the empty string: "".
 func NewClientFromPath(logId, chainPath, keyPath, operatorsPath string, cli *http.Client, useHttp bool) (*Client, error) {
 	c, err := x509util.LoadChain(chainPath)
-	if err != nil {
+	if err != nil && chainPath != "" {
 		return nil, err
 	}
 
@@ -112,6 +113,8 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 	return item, nil
 }
 
+// GetSth fetches and verifies the most recent STH.  Safe to use without a
+// client chain and corresponding private key.
 func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 	req, err := http.NewRequest("GET", c.protocol()+c.Log.BaseUrl+"/get-sth", nil)
 	if err != nil {
@@ -135,6 +138,8 @@ func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 	return item, nil
 }
 
+// GetConsistencyProof fetches and verifies a consistency proof between two
+// STHs.  Safe to use without a client chain and corresponding private key.
 func (c *Client) GetConsistencyProof(ctx context.Context, first, second *stfe.StItem) (*stfe.StItem, error) {
 	req, err := http.NewRequest("GET", c.protocol()+c.Log.BaseUrl+"/get-consistency-proof", nil)
 	if err != nil {
@@ -160,6 +165,8 @@ func (c *Client) GetConsistencyProof(ctx context.Context, first, second *stfe.St
 	return item, nil
 }
 
+// GetProofByHash fetches and verifies an inclusion proof for a leaf against an
+// STH.  Safe to use without a client chain and corresponding private key.
 func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, leaf []byte) (*stfe.StItem, error) {
 	leafHash := rfc6962.DefaultHasher.HashLeaf(leaf)
 	req, err := http.NewRequest("GET", c.protocol()+c.Log.BaseUrl+"/get-proof-by-hash", nil)
@@ -190,6 +197,8 @@ func (c *Client) GetEntries(ctx context.Context, start, end uint64) (*stfe.StIte
 	return nil, fmt.Errorf("TODO: Client.GetEntries()")
 }
 
+// GetAnchors fetches the log's trust anchors.  Safe to use without a client
+// chain and corresponding private key.
 func (c *Client) GetAnchors(ctx context.Context, start, end uint64) ([]*x509.Certificate, error) {
 	return nil, fmt.Errorf("TODO: Client.GetAnchors()")
 }

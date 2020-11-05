@@ -15,7 +15,6 @@ import (
 var (
 	operators = flag.String("operators", "../../descriptor/stfe.json", "path to json-encoded list of log operators")
 	logId     = flag.String("log_id", "B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM=", "base64-encoded log identifier")
-	chain     = flag.String("chain", "../../server/testdata/x509/end-entity.pem", "path to pem-encoded certificate chain that the log accepts")
 	first     = flag.String("first", "AAEgB9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPMAAAF1jnn7fwAAAAAAAAAxICCqLJn4QWYd0aRIRjDWGf4GWalDIb/iH60jSSX89WgvAAAAQF9XPFRdM56KaelHFFg1RqjTw1yFL085zHhdNkLeZh9BCXxVTByqrHEMngAkY69EX45aJMWh9NymmPau0qoigA8=", "first base64-encoded StItem of type StFormatSignedTreeHeadV1")
 	second    = flag.String("second", "AAEgB9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPMAAAF1jsZrygAAAAAAAABFIL7Zz0WEolql7o7G496Izl7Qy/l2Qd/Pwc87W8jFPoL6AAAAQHc7ttIDUKuMJR7uqCLb3qqAxiwEN5KLt/7IblT7f+QaKq4BqqI3cO6vT3eMSZMHZDd4EkgvkAwo1o7IsA4N8Qc=", "second base64-encoded StItem of type StFormatSignedTreeHeadV1")
 )
@@ -23,7 +22,7 @@ var (
 func main() {
 	flag.Parse()
 
-	cli, err := client.NewClientFromPath(*logId, *chain, "", *operators, &http.Client{}, true)
+	cli, err := client.NewClientFromPath(*logId, "", "", *operators, &http.Client{}, true)
 	if err != nil {
 		glog.Fatal(err)
 	}
