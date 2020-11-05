@@ -237,8 +237,16 @@ func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.Get
 
 // GetAnchors fetches the log's trust anchors.  Safe to use without a client
 // chain and corresponding private key.
-func (c *Client) GetAnchors(ctx context.Context, start, end uint64) ([]*x509.Certificate, error) {
-	return nil, fmt.Errorf("TODO: Client.GetAnchors()")
+func (c *Client) GetAnchors(ctx context.Context) ([]*x509.Certificate, error) {
+	req, err := http.NewRequest("GET", c.protocol()+c.Log.BaseUrl+"/get-anchors", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating http request: %v", err)
+	}
+	var rsp [][]byte
+	if err := c.doRequest(ctx, req, &rsp); err != nil {
+		return nil, err
+	}
+	return x509util.ParseDerChainToList(rsp)
 }
 
 func (c *Client) chain() [][]byte {
