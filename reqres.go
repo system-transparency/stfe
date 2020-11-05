@@ -4,23 +4,21 @@ import (
 	"fmt"
 	"strconv"
 
-	stdtls "crypto/tls"
+	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/trillian"
 )
 
 // AddEntryRequest is a collection of add-entry input parameters
 type AddEntryRequest struct {
-	Item            string   `json:"item"`             // base64-encoded StItem
-	Signature       string   `json:"signature"`        // base64-encoded DigitallySigned
-	SignatureScheme uint16   `json:"signature_scheme"` // RFC 8446, §4.2.3
-	Chain           []string `json:"chain"`            // base64-encoded X.509 certificates
+	Item            []byte   `json:"item"`             // tls-serialized StItem
+	Signature       []byte   `json:"signature"`        // serialized signature using the signature scheme below
+	SignatureScheme uint16   `json:"signature_scheme"` // rfc 8446, §4.2.3
+	Chain           [][]byte `json:"chain"`            // der-encoded X.509 certificates
 }
 
 // GetEntriesRequest is a collection of get-entry input parameters
@@ -31,8 +29,8 @@ type GetEntriesRequest struct {
 
 // GetProofByHashRequest is a collection of get-proof-by-hash input parameters
 type GetProofByHashRequest struct {
-	Hash     []byte `json:"hash"`      // base64-encoded leaf hash
-	TreeSize int64  `json:"tree_size"` // Tree head size to base proof on
+	Hash     []byte `json:"hash"`      // leaf hash
+	TreeSize int64  `json:"tree_size"` // tree head size to base proof on
 }
 
 // GetConsistencyProofRequest is a collection of get-consistency-proof input
@@ -44,9 +42,9 @@ type GetConsistencyProofRequest struct {
 
 // GetEntryResponse is an assembled log entry and its associated appendix
 type GetEntryResponse struct {
-	Leaf      string   `json:"leaf"`      // base64-encoded StItem
-	Signature string   `json:"signature"` // base64-encoded signature
-	Chain     []string `json:"chain"`     // base64-encoded X.509 certificates
+	Leaf      []byte   `json:"leaf"`      // tls-serialized StItem
+	Signature []byte   `json:"signature"` // Serialized signature using the log's signature scheme
+	Chain     [][]byte `json:"chain"`     // der-encoded certificates
 }
 
 // NewAddEntryRequest parses and sanitizes the JSON-encoded add-entry
@@ -60,36 +58,26 @@ func NewAddEntryRequest(lp *LogParameters, r *http.Request) ([]byte, []byte, err
 	}
 
 	var item StItem
-	if err := item.UnmarshalB64(entry.Item); err != nil {
+	if err := item.Unmarshal(entry.Item); err != nil {
 		return nil, nil, fmt.Errorf("StItem(%s): %v", item.Format, err)
 	}
 	if item.Format != StFormatChecksumV1 {
 		return nil, nil, fmt.Errorf("invalid StItem format: %s", item.Format)
 	} // note that decode would have failed if invalid checksum/package length
 
-	chain, err := buildChainFromB64List(lp, entry.Chain)
+	chain, err := buildChainFromDerList(lp, entry.Chain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid certificate chain: %v", err)
 	} // the final entry in chain is a valid trust anchor
-
-	signature, err := base64.StdEncoding.DecodeString(entry.Signature)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid signature encoding: %v", err)
-	}
-	serialized, err := tls.Marshal(item)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed tls marshaling StItem(%s): %v", item.Format, err)
-	}
-	if err := verifySignature(lp, chain[0], stdtls.SignatureScheme(entry.SignatureScheme), serialized, signature); err != nil {
+	if err := verifySignature(lp, chain[0], tls.SignatureScheme(entry.SignatureScheme), entry.Item, entry.Signature); err != nil {
 		return nil, nil, fmt.Errorf("invalid signature: %v", err)
 	}
 
-	extra, err := NewAppendix(chain, signature, entry.SignatureScheme).Marshal()
+	extra, err := NewAppendix(chain, entry.Signature, entry.SignatureScheme).Marshal()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed marshaling appendix: %v", err)
 	}
-
-	return serialized, extra, nil
+	return entry.Item, extra, nil
 }
 
 // NewGetEntriesRequest parses and sanitizes the URL-encoded get-entries
@@ -129,7 +117,7 @@ func NewGetProofByHashRequest(httpRequest *http.Request) (GetProofByHashRequest,
 		return GetProofByHashRequest{}, fmt.Errorf("bad tree_size parameter: negative value")
 	}
 
-	hash, err := base64.StdEncoding.DecodeString(httpRequest.FormValue("hash"))
+	hash, err := deb64(httpRequest.FormValue("hash"))
 	if err != nil {
 		return GetProofByHashRequest{}, fmt.Errorf("bad hash parameter: %v", err)
 	}
@@ -162,17 +150,11 @@ func NewGetEntryResponse(leaf, appendix []byte) (GetEntryResponse, error) {
 	if err := app.Unmarshal(appendix); err != nil {
 		return GetEntryResponse{}, err
 	}
-
-	chain := make([]string, 0, len(app.Chain))
+	chain := make([][]byte, 0, len(app.Chain))
 	for _, c := range app.Chain {
-		chain = append(chain, base64.StdEncoding.EncodeToString(c.Data))
+		chain = append(chain, c.Data)
 	}
-
-	return GetEntryResponse{
-		Leaf:      base64.StdEncoding.EncodeToString(leaf),
-		Signature: base64.StdEncoding.EncodeToString(app.Signature),
-		Chain:     chain,
-	}, nil
+	return GetEntryResponse{leaf, app.Signature, chain}, nil
 }
 
 // NewGetEntriesResponse assembles a get-entries response
@@ -188,10 +170,10 @@ func NewGetEntriesResponse(leaves []*trillian.LogLeaf) ([]GetEntryResponse, erro
 	return entries, nil
 }
 
-func NewGetAnchorsResponse(anchors []*x509.Certificate) []string {
-	certificates := make([]string, 0, len(anchors))
+func NewGetAnchorsResponse(anchors []*x509.Certificate) [][]byte {
+	certificates := make([][]byte, 0, len(anchors))
 	for _, certificate := range anchors {
-		certificates = append(certificates, base64.StdEncoding.EncodeToString(certificate.Raw))
+		certificates = append(certificates, certificate.Raw)
 	}
 	return certificates
 }

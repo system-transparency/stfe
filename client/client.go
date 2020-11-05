@@ -78,10 +78,10 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 		return nil, fmt.Errorf("failed marshaling StItem: %v", err)
 	}
 	data, err := json.Marshal(stfe.AddEntryRequest{
-		Item:            base64.StdEncoding.EncodeToString(leaf),
-		Signature:       base64.StdEncoding.EncodeToString(ed25519.Sign(*c.PrivateKey, leaf)),
+		Item:            leaf,
+		Signature:       ed25519.Sign(*c.PrivateKey, leaf),
 		SignatureScheme: uint16(tls.Ed25519),
-		Chain:           c.b64Chain(),
+		Chain:           c.chain(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed creating post data: %v", err)
@@ -189,10 +189,10 @@ func (c *Client) GetAnchors(ctx context.Context, start, end uint64) ([]*x509.Cer
 	return nil, fmt.Errorf("TODO: Client.GetAnchors()")
 }
 
-func (c *Client) b64Chain() []string {
-	chain := make([]string, 0, len(c.Chain))
+func (c *Client) chain() [][]byte {
+	chain := make([][]byte, 0, len(c.Chain))
 	for _, cert := range c.Chain {
-		chain = append(chain, base64.StdEncoding.EncodeToString(cert.Raw))
+		chain = append(chain, cert.Raw)
 	}
 	return chain
 }

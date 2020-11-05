@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"io/ioutil"
 )
@@ -135,17 +134,13 @@ func ParseChain(rest []byte) ([]*x509.Certificate, error) {
 	return chain, nil
 }
 
-// ParseB64Chain parses a list of base64 DER-encoded X.509 certificates, such
+// ParseDerChain parses a list of base64 DER-encoded X.509 certificates, such
 // that the first (zero-index) string is interpretted as an end-entity
 // certificate and the remaining ones as the an intermediate CertPool.
-func ParseB64Chain(chain []string) (*x509.Certificate, *x509.CertPool, error) {
+func ParseDerChain(chain [][]byte) (*x509.Certificate, *x509.CertPool, error) {
 	var certificate *x509.Certificate
 	intermediatePool := x509.NewCertPool()
-	for index, cert := range chain {
-		der, err := base64.StdEncoding.DecodeString(cert)
-		if err != nil {
-			return nil, nil, fmt.Errorf("certificate decoding failed: %v", err)
-		}
+	for index, der := range chain {
 		c, err := x509.ParseCertificate(der)
 		if err != nil {
 			return nil, nil, fmt.Errorf("certificate decoding failed: %v", err)
@@ -163,8 +158,8 @@ func ParseB64Chain(chain []string) (*x509.Certificate, *x509.CertPool, error) {
 	return certificate, intermediatePool, nil
 }
 
-func buildChainFromB64List(lp *LogParameters, b64chain []string) ([]*x509.Certificate, error) {
-	certificate, intermediatePool, err := ParseB64Chain(b64chain)
+func buildChainFromDerList(lp *LogParameters, derChain [][]byte) ([]*x509.Certificate, error) {
+	certificate, intermediatePool, err := ParseDerChain(derChain)
 	if err != nil {
 		return nil, err
 	}

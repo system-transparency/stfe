@@ -133,37 +133,37 @@ func (i StItem) String() string {
 }
 
 func (i SignedTreeHeadV1) String() string {
-	return fmt.Sprintf("LogId(%s) TreeHead(%s) Signature(%s)", base64.StdEncoding.EncodeToString(i.LogId), i.TreeHead, base64.StdEncoding.EncodeToString(i.Signature))
+	return fmt.Sprintf("LogId(%s) TreeHead(%s) Signature(%s)", b64(i.LogId), i.TreeHead, b64(i.Signature))
 }
 
 func (i SignedDebugInfoV1) String() string {
-	return fmt.Sprintf("LogId(%s) Message(%s) Signature(%s)", base64.StdEncoding.EncodeToString(i.LogId), string(i.Message), base64.StdEncoding.EncodeToString(i.Signature))
+	return fmt.Sprintf("LogId(%s) Message(%s) Signature(%s)", b64(i.LogId), string(i.Message), b64(i.Signature))
 }
 
 func (i ConsistencyProofV1) String() string {
 	path := make([]string, 0, len(i.ConsistencyPath))
 	for _, hash := range i.ConsistencyPath {
-		path = append(path, base64.StdEncoding.EncodeToString(hash.Data))
+		path = append(path, b64(hash.Data))
 	}
 
-	return fmt.Sprintf("LogID(%s) TreeSize1(%d) TreeSize2(%d) ConsistencyPath(%v)", base64.StdEncoding.EncodeToString(i.LogId), i.TreeSize1, i.TreeSize2, path)
+	return fmt.Sprintf("LogID(%s) TreeSize1(%d) TreeSize2(%d) ConsistencyPath(%v)", b64(i.LogId), i.TreeSize1, i.TreeSize2, path)
 }
 
 func (i InclusionProofV1) String() string {
 	path := make([]string, 0, len(i.InclusionPath))
 	for _, hash := range i.InclusionPath {
-		path = append(path, base64.StdEncoding.EncodeToString(hash.Data))
+		path = append(path, b64(hash.Data))
 	}
 
-	return fmt.Sprintf("LogID(%s) TreeSize(%d) LeafIndex(%d) AuditPath(%v)", base64.StdEncoding.EncodeToString(i.LogId), i.TreeSize, i.LeafIndex, path)
+	return fmt.Sprintf("LogID(%s) TreeSize(%d) LeafIndex(%d) AuditPath(%v)", b64(i.LogId), i.TreeSize, i.LeafIndex, path)
 }
 
 func (i ChecksumV1) String() string {
-	return fmt.Sprintf("Package(%s) Checksum(%s)", string(i.Package), base64.StdEncoding.EncodeToString(i.Checksum))
+	return fmt.Sprintf("Package(%s) Checksum(%s)", string(i.Package), b64(i.Checksum))
 }
 
 func (th TreeHeadV1) String() string {
-	return fmt.Sprintf("Timestamp(%s) TreeSize(%d) RootHash(%s)", time.Unix(int64(th.Timestamp/1000), 0), th.TreeSize, base64.StdEncoding.EncodeToString(th.RootHash.Data))
+	return fmt.Sprintf("Timestamp(%s) TreeSize(%d) RootHash(%s)", time.Unix(int64(th.Timestamp/1000), 0), th.TreeSize, b64(th.RootHash.Data))
 }
 
 // Marshal serializes an Stitem as defined by RFC 5246
@@ -181,7 +181,7 @@ func (i *StItem) MarshalB64() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(serialized), nil
+	return b64(serialized), nil
 }
 
 // Unmarshal unpacks a serialized StItem
@@ -197,7 +197,7 @@ func (i *StItem) Unmarshal(serialized []byte) error {
 
 // UnmarshalB64 unpacks a base64-encoded serialized StItem
 func (i *StItem) UnmarshalB64(s string) error {
-	serialized, err := base64.StdEncoding.DecodeString(s)
+	serialized, err := deb64(s)
 	if err != nil {
 		return fmt.Errorf("base64 decoding failed for StItem(%s): %v", i.Format, err)
 	}
@@ -213,7 +213,7 @@ func (a *Appendix) Marshal() ([]byte, error) {
 	return serialized, nil
 }
 
-// Unmarshal unpacks an serialized Appendix
+// Unmarshal unpacks a serialized Appendix
 func (a *Appendix) Unmarshal(serialized []byte) error {
 	extra, err := tls.Unmarshal(serialized, a)
 	if err != nil {
@@ -335,4 +335,12 @@ func NewAppendix(x509Chain []*x509.Certificate, signature []byte, signatureSchem
 		Chain:           chain,
 		SignatureScheme: signatureScheme,
 	}
+}
+
+func b64(b []byte) string {
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+func deb64(str string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(str)
 }
