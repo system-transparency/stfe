@@ -46,7 +46,7 @@ func NewClient(log *descriptor.Log, client *http.Client, useHttp bool, chain []*
 // private key, and a json-encoded list of log operators (see descriptor).
 // Chain and key paths may be left out by passing the empty string: "".
 func NewClientFromPath(logId, chainPath, keyPath, operatorsPath string, cli *http.Client, useHttp bool) (*Client, error) {
-	c, err := x509util.LoadChain(chainPath)
+	c, err := x509util.LoadCertificates(chainPath)
 	if err != nil && chainPath != "" {
 		return nil, err
 	}

@@ -9,38 +9,26 @@ import (
 	"io/ioutil"
 )
 
+// LoadCertificates loads a PEM-encoded list of certificates from file
+func LoadCertificates(path string) ([]*x509.Certificate, error) {
+	pem, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading certificate chain: %v", err)
+	}
+	return NewCertificateList(pem)
+}
+
 // LoadTrustAnchors loads a list of PEM-encoded certificates from file
 func LoadTrustAnchors(path string) ([]*x509.Certificate, *x509.CertPool, error) {
-	rest, err := ioutil.ReadFile(path)
+	pem, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed reading trust anchors: %v", err)
 	}
-
-	pool := x509.NewCertPool()
-	var anchors []*x509.Certificate
-	for len(rest) > 0 {
-		var block *pem.Block
-		block, rest = pem.Decode(rest)
-		if block == nil {
-			break
-		}
-		if block.Type != "CERTIFICATE" {
-			return nil, nil, fmt.Errorf("unexpected PEM block type: %s", block.Type)
-		}
-
-		certificate, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid trust anchor before rest(%s): %v", rest, err)
-		}
-
-		anchors = append(anchors, certificate)
-		pool.AddCert(certificate)
+	anchorList, err := NewCertificateList(pem)
+	if err != nil || len(anchorList) == 0 {
+		return nil, nil, fmt.Errorf("failed parsing trust anchors: %v", err)
 	}
-
-	if len(anchors) == 0 {
-		return nil, nil, fmt.Errorf("found no valid trust anchor in: %s", path)
-	}
-	return anchors, pool, nil
+	return anchorList, NewCertPool(anchorList), nil
 }
 
 // LoadEd25519SigningKey loads an Ed25519 private key from a given path
@@ -49,11 +37,42 @@ func LoadEd25519SigningKey(path string) (ed25519.PrivateKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed reading private key: %v", err)
 	}
-	return ParseEd25519PrivateKey(data)
+	return NewEd25519PrivateKey(data)
 }
 
-// ParseEd25519PrivateKey parses a PEM-encoded private key block
-func ParseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
+// NewCertificateList parses a block of PEM-encoded certificates
+func NewCertificateList(rest []byte) ([]*x509.Certificate, error) {
+	var certificates []*x509.Certificate
+	for len(rest) > 0 {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			return nil, fmt.Errorf("unexpected pem block type: %v", block.Type)
+		}
+
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing x509 certificate: %v", err)
+		}
+		certificates = append(certificates, certificate)
+	}
+	return certificates, nil
+}
+
+// NewCertPool returns a new cert pool from a list of certificates
+func NewCertPool(certificates []*x509.Certificate) *x509.CertPool {
+	pool := x509.NewCertPool()
+	for _, certificate := range certificates {
+		pool.AddCert(certificate)
+	}
+	return pool
+}
+
+// NewEd25519PrivateKey creates a new ed25519 private-key from a PEM block
+func NewEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
 	block, rest := pem.Decode(data)
 	if block == nil {
 		return nil, fmt.Errorf("pem block: is empty")
@@ -75,37 +94,6 @@ func ParseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
 	default:
 		return nil, fmt.Errorf("unexpected signing key type: %v", t)
 	}
-}
-
-// LoadChain loads a PEM-encoded certificate chain from a given path
-func LoadChain(path string) ([]*x509.Certificate, error) {
-	blob, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed reading certificate chain: %v", err)
-	}
-	return ParseChain(blob)
-}
-
-// ParseChain parses a PEM-encoded certificate chain
-func ParseChain(rest []byte) ([]*x509.Certificate, error) {
-	var chain []*x509.Certificate
-	for len(rest) > 0 {
-		var block *pem.Block
-		block, rest = pem.Decode(rest)
-		if block == nil {
-			break
-		}
-		if block.Type != "CERTIFICATE" {
-			return nil, fmt.Errorf("unexpected pem block type: %v", block.Type)
-		}
-
-		certificate, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed parsing x509 certificate: %v", err)
-		}
-		chain = append(chain, certificate)
-	}
-	return chain, nil
 }
 
 // ParseDerChain parses a list of DER-encoded X.509 certificates, such that the
