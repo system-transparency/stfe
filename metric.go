@@ -1,14 +1,11 @@
 package stfe
 
 import (
-	"sync"
-
 	"github.com/google/trillian/monitoring"
 	"github.com/google/trillian/monitoring/prometheus"
 )
 
 var (
-	once             sync.Once
 	reqcnt           monitoring.Counter   // number of incoming http requests
 	rspcnt           monitoring.Counter   // number of valid http responses
 	latency          monitoring.Histogram // request-response latency
@@ -17,7 +14,7 @@ var (
 	lastSthSize      monitoring.Gauge     // tree size of most recent sth
 )
 
-func metricSetup() {
+func init() {
 	mf := prometheus.MetricFactory{}
 	reqcnt = mf.NewCounter("http_req", "number of http requests", "logid", "endpoint")
 	rspcnt = mf.NewCounter("http_rsp", "number of http requests", "logid", "endpoint", "status")

@@ -56,7 +56,6 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 		Deadline:      deadline,
 	}
 	i.registerHandlers(mux)
-	once.Do(metricSetup)
 	return i, nil
 }
 
