@@ -1,19 +1,23 @@
 package stfe
 
 import (
+	"bytes"
 	"crypto"
-	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"crypto/x509"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/certificate-transparency-go/trillian/mockclient"
+	cttestdata "github.com/google/certificate-transparency-go/trillian/testdata"
 	"github.com/google/trillian"
+	"github.com/google/trillian/types"
 	"github.com/system-transparency/stfe/server/testdata"
 	"github.com/system-transparency/stfe/x509util"
 )
@@ -132,17 +136,60 @@ func TestGetSth(t *testing.T) {
 		terr        error
 		wantCode    int
 		wantErrText string
+		signer      crypto.Signer
 	}{
 		{
 			description: "empty trillian response",
-			trsp:        nil,
-			terr:        errors.New("back-end failure"),
+			terr:        fmt.Errorf("back-end failure"),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
+		{
+			description: "incomplete trillian response: nil response",
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "incomplete trillian response: no signed log root",
+			trsp:        &trillian.GetLatestSignedLogRootResponse{SignedLogRoot: nil},
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "incomplete trillian response: truncated log root",
+			trsp:        makeTruncatedSignedLogRoot(t),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "incomplete trillian response: invalid root hash size",
+			trsp:        makeSignedLogRoot(t, 0, 0, make([]byte, 31)),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "marshal failure: no signature",
+			trsp:        makeSignedLogRoot(t, 0, 0, make([]byte, 32)),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 0)),
+		},
+		{
+			description: "signature failure",
+			trsp:        makeSignedLogRoot(t, 0, 0, make([]byte, 32)),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+			signer:      cttestdata.NewSignerWithErr(nil, fmt.Errorf("signing failed")),
+		},
+		{
+			description: "valid request and response",
+			trsp:        makeSignedLogRoot(t, 0, 0, make([]byte, 32)),
+			wantCode:    http.StatusOK,
+			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 32)),
+		},
 	} {
 		func() { // run deferred functions at the end of each iteration
-			th := newTestHandler(t, nil)
+			th := newTestHandler(t, table.signer)
 			defer th.mockCtrl.Finish()
 
 			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-sth"
@@ -165,7 +212,64 @@ func TestGetSth(t *testing.T) {
 				}
 				return
 			}
-			// TODO: check that response is in fact valid
+
+			// status code is http.StatusOK, check response
+			var data []byte
+			if err := json.Unmarshal([]byte(body), &data); err != nil {
+				t.Errorf("failed unmarshaling json: %v, wanted ok", err)
+				return
+			}
+			var item StItem
+			if err := item.Unmarshal(data); err != nil {
+				t.Errorf("failed unmarshaling StItem: %v, wanted ok", err)
+				return
+			}
+			if item.Format != StFormatSignedTreeHeadV1 {
+				t.Errorf("invalid StFormat: got %v, want %v", item.Format, StFormatSignedTreeHeadV1)
+			}
+			sth := item.SignedTreeHeadV1
+			if !bytes.Equal(sth.LogId, th.instance.LogParameters.LogId) {
+				t.Errorf("want log id %X, got %X", sth.LogId, th.instance.LogParameters.LogId)
+			}
+			if !bytes.Equal(sth.Signature, make([]byte, 32)) {
+				t.Errorf("want signature %X, got %X", sth.Signature, make([]byte, 32))
+			}
+			if sth.TreeHead.TreeSize != 0 {
+				t.Errorf("want tree size %d, got %d", 0, sth.TreeHead.TreeSize)
+			}
+			if sth.TreeHead.Timestamp != 0 {
+				t.Errorf("want timestamp %d, got %d", 0, sth.TreeHead.Timestamp)
+			}
+			if !bytes.Equal(sth.TreeHead.RootHash.Data, make([]byte, 32)) {
+				t.Errorf("want root hash %X, got %X", make([]byte, 32), sth.TreeHead.RootHash)
+			}
+			if len(sth.TreeHead.Extension) != 0 {
+				t.Errorf("want no extensions, got %v", sth.TreeHead.Extension)
+			}
 		}()
 	}
+}
+
+func makeSignedLogRoot(t *testing.T, timestamp, size uint64, hash []byte) *trillian.GetLatestSignedLogRootResponse {
+	return &trillian.GetLatestSignedLogRootResponse{
+		SignedLogRoot: mustMarshalRoot(t, &types.LogRootV1{
+			TimestampNanos: timestamp,
+			TreeSize:       size,
+			RootHash:       hash,
+		}),
+	}
+}
+
+func makeTruncatedSignedLogRoot(t *testing.T) *trillian.GetLatestSignedLogRootResponse {
+	slrr := makeSignedLogRoot(t, 0, 0, make([]byte, 32))
+	slrr.SignedLogRoot.LogRoot = slrr.SignedLogRoot.LogRoot[1:]
+	return slrr
+}
+
+func mustMarshalRoot(t *testing.T, lr *types.LogRootV1) *trillian.SignedLogRoot {
+	rootBytes, err := lr.MarshalBinary()
+	if err != nil {
+		t.Fatalf("failed to marshal root in test: %v", err)
+	}
+	return &trillian.SignedLogRoot{LogRoot: rootBytes}
 }
