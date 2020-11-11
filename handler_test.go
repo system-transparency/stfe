@@ -2,6 +2,7 @@ package stfe
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"fmt"
 	"strings"
@@ -199,7 +200,7 @@ func TestGetSth(t *testing.T) {
 			}
 
 			w := httptest.NewRecorder()
-			th.client.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr)
+			th.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			th.getHandler(t, "get-sth").ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
@@ -272,4 +273,28 @@ func mustMarshalRoot(t *testing.T, lr *types.LogRootV1) *trillian.SignedLogRoot 
 		t.Fatalf("failed to marshal root in test: %v", err)
 	}
 	return &trillian.SignedLogRoot{LogRoot: rootBytes}
+}
+
+// deadlineMatcher implements gomock.Matcher, such that an error is detected if
+// there is no context.Context deadline set
+type deadlineMatcher struct{}
+
+// newDeadlineMatcher returns a new deadlineMatcher
+func newDeadlineMatcher() gomock.Matcher {
+	return &deadlineMatcher{}
+}
+
+// Matches returns true if the passed interface is a context with a deadline
+func (dm *deadlineMatcher) Matches(i interface{}) bool {
+	ctx, ok := i.(context.Context)
+	if !ok {
+		return false
+	}
+	_, ok = ctx.Deadline()
+	return ok
+}
+
+// String is needed to implement gomock.Matcher
+func (dm *deadlineMatcher) String() string {
+	return fmt.Sprintf("deadlineMatcher{}")
 }
