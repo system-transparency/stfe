@@ -2,7 +2,6 @@ package stfe
 
 import (
 	"bytes"
-	"context"
 	"crypto"
 	"fmt"
 	"strings"
@@ -18,7 +17,6 @@ import (
 	"github.com/google/certificate-transparency-go/trillian/mockclient"
 	cttestdata "github.com/google/certificate-transparency-go/trillian/testdata"
 	"github.com/google/trillian"
-	"github.com/google/trillian/types"
 	"github.com/system-transparency/stfe/server/testdata"
 	"github.com/system-transparency/stfe/x509util"
 )
@@ -190,33 +188,33 @@ func TestGetSth(t *testing.T) {
 		},
 		{
 			description: "incomplete trillian response: truncated log root",
-			trsp:        makeTruncatedSignedLogRoot(t),
+			trsp:        testdata.TruncatedSignedLogRootResponse(t),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
 		{
 			description: "incomplete trillian response: invalid root hash size",
-			trsp:        makeSignedLogRoot(t, 0, 0, make([]byte, 31)),
+			trsp:        testdata.NewGetLatestSignedLogRootResponse(t, 0, 0, make([]byte, 31)),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
 		{
 			description: "marshal failure: no signature",
-			trsp:        makeSignedLogRoot(t, 0, 0, make([]byte, 32)),
+			trsp:        testdata.NewGetLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 0)),
 		},
 		{
 			description: "signature failure",
-			trsp:        makeSignedLogRoot(t, 0, 0, make([]byte, 32)),
+			trsp:        testdata.NewGetLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 			signer:      cttestdata.NewSignerWithErr(nil, fmt.Errorf("signing failed")),
 		},
 		{
 			description: "valid request and response",
-			trsp:        makeSignedLogRoot(t, 0, 0, make([]byte, 32)),
+			trsp:        testdata.NewGetLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
 			wantCode:    http.StatusOK,
 			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 32)),
 		},
@@ -232,7 +230,7 @@ func TestGetSth(t *testing.T) {
 			}
 
 			w := httptest.NewRecorder()
-			th.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+			th.client.EXPECT().GetLatestSignedLogRoot(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			th.getHandler(t, "get-sth").ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
@@ -281,52 +279,4 @@ func TestGetSth(t *testing.T) {
 			}
 		}()
 	}
-}
-
-func makeSignedLogRoot(t *testing.T, timestamp, size uint64, hash []byte) *trillian.GetLatestSignedLogRootResponse {
-	return &trillian.GetLatestSignedLogRootResponse{
-		SignedLogRoot: mustMarshalRoot(t, &types.LogRootV1{
-			TimestampNanos: timestamp,
-			TreeSize:       size,
-			RootHash:       hash,
-		}),
-	}
-}
-
-func makeTruncatedSignedLogRoot(t *testing.T) *trillian.GetLatestSignedLogRootResponse {
-	slrr := makeSignedLogRoot(t, 0, 0, make([]byte, 32))
-	slrr.SignedLogRoot.LogRoot = slrr.SignedLogRoot.LogRoot[1:]
-	return slrr
-}
-
-func mustMarshalRoot(t *testing.T, lr *types.LogRootV1) *trillian.SignedLogRoot {
-	rootBytes, err := lr.MarshalBinary()
-	if err != nil {
-		t.Fatalf("failed to marshal root in test: %v", err)
-	}
-	return &trillian.SignedLogRoot{LogRoot: rootBytes}
-}
-
-// deadlineMatcher implements gomock.Matcher, such that an error is detected if
-// there is no context.Context deadline set
-type deadlineMatcher struct{}
-
-// newDeadlineMatcher returns a new deadlineMatcher
-func newDeadlineMatcher() gomock.Matcher {
-	return &deadlineMatcher{}
-}
-
-// Matches returns true if the passed interface is a context with a deadline
-func (dm *deadlineMatcher) Matches(i interface{}) bool {
-	ctx, ok := i.(context.Context)
-	if !ok {
-		return false
-	}
-	_, ok = ctx.Deadline()
-	return ok
-}
-
-// String is needed to implement gomock.Matcher
-func (dm *deadlineMatcher) String() string {
-	return fmt.Sprintf("deadlineMatcher{}")
 }

@@ -1,6 +1,6 @@
- package testdata
+package testdata
 
- var (
+var (
 	PemAnchors = []byte(`
 		-----BEGIN CERTIFICATE-----
 		MIIB/TCCAa+gAwIBAgIUDYJzaC5VSkKwiLVAxO5MyphAkN8wBQYDK2VwMGwxCzAJ
