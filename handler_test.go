@@ -130,6 +130,36 @@ func TestPostHandlersRejectGet(t *testing.T) {
 	}
 }
 
+func TestGetAnchors(t *testing.T) {
+	th := newTestHandler(t, nil)
+	defer th.mockCtrl.Finish()
+
+	url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-anchors"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		t.Fatalf("failed creating http request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	th.getHandler(t, "get-anchors").ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, http.StatusOK)
+		return
+	}
+
+	var derAnchors [][]byte
+	if err := json.Unmarshal([]byte(w.Body.String()), &derAnchors); err != nil {
+		t.Errorf("failed unmarshaling trust anchors response: %v", err)
+		return
+	}
+	if got, want := len(derAnchors), len(th.instance.LogParameters.AnchorList); got != want {
+		t.Errorf("unexpected trust anchor count %d, want %d", got, want)
+	}
+	if _, err := x509util.ParseDerList(derAnchors); err != nil {
+		t.Errorf("failed decoding trust anchors: %v", err)
+	}
+}
+
 func TestGetSth(t *testing.T) {
 	for _, table := range []struct {
 		description string
