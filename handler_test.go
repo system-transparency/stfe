@@ -3,7 +3,6 @@ package stfe
 import (
 	"crypto"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -14,12 +13,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/certificate-transparency-go/trillian/mockclient"
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/trillian"
 	"github.com/system-transparency/stfe/server/testdata"
 	"github.com/system-transparency/stfe/x509util"
-
-	"google.golang.org/protobuf/proto"
 )
 
 type testHandler struct {
@@ -149,11 +145,6 @@ func TestGetSth(t *testing.T) {
 			th := newTestHandler(t, nil)
 			defer th.mockCtrl.Finish()
 
-			treq := &trillian.GetLatestSignedLogRootRequest{
-				LogId: th.instance.LogParameters.TreeId,
-			}
-			th.client.EXPECT().GetLatestSignedLogRoot(deadlineMatcher{}, compareMatcher{treq}).Return(table.trsp, table.terr)
-
 			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-sth"
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
@@ -161,6 +152,7 @@ func TestGetSth(t *testing.T) {
 			}
 
 			w := httptest.NewRecorder()
+			th.client.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr)
 			th.getHandler(t, "get-sth").ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
@@ -176,27 +168,4 @@ func TestGetSth(t *testing.T) {
 			// TODO: check that response is in fact valid
 		}()
 	}
-}
-
-type deadlineMatcher struct {
-}
-
-func (dm deadlineMatcher) Matches(x interface{}) bool {
-	return true // TODO: deadlineMatcher.Matches
-}
-
-func (dm deadlineMatcher) String() string {
-	return fmt.Sprintf("deadline is: TODO")
-}
-
-type compareMatcher struct {
-	want interface{}
-}
-
-func (cm compareMatcher) Matches(got interface{}) bool {
-	return cmp.Equal(got, cm.want, cmp.Comparer(proto.Equal))
-}
-
-func (cm compareMatcher) String() string {
-	return fmt.Sprintf("equals: TODO")
 }
