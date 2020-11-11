@@ -130,6 +130,7 @@ func TestPostHandlersRejectGet(t *testing.T) {
 	}
 }
 
+// TestGetAnchors checks for a valid number of decodable trust anchors
 func TestGetAnchors(t *testing.T) {
 	th := newTestHandler(t, nil)
 	defer th.mockCtrl.Finish()
@@ -160,6 +161,7 @@ func TestGetAnchors(t *testing.T) {
 	}
 }
 
+// TestGetSth: docdoc and TODO: move quirky tests to trillian_tests.go?
 func TestGetSth(t *testing.T) {
 	for _, table := range []struct {
 		description string
