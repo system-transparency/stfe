@@ -47,7 +47,7 @@ func NewCertificateList(rest []byte) ([]*x509.Certificate, error) {
 		var block *pem.Block
 		block, rest = pem.Decode(rest)
 		if block == nil {
-			break
+			break // TODO: fix such that new line in input is OK?
 		}
 		if block.Type != "CERTIFICATE" {
 			return nil, fmt.Errorf("unexpected pem block type: %v", block.Type)
