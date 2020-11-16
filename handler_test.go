@@ -11,6 +11,7 @@ import (
 	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -208,10 +209,11 @@ func TestAddEntry(t *testing.T) {
 			defer th.mockCtrl.Finish()
 
 			url := "http://example.com" + th.instance.LogParameters.Prefix + "/add-entry"
-			req, err := http.NewRequest("POST", "application/json", table.breq)
+			req, err := http.NewRequest("POST", url, table.breq)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
 			}
+			req.Header.Set("Content-Type", "application/json")
 
 			if table.trsp != nil || table.terr != nil {
 				th.client.EXPECT().QueueLeaf(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
@@ -380,6 +382,115 @@ func TestGetSth(t *testing.T) {
 	}
 }
 
+func TestGetProofByHash(t *testing.T) {
+	fixedProof := [][]byte{
+		make([]byte, 32),
+		make([]byte, 32),
+	}
+	for _, table := range []struct {
+		description string
+		breq        *GetProofByHashRequest
+		trsp        *trillian.GetInclusionProofByHashResponse
+		terr        error
+		wantCode    int
+		wantErrText string
+	}{
+		{
+			description: "bad request parameters",
+			breq: &GetProofByHashRequest{
+				Hash:     make([]byte, 32),
+				TreeSize: 0,
+			},
+			wantCode:    http.StatusBadRequest,
+			wantErrText: http.StatusText(http.StatusBadRequest) + "\n",
+		},
+		{
+			description: "empty trillian response",
+			breq: &GetProofByHashRequest{
+				Hash:     make([]byte, 32),
+				TreeSize: 128,
+			},
+			terr:        fmt.Errorf("back-end failure"),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "valid request and response",
+			breq: &GetProofByHashRequest{
+				Hash:     make([]byte, 32),
+				TreeSize: 128,
+			},
+			trsp:     makeTrillianGetInclusionProofByHashResponse(t, 0, fixedProof),
+			wantCode: http.StatusOK,
+		},
+	} {
+		func() { // run deferred functions at the end of each iteration
+			th := newTestHandler(t, nil)
+			defer th.mockCtrl.Finish()
+
+			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-proof-by-hash"
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				t.Fatalf("failed creating http request: %v", err)
+			}
+			q := req.URL.Query()
+			q.Add("hash", base64.StdEncoding.EncodeToString(table.breq.Hash))
+			q.Add("tree_size", fmt.Sprintf("%d", table.breq.TreeSize))
+			req.URL.RawQuery = q.Encode()
+
+			w := httptest.NewRecorder()
+			if table.trsp != nil || table.terr != nil {
+				th.client.EXPECT().GetInclusionProofByHash(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+			}
+			th.getHandler(t, "get-proof-by-hash").ServeHTTP(w, req)
+			if w.Code != table.wantCode {
+				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
+			}
+			body := w.Body.String()
+			if w.Code != http.StatusOK {
+				if body != table.wantErrText {
+					t.Errorf("GET(%s)=%q, want text %q", url, body, table.wantErrText)
+				}
+				return
+			}
+
+			// status code is http.StatusOK, check response
+			var data []byte
+			if err := json.Unmarshal([]byte(body), &data); err != nil {
+				t.Errorf("failed unmarshaling json: %v, wanted ok", err)
+				return
+			}
+			var item StItem
+			if err := item.Unmarshal(data); err != nil {
+				t.Errorf("failed unmarshaling StItem: %v, wanted ok", err)
+				return
+			}
+			if item.Format != StFormatInclusionProofV1 {
+				t.Errorf("invalid StFormat: got %v, want %v", item.Format, StFormatInclusionProofV1)
+			}
+			proof := item.InclusionProofV1
+			if !bytes.Equal(proof.LogId, th.instance.LogParameters.LogId) {
+				t.Errorf("want log id %X, got %X", proof.LogId, th.instance.LogParameters.LogId)
+			}
+			if proof.TreeSize != uint64(table.breq.TreeSize) {
+				t.Errorf("want tree size %d, got %d", table.breq.TreeSize, proof.TreeSize)
+			}
+			if proof.LeafIndex != 0 {
+				t.Errorf("want index %d, got %d", 0, proof.LeafIndex)
+			}
+			if got, want := len(proof.InclusionPath), len(fixedProof); got != want {
+				t.Errorf("want proof length %d, got %d", want, got)
+				return
+			}
+			for i, nh := range proof.InclusionPath {
+				if !bytes.Equal(nh.Data, fixedProof[i]) {
+					t.Errorf("want proof[%d]=%X, got %X", i, fixedProof[i], nh.Data)
+				}
+			}
+		}()
+	}
+}
+
 // makeTestLeaf creates add-entry test data
 func makeTestLeaf(t *testing.T, name, pemChain, pemKey []byte) ([]byte, []byte) {
 	t.Helper()
@@ -447,5 +558,19 @@ func makeTrillianQueueLeafResponse(t *testing.T, name, pemChain, pemKey []byte) 
 			},
 			Status: status.New(codes.OK, "ok").Proto(),
 		},
+	}
+}
+
+// makeTrillianGetInclusionProofByHashResponse
+func makeTrillianGetInclusionProofByHashResponse(t *testing.T, index int64, path [][]byte) *trillian.GetInclusionProofByHashResponse {
+	t.Helper()
+	return &trillian.GetInclusionProofByHashResponse{
+		Proof: []*trillian.Proof{
+			&trillian.Proof{
+				LeafIndex: index,
+				Hashes:    path,
+			},
+		},
+		SignedLogRoot: nil, // not used by stfe
 	}
 }

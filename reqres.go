@@ -113,7 +113,7 @@ func (lp *LogParameters) newGetProofByHashRequest(httpRequest *http.Request) (*G
 	if err != nil {
 		return nil, fmt.Errorf("bad tree_size parameter: %v", err)
 	}
-	if size < 0 {
+	if size < 1 {
 		return nil, fmt.Errorf("bad tree_size parameter: negative value")
 	}
 	hash, err := deb64(httpRequest.FormValue("hash"))
