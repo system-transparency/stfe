@@ -165,6 +165,129 @@ func TestGetAnchors(t *testing.T) {
 	}
 }
 
+func TestGetEntries(t *testing.T) {
+	for _, table := range []struct {
+		description string
+		breq        *GetEntriesRequest
+		trsp        *trillian.GetLeavesByRangeResponse
+		terr        error
+		wantCode    int
+		wantErrText string
+	}{
+		{
+			description: "bad request parameters",
+			breq: &GetEntriesRequest{
+				Start: 1,
+				End:   0,
+			},
+			wantCode:    http.StatusBadRequest,
+			wantErrText: http.StatusText(http.StatusBadRequest) + "\n",
+		},
+		{
+			description: "empty trillian response",
+			breq: &GetEntriesRequest{
+				Start: 0,
+				End:   1,
+			},
+			terr:        fmt.Errorf("back-end failure"),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "invalid get-entries response",
+			breq: &GetEntriesRequest{
+				Start: 0,
+				End:   1,
+			},
+			trsp:        makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, false),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "valid get-entries response",
+			breq: &GetEntriesRequest{
+				Start: 0,
+				End:   1,
+			},
+			trsp:     makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, true),
+			wantCode: http.StatusOK,
+		},
+	} {
+		func() { // run deferred functions at the end of each iteration
+			th := newTestHandler(t, nil)
+			defer th.mockCtrl.Finish()
+
+			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-entries"
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				t.Fatalf("failed creating http request: %v", err)
+			}
+			q := req.URL.Query()
+			q.Add("start", fmt.Sprintf("%d", table.breq.Start))
+			q.Add("end", fmt.Sprintf("%d", table.breq.End))
+			req.URL.RawQuery = q.Encode()
+
+			if table.trsp != nil || table.terr != nil {
+				th.client.EXPECT().GetLeavesByRange(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+			}
+			w := httptest.NewRecorder()
+			th.getHandler(t, "get-entries").ServeHTTP(w, req)
+			if w.Code != table.wantCode {
+				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
+			}
+
+			body := w.Body.String()
+			if w.Code != http.StatusOK {
+				if body != table.wantErrText {
+					t.Errorf("GET(%s)=%q, want text %q", url, body, table.wantErrText)
+				}
+				return
+			}
+
+			var rsps []*GetEntryResponse
+			if err := json.Unmarshal([]byte(body), &rsps); err != nil {
+				t.Errorf("failed parsing list of log entries: %v", err)
+				return
+			}
+			for i, rsp := range rsps {
+				var item StItem
+				if err := item.Unmarshal(rsp.Item); err != nil {
+					t.Errorf("failed unmarshaling StItem: %v", err)
+				} else {
+					if item.Format != StFormatChecksumV1 {
+						t.Errorf("invalid StFormat: got %v, want %v", item.Format, StFormatChecksumV1)
+					}
+					checksum := item.ChecksumV1
+					if got, want := checksum.Package, []byte(fmt.Sprintf("%s_%d", "foobar-1.2.3", int64(i)+table.breq.Start)); !bytes.Equal(got, want) {
+						t.Errorf("got package name %s, want %s", string(got), string(want))
+					}
+					if got, want := checksum.Checksum, make([]byte, 32); !bytes.Equal(got, want) {
+						t.Errorf("got package checksum %X, want %X", got, want)
+					}
+				}
+
+				chain, err := x509util.ParseDerList(rsp.Chain)
+				if err != nil {
+					t.Errorf("failed parsing certificate chain: %v", err)
+				} else if got, want := len(chain), 2; got != want {
+					// TODO: test data with trust anchor in chain
+					t.Errorf("got chain length %d, want %d", got, want)
+				} else {
+					if err := x509util.VerifyChain(chain); err != nil {
+						t.Errorf("invalid certificate chain: %v", err)
+					}
+				}
+				if got, want := tls.SignatureScheme(rsp.SignatureScheme), tls.Ed25519; got != want {
+					t.Errorf("got signature scheme %s, want %s", got, want)
+				}
+				if !ed25519.Verify(chain[0].PublicKey.(ed25519.PublicKey), rsp.Item, rsp.Signature) {
+					t.Errorf("invalid ed25519 signature")
+				}
+			}
+		}()
+	}
+}
+
 func TestAddEntry(t *testing.T) {
 	for _, table := range []struct {
 		description string
@@ -693,5 +816,28 @@ func makeTrillianGetConsistencyProofResponse(t *testing.T, path [][]byte) *trill
 			Hashes:    path,
 		},
 		SignedLogRoot: nil, // not used by stfe
+	}
+}
+
+// makeTrillianGetLeavesByRangeResponse
+func makeTrillianGetLeavesByRangeResponse(t *testing.T, start, end int64, name, pemChain, pemKey []byte, valid bool) *trillian.GetLeavesByRangeResponse {
+	t.Helper()
+	leaves := make([]*trillian.LogLeaf, 0, start-end+1)
+	for i, n := start, end+1; i < n; i++ {
+		leaf, appendix := makeTestLeaf(t, append(name, []byte(fmt.Sprintf("_%d", i))...), pemChain, pemKey)
+		if !valid {
+			appendix = []byte{0, 1, 2, 3}
+		}
+		leaves = append(leaves, &trillian.LogLeaf{
+			MerkleLeafHash:   nil, // not used by stfe
+			LeafValue:        leaf,
+			ExtraData:        appendix,
+			LeafIndex:        i,
+			LeafIdentityHash: nil, // not used by stfe
+		})
+	}
+	return &trillian.GetLeavesByRangeResponse{
+		Leaves:        leaves,
+		SignedLogRoot: testdata.NewGetLatestSignedLogRootResponse(t, 0, uint64(end)+1, make([]byte, 32)).SignedLogRoot,
 	}
 }
