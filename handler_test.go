@@ -382,6 +382,115 @@ func TestGetSth(t *testing.T) {
 	}
 }
 
+func TestGetConsistencyProof(t *testing.T) {
+	fixedProof := [][]byte{
+		make([]byte, 32),
+		make([]byte, 32),
+	}
+	for _, table := range []struct {
+		description string
+		breq        *GetConsistencyProofRequest
+		trsp        *trillian.GetConsistencyProofResponse
+		terr        error
+		wantCode    int
+		wantErrText string
+	}{
+		{
+			description: "bad request parameters",
+			breq: &GetConsistencyProofRequest{
+				First:  2,
+				Second: 1,
+			},
+			wantCode:    http.StatusBadRequest,
+			wantErrText: http.StatusText(http.StatusBadRequest) + "\n",
+		},
+		{
+			description: "empty trillian response",
+			breq: &GetConsistencyProofRequest{
+				First:  1,
+				Second: 2,
+			},
+			terr:        fmt.Errorf("back-end failure"),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "valid request and response",
+			breq: &GetConsistencyProofRequest{
+				First:  1,
+				Second: 2,
+			},
+			trsp:     makeTrillianGetConsistencyProofResponse(t, fixedProof),
+			wantCode: http.StatusOK,
+		},
+	} {
+		func() { // run deferred functions at the end of each iteration
+			th := newTestHandler(t, nil)
+			defer th.mockCtrl.Finish()
+
+			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-consistency-proof"
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				t.Fatalf("failed creating http request: %v", err)
+			}
+			q := req.URL.Query()
+			q.Add("first", fmt.Sprintf("%d", table.breq.First))
+			q.Add("second", fmt.Sprintf("%d", table.breq.Second))
+			req.URL.RawQuery = q.Encode()
+
+			w := httptest.NewRecorder()
+			if table.trsp != nil || table.terr != nil {
+				th.client.EXPECT().GetConsistencyProof(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+			}
+			th.getHandler(t, "get-consistency-proof").ServeHTTP(w, req)
+			if w.Code != table.wantCode {
+				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
+			}
+			body := w.Body.String()
+			if w.Code != http.StatusOK {
+				if body != table.wantErrText {
+					t.Errorf("GET(%s)=%q, want text %q", url, body, table.wantErrText)
+				}
+				return
+			}
+
+			// status code is http.StatusOK, check response
+			var data []byte
+			if err := json.Unmarshal([]byte(body), &data); err != nil {
+				t.Errorf("failed unmarshaling json: %v, wanted ok", err)
+				return
+			}
+			var item StItem
+			if err := item.Unmarshal(data); err != nil {
+				t.Errorf("failed unmarshaling StItem: %v, wanted ok", err)
+				return
+			}
+			if item.Format != StFormatConsistencyProofV1 {
+				t.Errorf("invalid StFormat: got %v, want %v", item.Format, StFormatInclusionProofV1)
+			}
+			proof := item.ConsistencyProofV1
+			if !bytes.Equal(proof.LogId, th.instance.LogParameters.LogId) {
+				t.Errorf("want log id %X, got %X", proof.LogId, th.instance.LogParameters.LogId)
+			}
+			if got, want := proof.TreeSize1, uint64(table.breq.First); got != want {
+				t.Errorf("want tree size %d, got %d", want, got)
+			}
+			if got, want := proof.TreeSize2, uint64(table.breq.Second); got != want {
+				t.Errorf("want tree size %d, got %d", want, got)
+			}
+			if got, want := len(proof.ConsistencyPath), len(fixedProof); got != want {
+				t.Errorf("want proof length %d, got %d", want, got)
+				return
+			}
+			for i, nh := range proof.ConsistencyPath {
+				if !bytes.Equal(nh.Data, fixedProof[i]) {
+					t.Errorf("want proof[%d]=%X, got %X", i, fixedProof[i], nh.Data)
+				}
+			}
+		}()
+	}
+}
+
 func TestGetProofByHash(t *testing.T) {
 	fixedProof := [][]byte{
 		make([]byte, 32),
@@ -570,6 +679,18 @@ func makeTrillianGetInclusionProofByHashResponse(t *testing.T, index int64, path
 				LeafIndex: index,
 				Hashes:    path,
 			},
+		},
+		SignedLogRoot: nil, // not used by stfe
+	}
+}
+
+// makeTrillianGetInclusionProofByHashResponse
+func makeTrillianGetConsistencyProofResponse(t *testing.T, path [][]byte) *trillian.GetConsistencyProofResponse {
+	t.Helper()
+	return &trillian.GetConsistencyProofResponse{
+		Proof: &trillian.Proof{
+			LeafIndex: 0, // not used by consistency proofs
+			Hashes:    path,
 		},
 		SignedLogRoot: nil, // not used by stfe
 	}
