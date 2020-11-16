@@ -157,6 +157,7 @@ func TestGetAnchors(t *testing.T) {
 		t.Errorf("failed unmarshaling trust anchors response: %v", err)
 		return
 	}
+	// TODO: add an additional root so that it is an actual list
 	if got, want := len(derAnchors), len(th.instance.LogParameters.AnchorList); got != want {
 		t.Errorf("unexpected trust anchor count %d, want %d", got, want)
 	}
@@ -339,6 +340,7 @@ func TestAddEntry(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			if table.trsp != nil || table.terr != nil {
+				// TODO: replace gomock.Any with a check that leaf and appendix are OK, e.g., chain length should be 3
 				th.client.EXPECT().QueueLeaf(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 			w := httptest.NewRecorder()
