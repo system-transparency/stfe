@@ -22,9 +22,6 @@ import (
 	"github.com/google/trillian"
 	"github.com/system-transparency/stfe/server/testdata"
 	"github.com/system-transparency/stfe/x509util"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type testHandler struct {
@@ -775,71 +772,4 @@ func makeTestLeafBuffer(t *testing.T, name, pemChain, pemKey []byte, valid bool)
 		t.Fatalf("failed marshaling add-entry parameters: %v", err)
 	}
 	return bytes.NewBuffer(data)
-}
-
-// makeTrillianQueueLeafResponse creates a valid trillian QueueLeafResponse
-func makeTrillianQueueLeafResponse(t *testing.T, name, pemChain, pemKey []byte) *trillian.QueueLeafResponse {
-	t.Helper()
-	leaf, appendix := makeTestLeaf(t, name, pemChain, pemKey)
-	return &trillian.QueueLeafResponse{
-		QueuedLeaf: &trillian.QueuedLogLeaf{
-			Leaf: &trillian.LogLeaf{
-				MerkleLeafHash:   nil, // not used by stfe
-				LeafValue:        leaf,
-				ExtraData:        appendix,
-				LeafIndex:        0,   // not applicable (log is not pre-ordered)
-				LeafIdentityHash: nil, // not used by stfe
-			},
-			Status: status.New(codes.OK, "ok").Proto(),
-		},
-	}
-}
-
-// makeTrillianGetInclusionProofByHashResponse
-func makeTrillianGetInclusionProofByHashResponse(t *testing.T, index int64, path [][]byte) *trillian.GetInclusionProofByHashResponse {
-	t.Helper()
-	return &trillian.GetInclusionProofByHashResponse{
-		Proof: []*trillian.Proof{
-			&trillian.Proof{
-				LeafIndex: index,
-				Hashes:    path,
-			},
-		},
-		SignedLogRoot: nil, // not used by stfe
-	}
-}
-
-// makeTrillianGetInclusionProofByHashResponse
-func makeTrillianGetConsistencyProofResponse(t *testing.T, path [][]byte) *trillian.GetConsistencyProofResponse {
-	t.Helper()
-	return &trillian.GetConsistencyProofResponse{
-		Proof: &trillian.Proof{
-			LeafIndex: 0, // not used by consistency proofs
-			Hashes:    path,
-		},
-		SignedLogRoot: nil, // not used by stfe
-	}
-}
-
-// makeTrillianGetLeavesByRangeResponse
-func makeTrillianGetLeavesByRangeResponse(t *testing.T, start, end int64, name, pemChain, pemKey []byte, valid bool) *trillian.GetLeavesByRangeResponse {
-	t.Helper()
-	leaves := make([]*trillian.LogLeaf, 0, start-end+1)
-	for i, n := start, end+1; i < n; i++ {
-		leaf, appendix := makeTestLeaf(t, append(name, []byte(fmt.Sprintf("_%d", i))...), pemChain, pemKey)
-		if !valid {
-			appendix = []byte{0, 1, 2, 3}
-		}
-		leaves = append(leaves, &trillian.LogLeaf{
-			MerkleLeafHash:   nil, // not used by stfe
-			LeafValue:        leaf,
-			ExtraData:        appendix,
-			LeafIndex:        i,
-			LeafIdentityHash: nil, // not used by stfe
-		})
-	}
-	return &trillian.GetLeavesByRangeResponse{
-		Leaves:        leaves,
-		SignedLogRoot: testdata.NewGetLatestSignedLogRootResponse(t, 0, uint64(end)+1, make([]byte, 32)).SignedLogRoot,
-	}
 }
