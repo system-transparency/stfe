@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"crypto/ed25519"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"net/http"
@@ -19,6 +21,9 @@ import (
 	"github.com/google/trillian"
 	"github.com/system-transparency/stfe/server/testdata"
 	"github.com/system-transparency/stfe/x509util"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type testHandler struct {
@@ -159,6 +164,100 @@ func TestGetAnchors(t *testing.T) {
 	}
 }
 
+func TestAddEntry(t *testing.T) {
+	for _, table := range []struct {
+		description string
+		breq        *bytes.Buffer
+		trsp        *trillian.QueueLeafResponse
+		terr        error
+		wantCode    int
+		wantErrText string
+		signer      crypto.Signer
+	}{
+		{
+			description: "empty trillian response",
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, true),
+			terr:        fmt.Errorf("back-end failure"),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		},
+		{
+			description: "bad request parameters",
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, false),
+			wantCode:    http.StatusBadRequest,
+			wantErrText: http.StatusText(http.StatusBadRequest) + "\n",
+		},
+		{
+			description: "log signature failure",
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, true),
+			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey),
+			wantCode:    http.StatusInternalServerError,
+			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+			signer:      cttestdata.NewSignerWithErr(nil, fmt.Errorf("signing failed")),
+		},
+		{
+			description: "valid add-entry request-response",
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, true),
+			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey),
+			wantCode:    http.StatusOK,
+			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 32)),
+		},
+	} {
+		func() { // run deferred functions at the end of each iteration
+			th := newTestHandler(t, table.signer)
+			defer th.mockCtrl.Finish()
+
+			url := "http://example.com" + th.instance.LogParameters.Prefix + "/add-entry"
+			req, err := http.NewRequest("POST", "application/json", table.breq)
+			if err != nil {
+				t.Fatalf("failed creating http request: %v", err)
+			}
+
+			if table.trsp != nil || table.terr != nil {
+				th.client.EXPECT().QueueLeaf(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+			}
+			w := httptest.NewRecorder()
+			th.postHandler(t, "add-entry").ServeHTTP(w, req)
+			if w.Code != table.wantCode {
+				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
+			}
+
+			body := w.Body.String()
+			if w.Code != http.StatusOK {
+				if body != table.wantErrText {
+					t.Errorf("GET(%s)=%q, want text %q", url, body, table.wantErrText)
+				}
+				return
+			}
+
+			// status code is http.StatusOK, check response
+			var data []byte
+			if err := json.Unmarshal([]byte(body), &data); err != nil {
+				t.Errorf("failed unmarshaling json: %v, wanted ok", err)
+				return
+			}
+			var item StItem
+			if err := item.Unmarshal(data); err != nil {
+				t.Errorf("failed unmarshaling StItem: %v, wanted ok", err)
+				return
+			}
+			if item.Format != StFormatSignedDebugInfoV1 {
+				t.Errorf("invalid StFormat: got %v, want %v", item.Format, StFormatSignedDebugInfoV1)
+			}
+			sdi := item.SignedDebugInfoV1
+			if !bytes.Equal(sdi.LogId, th.instance.LogParameters.LogId) {
+				t.Errorf("want log id %X, got %X", sdi.LogId, th.instance.LogParameters.LogId)
+			}
+			if len(sdi.Message) == 0 {
+				t.Errorf("expected message, got none")
+			}
+			if !bytes.Equal(sdi.Signature, make([]byte, 32)) {
+				t.Errorf("want signature %X, got %X", sdi.Signature, make([]byte, 32))
+			}
+		}()
+	}
+}
+
 // TestGetSth: docdoc and TODO: move quirky tests to trillian_tests.go?
 func TestGetSth(t *testing.T) {
 	for _, table := range []struct {
@@ -278,5 +377,75 @@ func TestGetSth(t *testing.T) {
 				t.Errorf("want no extensions, got %v", sth.TreeHead.Extension)
 			}
 		}()
+	}
+}
+
+// makeTestLeaf creates add-entry test data
+func makeTestLeaf(t *testing.T, name, pemChain, pemKey []byte) ([]byte, []byte) {
+	t.Helper()
+	key, err := x509util.NewEd25519PrivateKey(pemKey)
+	if err != nil {
+		t.Fatalf("failed creating ed25519 signing key: %v", err)
+	}
+	chain, err := x509util.NewCertificateList(pemChain)
+	if err != nil {
+		t.Fatalf("failed parsing x509 chain: %v", err)
+	}
+	leaf, err := NewChecksumV1(name, make([]byte, 32)).Marshal()
+	if err != nil {
+		t.Fatalf("failed creating serialized checksum_v1: %v", err)
+	}
+	appendix, err := NewAppendix(chain, ed25519.Sign(key, leaf), uint16(tls.Ed25519)).Marshal()
+	if err != nil {
+		t.Fatalf("failed creating serialized appendix: %v", err)
+	}
+	return leaf, appendix
+}
+
+// makeTestLeafBuffer creates an add-entry data buffer that can be posted.  If
+// valid is set to false an invalid signature will be used.
+func makeTestLeafBuffer(t *testing.T, name, pemChain, pemKey []byte, valid bool) *bytes.Buffer {
+	t.Helper()
+	leaf, appendix := makeTestLeaf(t, name, pemChain, pemKey)
+
+	var a Appendix
+	if err := a.Unmarshal(appendix); err != nil {
+		t.Fatalf("failed unmarshaling Appendix: %v", err)
+	}
+	chain := make([][]byte, 0, len(a.Chain))
+	for _, certificate := range a.Chain {
+		chain = append(chain, certificate.Data)
+	}
+	req := AddEntryRequest{
+		Item:            leaf,
+		Signature:       a.Signature,
+		SignatureScheme: a.SignatureScheme,
+		Chain:           chain,
+	}
+	if !valid {
+		req.Signature = []byte{0, 1, 2, 3}
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("failed marshaling add-entry parameters: %v", err)
+	}
+	return bytes.NewBuffer(data)
+}
+
+// makeTrillianQueueLeafResponse creates a valid trillian QueueLeafResponse
+func makeTrillianQueueLeafResponse(t *testing.T, name, pemChain, pemKey []byte) *trillian.QueueLeafResponse {
+	t.Helper()
+	leaf, appendix := makeTestLeaf(t, name, pemChain, pemKey)
+	return &trillian.QueueLeafResponse{
+		QueuedLeaf: &trillian.QueuedLogLeaf{
+			Leaf: &trillian.LogLeaf{
+				MerkleLeafHash:   nil, // not used by stfe
+				LeafValue:        leaf,
+				ExtraData:        appendix,
+				LeafIndex:        0,   // not applicable (log is not pre-ordered)
+				LeafIdentityHash: nil, // not used by stfe
+			},
+			Status: status.New(codes.OK, "ok").Proto(),
+		},
 	}
 }
