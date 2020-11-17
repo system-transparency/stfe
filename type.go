@@ -282,15 +282,13 @@ func NewChecksumV1(identifier []byte, checksum []byte) *StItem {
 
 // NewTreeHead creates a new TreeHeadV1 from a Trillian-signed log root without
 // verifying any signature.  In other words, Trillian <-> STFE must be trusted.
-func NewTreeHeadV1(lp *LogParameters, slr *trillian.SignedLogRoot) (*TreeHeadV1, error) {
-	var lr types.LogRootV1
-	if err := lr.UnmarshalBinary(slr.GetLogRoot()); err != nil {
-		return nil, fmt.Errorf("failed unmarshaling Trillian slr: %v", err)
+func NewTreeHeadV1(lp *LogParameters, lr *types.LogRootV1) *TreeHeadV1 {
+	return &TreeHeadV1{
+		uint64(lr.TimestampNanos / 1000 / 1000),
+		uint64(lr.TreeSize),
+		NodeHash{lr.RootHash},
+		nil,
 	}
-	if lp.HashType.Size() != len(lr.RootHash) {
-		return nil, fmt.Errorf("invalid Trillian root hash: %v", lr.RootHash)
-	}
-	return &TreeHeadV1{uint64(lr.TimestampNanos / 1000 / 1000), uint64(lr.TreeSize), NodeHash{lr.RootHash}, nil}, nil
 }
 
 // NewAppendix creates a new leaf Appendix for an X.509 chain and signature

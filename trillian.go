@@ -62,16 +62,15 @@ func checkGetConsistencyProof(lp *LogParameters, rsp *trillian.GetConsistencyPro
 	return checkHashPath(lp.HashType.Size(), rsp.Proof.Hashes)
 }
 
-func checkGetLatestSignedLogRoot(lp *LogParameters, rsp *trillian.GetLatestSignedLogRootResponse, err error) (int, error) {
+func checkGetLatestSignedLogRoot(lp *LogParameters, rsp *trillian.GetLatestSignedLogRootResponse, err error, out *types.LogRootV1) (int, error) {
 	if err != nil || rsp == nil || rsp.SignedLogRoot == nil || rsp.SignedLogRoot.LogRoot == nil {
 		return http.StatusInternalServerError, fmt.Errorf("%v", err)
 	}
-	var lr types.LogRootV1
-	if err := lr.UnmarshalBinary(rsp.SignedLogRoot.LogRoot); err != nil {
+	if err := out.UnmarshalBinary(rsp.SignedLogRoot.LogRoot); err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("cannot unmarshal log root: %v", err)
 	}
-	if len(lr.RootHash) != lp.HashType.Size() {
-		return http.StatusInternalServerError, fmt.Errorf("invalid root hash: %v", lr.RootHash)
+	if len(out.RootHash) != lp.HashType.Size() {
+		return http.StatusInternalServerError, fmt.Errorf("invalid root hash: %v", out.RootHash)
 	}
 	return 0, nil
 }

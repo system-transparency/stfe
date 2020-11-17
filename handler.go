@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
+	"github.com/google/trillian/types"
 )
 
 // handler implements the http.Handler interface, and contains a reference
@@ -180,15 +181,12 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	trsp, err := i.Client.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{
 		LogId: i.LogParameters.TreeId,
 	})
-	if status, errInner := checkGetLatestSignedLogRoot(i.LogParameters, trsp, err); errInner != nil {
+	var lr types.LogRootV1
+	if status, errInner := checkGetLatestSignedLogRoot(i.LogParameters, trsp, err, &lr); errInner != nil {
 		return status, fmt.Errorf("bad GetLatestSignedLogRootResponse: %v", errInner)
 	}
 
-	th, err := NewTreeHeadV1(i.LogParameters, trsp.SignedLogRoot)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed creating tree head: %v", err)
-	}
-	sth, err := i.LogParameters.genV1Sth(th)
+	sth, err := i.LogParameters.genV1Sth(NewTreeHeadV1(i.LogParameters, &lr))
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed tree head: %v", err)
 	}

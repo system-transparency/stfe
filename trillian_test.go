@@ -1,8 +1,8 @@
 package stfe
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 
 	"github.com/google/trillian"
 	"github.com/system-transparency/stfe/server/testdata"
@@ -30,7 +30,6 @@ func TestCheckGetConsistencyProof(t *testing.T) {
 // TODO: TestCheckGetLatestSignedLogRoot
 func TestCheckGetLatestSignedLogRoot(t *testing.T) {
 }
-
 
 // makeTrillianQueueLeafResponse creates a valid trillian QueueLeafResponse
 // for a package `name` where the checksum is all zeros (32 bytes).  The pemKey
