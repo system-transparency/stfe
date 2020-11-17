@@ -327,3 +327,60 @@ func TestEncDecStItem(t *testing.T) {
 		}
 	}
 }
+
+// TestStItemUnmarshal tests that invalid ST items cannot be unmarshaled
+func TestStItemUnmarshalFailure(t *testing.T) {
+	b, err := NewChecksumV1(testPackage, testChecksum).Marshal()
+	if err != nil {
+		t.Errorf("must marshal ChecksumV1 StItem: %v", err)
+		return
+	}
+
+	var checksum StItem
+	if err := checksum.Unmarshal(append(b[:], []byte{0}...)); err == nil {
+		t.Errorf("succeeded unmarshaling but wanted error: one extra byte")
+	}
+	if err := checksum.Unmarshal(append(b[:], b[:]...)); err == nil {
+		t.Errorf("succeeded unmarshaling but wanted error: one extra b")
+	}
+	if err := checksum.Unmarshal([]byte{0}); err == nil {
+		t.Errorf("succeeded unmarshaling but wanted error: just a single byte")
+	}
+
+	b[0] = byte(len(testPackage)) + 1 // will mess up the first length specifier
+	if err := checksum.Unmarshal(b); err == nil {
+		t.Errorf("succeeded unmarshaling but wanted error: bad length")
+	}
+
+	if err := checksum.UnmarshalB64("@" + b64(b[1:])); err == nil {
+		t.Errorf("succeded unmarshaling base64 but wanted error: bad byte")
+	}
+}
+
+// TestAppendixUnmarshal tests that invalid appendices cannot be unmarshaled
+func TestAppendixUnmarshalFailure(t *testing.T) {
+	chain, err := x509util.NewCertificateList(testdata.PemChain)
+	if err != nil {
+		t.Fatalf("must decode certificate chain: %v", err)
+	}
+	b, err := NewAppendix(chain, testSignature, uint16(testSignatureScheme)).Marshal()
+	if err != nil {
+		t.Fatalf("must marshal Appendix: %v", err)
+	}
+
+	var appendix Appendix
+	if err := appendix.Unmarshal(append(b[:], []byte{0}...)); err == nil {
+		t.Errorf("succeeded unmarshaling but wanted error: one extra byte")
+	}
+	if err := appendix.Unmarshal(append(b[:], b[:]...)); err == nil {
+		t.Errorf("succeeded unmarshaling but wanted error: one extra item")
+	}
+	if err := appendix.Unmarshal([]byte{0}); err == nil {
+		t.Errorf("succeeded unmarshaling but wanted error: just a single byte")
+	}
+
+	b[0] = byte(len(testSignature)) + 1 // will mess up the first length specifier
+	if err := appendix.Unmarshal(b); err == nil {
+		t.Errorf("succeeded unmarshaling but wanted error: bad length")
+	}
+}
