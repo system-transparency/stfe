@@ -17,5 +17,5 @@ func TestGenV1Sdi(t *testing.T) {
 }
 
 // TODO: TestGenV1Sth
-func TestGenV1Sth(t *tesing.T) {
+func TestGenV1Sth(t *testing.T) {
 }
