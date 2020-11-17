@@ -311,7 +311,7 @@ func TestEncDecStItem(t *testing.T) {
 			item:        NewChecksumV1(testPackage, make([]byte, checksumMax)),
 		},
 	} {
-		b, err := table.item.Marshal()
+		b, err := table.item.MarshalB64()
 		if err != nil && !table.wantErr {
 			t.Errorf("failed marshaling StItem(%s) in test %q: %v", table.item.Format, table.description, err)
 		} else if err == nil && table.wantErr {
@@ -322,7 +322,7 @@ func TestEncDecStItem(t *testing.T) {
 		}
 
 		var item StItem
-		if err := item.Unmarshal(b); err != nil {
+		if err := item.UnmarshalB64(b); err != nil {
 			t.Errorf("failed unmarshaling StItem(%s) in test %q: %v", table.item.Format, table.description, err)
 		}
 	}
