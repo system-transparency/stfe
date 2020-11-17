@@ -27,64 +27,6 @@ var (
 	testSignatureScheme = tls.Ed25519
 )
 
-// TestEncDecAppendix tests that valid appendices can be (un)marshaled, and that
-// invalid ones in fact dail.
-//
-// TODO: max limits for certificate chains are not tested.
-func TestEncDecAppendix(t *testing.T) {
-	chain, err := x509util.NewCertificateList(testdata.PemChain)
-	if err != nil {
-		t.Fatalf("must decode certificate chain: %v", err)
-	}
-
-	signatureMin := 1
-	signatureMax := 16383
-	for _, table := range []struct {
-		description string
-		appendix    *Appendix
-		wantErr     bool
-	}{
-		{
-			description: "too short signature",
-			appendix:    NewAppendix(chain, make([]byte, signatureMin-1), uint16(testSignatureScheme)),
-			wantErr:     true,
-		},
-		{
-			description: "too large signature",
-			appendix:    NewAppendix(chain, make([]byte, signatureMax+1), uint16(testSignatureScheme)),
-			wantErr:     true,
-		},
-		{
-			description: "ok signature: min",
-			appendix:    NewAppendix(chain, make([]byte, signatureMin), uint16(testSignatureScheme)),
-		},
-		{
-			description: "ok signature: max",
-			appendix:    NewAppendix(chain, make([]byte, signatureMax), uint16(testSignatureScheme)),
-		},
-		{
-			description: "too short chain",
-			appendix:    NewAppendix(nil, testSignature, uint16(testSignatureScheme)),
-			wantErr:     true,
-		},
-	} {
-		b, err := table.appendix.Marshal()
-		if err != nil && !table.wantErr {
-			t.Errorf("failed marshaling Appendix for %q: %v", table.description, err)
-		} else if err == nil && table.wantErr {
-			t.Errorf("succeeded marshaling Appendix but wanted error for %q", table.description)
-		}
-		if err != nil || table.wantErr {
-			continue // nothing to unmarshal
-		}
-
-		var appendix Appendix
-		if err := appendix.Unmarshal(b); err != nil {
-			t.Errorf("failed unmarshaling Appendix: %v", err)
-		}
-	}
-}
-
 // TestEncDecStItem tests that valid StItems can be (un)marshaled, and that
 // invalid ones in fact fail.
 //
@@ -324,6 +266,103 @@ func TestEncDecStItem(t *testing.T) {
 		var item StItem
 		if err := item.UnmarshalB64(b); err != nil {
 			t.Errorf("failed unmarshaling StItem(%s) in test %q: %v", table.item.Format, table.description, err)
+		}
+	}
+}
+
+// TestEncDecAppendix tests that valid appendices can be (un)marshaled, and that
+// invalid ones in fact dail.
+//
+// TODO: max limits for certificate chains are not tested.
+func TestEncDecAppendix(t *testing.T) {
+	chain, err := x509util.NewCertificateList(testdata.PemChain)
+	if err != nil {
+		t.Fatalf("must decode certificate chain: %v", err)
+	}
+
+	signatureMin := 1
+	signatureMax := 16383
+	for _, table := range []struct {
+		description string
+		appendix    *Appendix
+		wantErr     bool
+	}{
+		{
+			description: "too short signature",
+			appendix:    NewAppendix(chain, make([]byte, signatureMin-1), uint16(testSignatureScheme)),
+			wantErr:     true,
+		},
+		{
+			description: "too large signature",
+			appendix:    NewAppendix(chain, make([]byte, signatureMax+1), uint16(testSignatureScheme)),
+			wantErr:     true,
+		},
+		{
+			description: "ok signature: min",
+			appendix:    NewAppendix(chain, make([]byte, signatureMin), uint16(testSignatureScheme)),
+		},
+		{
+			description: "ok signature: max",
+			appendix:    NewAppendix(chain, make([]byte, signatureMax), uint16(testSignatureScheme)),
+		},
+		{
+			description: "too short chain",
+			appendix:    NewAppendix(nil, testSignature, uint16(testSignatureScheme)),
+			wantErr:     true,
+		},
+	} {
+		b, err := table.appendix.Marshal()
+		if err != nil && !table.wantErr {
+			t.Errorf("failed marshaling Appendix for %q: %v", table.description, err)
+		} else if err == nil && table.wantErr {
+			t.Errorf("succeeded marshaling Appendix but wanted error for %q", table.description)
+		}
+		if err != nil || table.wantErr {
+			continue // nothing to unmarshal
+		}
+
+		var appendix Appendix
+		if err := appendix.Unmarshal(b); err != nil {
+			t.Errorf("failed unmarshaling Appendix: %v", err)
+		}
+	}
+}
+
+// TestTreeHeadMarshal tests that valid tree heads can be marshaled and that
+// invalid ones cannot.
+//
+// Note: TreeHeadV1 extensions are not tested (not used by stfe)
+func TestTreeHeadMarshal(t *testing.T) {
+	nodeHashMin := 32
+	nodeHashMax := 255
+	for _, table := range []struct {
+		description string
+		th          *TreeHeadV1
+		wantErr     bool
+	}{
+		{
+			description: "too short root hash",
+			th:          NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, make([]byte, nodeHashMin-1))),
+			wantErr:     true,
+		},
+		{
+			description: "too large root hash",
+			th:          NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, make([]byte, nodeHashMax+1))),
+			wantErr:     true,
+		},
+		{
+			description: "ok tree head: min node hash",
+			th:          NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, make([]byte, nodeHashMin))),
+		},
+		{
+			description: "ok tree head: max node hash",
+			th:          NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, make([]byte, nodeHashMax))),
+		},
+	} {
+		if _, err := table.th.Marshal(); err != nil && !table.wantErr {
+			t.Errorf("failed marshaling in test %q: %v", table.description, err)
+		} else if err == nil && table.wantErr {
+			t.Errorf("succeeded marshaling but wanted error in test %q: %v", table.description, err)
 		}
 	}
 }
