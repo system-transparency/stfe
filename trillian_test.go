@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/trillian"
+	"github.com/google/trillian/types"
 	"github.com/system-transparency/stfe/server/testdata"
 
 	"google.golang.org/grpc/codes"
@@ -110,5 +111,15 @@ func makeTrillianGetLeavesByRangeResponse(t *testing.T, start, end int64, name, 
 	return &trillian.GetLeavesByRangeResponse{
 		Leaves:        leaves,
 		SignedLogRoot: testdata.NewGetLatestSignedLogRootResponse(t, 0, uint64(end)+1, make([]byte, 32)).SignedLogRoot,
+	}
+}
+
+func makeTrillianLogRoot(t *testing.T, timestamp, size uint64, hash []byte) *types.LogRootV1 {
+	return &types.LogRootV1{
+		TreeSize:       size,
+		RootHash:       hash,
+		TimestampNanos: timestamp,
+		Revision:       0,   // not used by stfe
+		Metadata:       nil, // not used by stfe
 	}
 }

@@ -138,7 +138,7 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 		return status, fmt.Errorf("bad GetInclusionProofByHashResponse: %v", errInner)
 	}
 
-	rsp, err := NewInclusionProofV1(i.LogParameters.LogId, uint64(req.TreeSize), trsp.Proof[0]).MarshalB64()
+	rsp, err := NewInclusionProofV1(i.LogParameters.LogId, uint64(req.TreeSize), uint64(trsp.Proof[0].LeafIndex), trsp.Proof[0].Hashes).MarshalB64()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -165,7 +165,7 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 		return status, fmt.Errorf("bad GetConsistencyProofResponse: %v", errInner)
 	}
 
-	rsp, err := NewConsistencyProofV1(i.LogParameters.LogId, req.First, req.Second, trsp.Proof).MarshalB64()
+	rsp, err := NewConsistencyProofV1(i.LogParameters.LogId, uint64(req.First), uint64(req.Second), trsp.Proof.Hashes).MarshalB64()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -186,7 +186,7 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 		return status, fmt.Errorf("bad GetLatestSignedLogRootResponse: %v", errInner)
 	}
 
-	sth, err := i.LogParameters.genV1Sth(NewTreeHeadV1(i.LogParameters, &lr))
+	sth, err := i.LogParameters.genV1Sth(NewTreeHeadV1(&lr))
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed creating signed tree head: %v", err)
 	}

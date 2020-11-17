@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 
 	"github.com/google/certificate-transparency-go/tls"
-	"github.com/google/trillian"
 	"github.com/google/trillian/types"
 )
 
@@ -54,7 +53,7 @@ type ConsistencyProofV1 struct {
 	LogId           []byte `tls:"minlen:32,maxlen:32"`
 	TreeSize1       uint64
 	TreeSize2       uint64
-	ConsistencyPath []NodeHash `tls:"minlen:1,maxlen:65535"`
+	ConsistencyPath []NodeHash `tls:"minlen:0,maxlen:65535"`
 }
 
 // InclusionProofV1 is an inclusion proof as defined by RFC 6962/bis, §4.12
@@ -62,7 +61,7 @@ type InclusionProofV1 struct {
 	LogId         []byte `tls:"minlen:32,maxlen:32"`
 	TreeSize      uint64
 	LeafIndex     uint64
-	InclusionPath []NodeHash `tls:"minlen:1,maxlen:65535"`
+	InclusionPath []NodeHash `tls:"minlen:0,maxlen:65535"`
 }
 
 // ChecksumV1 associates a leaf type as defined by markdown/api.md
@@ -91,9 +90,9 @@ type RawCertificate struct {
 
 // Appendix is extra leaf data that is not stored in the log's Merkle tree
 type Appendix struct {
-	Signature       []byte `tls:"minlen:0,maxlen:16383"`
+	Signature       []byte `tls:"minlen:1,maxlen:16383"`
 	SignatureScheme uint16
-	Chain           []RawCertificate `tls:"minlen:0,maxlen:65535"`
+	Chain           []RawCertificate `tls:"minlen:1,maxlen:65535"`
 }
 
 func (f StFormat) String() string {
@@ -249,21 +248,21 @@ func NewSignedDebugInfoV1(logId, message, signature []byte) *StItem {
 }
 
 // NewInclusionProofV1 creates a new StItem of type inclusion_proof_v1
-func NewInclusionProofV1(logID []byte, treeSize uint64, proof *trillian.Proof) *StItem {
-	inclusionPath := make([]NodeHash, 0, len(proof.Hashes))
-	for _, hash := range proof.Hashes {
-		inclusionPath = append(inclusionPath, NodeHash{Data: hash})
+func NewInclusionProofV1(logID []byte, treeSize, index uint64, proof [][]byte) *StItem {
+	path := make([]NodeHash, 0, len(proof))
+	for _, hash := range proof {
+		path = append(path, NodeHash{Data: hash})
 	}
 	return &StItem{
 		Format:           StFormatInclusionProofV1,
-		InclusionProofV1: &InclusionProofV1{logID, treeSize, uint64(proof.LeafIndex), inclusionPath},
+		InclusionProofV1: &InclusionProofV1{logID, treeSize, index, path},
 	}
 }
 
 // NewConsistencyProofV1 creates a new StItem of type consistency_proof_v1
-func NewConsistencyProofV1(logId []byte, first, second int64, proof *trillian.Proof) *StItem {
-	path := make([]NodeHash, 0, len(proof.Hashes))
-	for _, hash := range proof.Hashes {
+func NewConsistencyProofV1(logId []byte, first, second uint64, proof [][]byte) *StItem {
+	path := make([]NodeHash, 0, len(proof))
+	for _, hash := range proof {
 		path = append(path, NodeHash{Data: hash})
 	}
 	return &StItem{
@@ -282,7 +281,7 @@ func NewChecksumV1(identifier []byte, checksum []byte) *StItem {
 
 // NewTreeHead creates a new TreeHeadV1 from a Trillian-signed log root without
 // verifying any signature.  In other words, Trillian <-> STFE must be trusted.
-func NewTreeHeadV1(lp *LogParameters, lr *types.LogRootV1) *TreeHeadV1 {
+func NewTreeHeadV1(lr *types.LogRootV1) *TreeHeadV1 {
 	return &TreeHeadV1{
 		uint64(lr.TimestampNanos / 1000 / 1000),
 		uint64(lr.TreeSize),

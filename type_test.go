@@ -1,41 +1,329 @@
 package stfe
 
 import (
-	"fmt"
+	"testing"
 
-	"crypto/sha256"
+	"crypto/tls"
+
+	"github.com/system-transparency/stfe/server/testdata"
+	"github.com/system-transparency/stfe/x509util"
 )
 
-func ExampleNewChecksumV1() {
-	name := []byte("foobar-1.2.3")
-	hasher := sha256.New()
-	hasher.Write([]byte(name))
-	checksum := hasher.Sum(nil) // hash of package name
+var (
+	testLogId          = make([]byte, 32)
+	testSignature      = make([]byte, 32)
+	testNodeHash       = make([]byte, 32)
+	testMessage        = []byte("test message")
+	testPackage        = []byte("foobar")
+	testChecksum       = make([]byte, 32)
+	testTreeSize       = uint64(128)
+	testTreeSizeLarger = uint64(256)
+	testTimestamp      = uint64(0)
+	testProof          = [][]byte{
+		make([]byte, 32),
+		make([]byte, 32),
+	}
+	testIndex           = uint64(0)
+	testSignatureScheme = tls.Ed25519
+)
 
-	item := NewChecksumV1(name, checksum)
-	fmt.Printf("%s\n", item)
-	// Output: Format(checksum_v1): Package(foobar-1.2.3) Checksum(UOeWe84malBvj2FLtQlr66WA0gUEa5GPR9I7LsYm114=)
-}
-
-func ExampleMarshalChecksumV1() {
-	item := NewChecksumV1([]byte("foobar-1.2.3"), make([]byte, 32))
-	b, err := item.Marshal()
+// TestEncDecAppendix tests that valid appendices can be (un)marshaled, and that
+// invalid ones in fact dail.
+//
+// TODO: max limits for certificate chains are not tested.
+func TestEncDecAppendix(t *testing.T) {
+	chain, err := x509util.NewCertificateList(testdata.PemChain)
 	if err != nil {
-		fmt.Printf("%v", err)
-		return
+		t.Fatalf("must decode certificate chain: %v", err)
 	}
-	fmt.Printf("%v\n", b)
-	// Output: [0 5 12 102 111 111 98 97 114 45 49 46 50 46 51 32 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+
+	signatureMin := 1
+	signatureMax := 16383
+	for _, table := range []struct {
+		description string
+		appendix    *Appendix
+		wantErr     bool
+	}{
+		{
+			description: "too short signature",
+			appendix:    NewAppendix(chain, make([]byte, signatureMin-1), uint16(testSignatureScheme)),
+			wantErr:     true,
+		},
+		{
+			description: "too large signature",
+			appendix:    NewAppendix(chain, make([]byte, signatureMax+1), uint16(testSignatureScheme)),
+			wantErr:     true,
+		},
+		{
+			description: "ok signature: min",
+			appendix:    NewAppendix(chain, make([]byte, signatureMin), uint16(testSignatureScheme)),
+		},
+		{
+			description: "ok signature: max",
+			appendix:    NewAppendix(chain, make([]byte, signatureMax), uint16(testSignatureScheme)),
+		},
+		{
+			description: "too short chain",
+			appendix:    NewAppendix(nil, testSignature, uint16(testSignatureScheme)),
+			wantErr:     true,
+		},
+	} {
+		b, err := table.appendix.Marshal()
+		if err != nil && !table.wantErr {
+			t.Errorf("failed marshaling Appendix for %q: %v", table.description, err)
+		} else if err == nil && table.wantErr {
+			t.Errorf("succeeded marshaling Appendix but wanted error for %q", table.description)
+		}
+		if err != nil || table.wantErr {
+			continue // nothing to unmarshal
+		}
+
+		var appendix Appendix
+		if err := appendix.Unmarshal(b); err != nil {
+			t.Errorf("failed unmarshaling Appendix: %v", err)
+		}
+	}
 }
 
-func ExampleUnmarshalChecksumV1() {
-	b := []byte{0, 5, 12, 102, 111, 111, 98, 97, 114, 45, 49, 46, 50, 46, 51, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+// TestEncDecStItem tests that valid StItems can be (un)marshaled, and that
+// invalid ones in fact fail.
+//
+// TODO: max limits for inclusion and consistency proofs are not tested.
+// Note: TreeHeadV1 extensions are not tested (not used by stfe)
+func TestEncDecStItem(t *testing.T) {
+	logIdSize := 32
+	signatureMin := 1
+	signatureMax := 65535
+	messageMax := 65535
+	nodeHashMin := 32
+	nodeHashMax := 255
+	packageMin := 1
+	packageMax := 255
+	checksumMin := 1
+	checksumMax := 64
+	for _, table := range []struct {
+		description string
+		item        *StItem
+		wantErr     bool
+	}{
+		// signed_tree_head_v1
+		{
+			description: "too short log id",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), make([]byte, logIdSize-1), testSignature),
+			wantErr:     true,
+		},
+		{
+			description: "too large log id",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), make([]byte, logIdSize+1), testSignature),
+			wantErr:     true,
+		},
+		{
+			description: "ok log id: min and max",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, testSignature),
+		},
+		{
+			description: "too short signature",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, make([]byte, signatureMin-1)),
+			wantErr:     true,
+		},
+		{
+			description: "too large signature",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, make([]byte, signatureMax+1)),
+			wantErr:     true,
+		},
+		{
+			description: "ok signature: min",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, make([]byte, signatureMin)),
+		},
+		{
+			description: "ok signature: max",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, make([]byte, signatureMax)),
+		},
+		{
+			description: "too short root hash",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, make([]byte, nodeHashMin-1))), testLogId, testSignature),
+			wantErr:     true,
+		},
+		{
+			description: "too large root hash",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, make([]byte, nodeHashMax+1))), testLogId, testSignature),
+			wantErr:     true,
+		},
+		{
+			description: "ok root hash: min",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, make([]byte, nodeHashMin))), testLogId, testSignature),
+		},
+		{
+			description: "ok root hash: min",
+			item:        NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, make([]byte, nodeHashMax))), testLogId, testSignature),
+		},
+		// signed_debug_info_v1
+		{
+			description: "too short log id",
+			item:        NewSignedDebugInfoV1(make([]byte, logIdSize-1), testMessage, testSignature),
+			wantErr:     true,
+		},
+		{
+			description: "too large log id",
+			item:        NewSignedDebugInfoV1(make([]byte, logIdSize+1), testMessage, testSignature),
+			wantErr:     true,
+		},
+		{
+			description: "ok log id: min and max",
+			item:        NewSignedDebugInfoV1(testLogId, testMessage, testSignature),
+		},
+		{
+			description: "too large message",
+			item:        NewSignedDebugInfoV1(testLogId, make([]byte, messageMax+1), testSignature),
+			wantErr:     true,
+		},
+		{
+			description: "ok message: max",
+			item:        NewSignedDebugInfoV1(testLogId, make([]byte, messageMax), testSignature),
+		},
+		{
+			description: "too short signature",
+			item:        NewSignedDebugInfoV1(testLogId, testMessage, make([]byte, signatureMin-1)),
+			wantErr:     true,
+		},
+		{
+			description: "too large signature",
+			item:        NewSignedDebugInfoV1(testLogId, testMessage, make([]byte, signatureMax+1)),
+			wantErr:     true,
+		},
+		{
+			description: "ok signature: min",
+			item:        NewSignedDebugInfoV1(testLogId, testMessage, make([]byte, signatureMin)),
+		},
+		{
+			description: "ok signature: max",
+			item:        NewSignedDebugInfoV1(testLogId, testMessage, make([]byte, signatureMax)),
+		},
+		// consistency_proof_v1
+		{
+			description: "too short log id",
+			item:        NewConsistencyProofV1(make([]byte, logIdSize-1), testTreeSize, testTreeSizeLarger, testProof),
+			wantErr:     true,
+		},
+		{
+			description: "too large log id",
+			item:        NewConsistencyProofV1(make([]byte, logIdSize+1), testTreeSize, testTreeSizeLarger, testProof),
+			wantErr:     true,
+		},
+		{
+			description: "ok log id: min and max",
+			item:        NewConsistencyProofV1(testLogId, testTreeSize, testTreeSizeLarger, testProof),
+		},
+		{
+			description: "too small node hash in proof",
+			item:        NewConsistencyProofV1(testLogId, testTreeSize, testTreeSizeLarger, [][]byte{make([]byte, nodeHashMin-1)}),
+			wantErr:     true,
+		},
+		{
+			description: "too large node hash in proof",
+			item:        NewConsistencyProofV1(testLogId, testTreeSize, testTreeSizeLarger, [][]byte{make([]byte, nodeHashMax+1)}),
+			wantErr:     true,
+		},
+		{
+			description: "ok proof: min node hash",
+			item:        NewConsistencyProofV1(testLogId, testTreeSize, testTreeSizeLarger, [][]byte{make([]byte, nodeHashMin)}),
+		},
+		{
+			description: "ok proof: max node hash",
+			item:        NewConsistencyProofV1(testLogId, testTreeSize, testTreeSizeLarger, [][]byte{make([]byte, nodeHashMin)}),
+		},
+		{
+			description: "ok proof: empty",
+			item:        NewConsistencyProofV1(testLogId, testTreeSize, testTreeSizeLarger, [][]byte{}),
+		},
+		// inclusion_proof_v1
+		{
+			description: "too short log id",
+			item:        NewInclusionProofV1(make([]byte, logIdSize-1), testTreeSize, testIndex, testProof),
+			wantErr:     true,
+		},
+		{
+			description: "too large log id",
+			item:        NewInclusionProofV1(make([]byte, logIdSize+1), testTreeSize, testIndex, testProof),
+			wantErr:     true,
+		},
+		{
+			description: "ok log id: min and max",
+			item:        NewInclusionProofV1(testLogId, testTreeSize, testIndex, testProof),
+		},
+		{
+			description: "too short node hash in proof",
+			item:        NewInclusionProofV1(testLogId, testTreeSize, testIndex, [][]byte{make([]byte, nodeHashMin-1)}),
+			wantErr:     true,
+		},
+		{
+			description: "too large node hash in proof",
+			item:        NewInclusionProofV1(testLogId, testTreeSize, testIndex, [][]byte{make([]byte, nodeHashMax+1)}),
+			wantErr:     true,
+		},
+		{
+			description: "ok proof: min node hash",
+			item:        NewInclusionProofV1(testLogId, testTreeSize, testIndex, [][]byte{make([]byte, nodeHashMin)}),
+		},
+		{
+			description: "ok proof: max node hash",
+			item:        NewInclusionProofV1(testLogId, testTreeSize, testIndex, [][]byte{make([]byte, nodeHashMax)}),
+		},
+		{
+			description: "ok proof: empty",
+			item:        NewInclusionProofV1(testLogId, testTreeSize, testIndex, [][]byte{}),
+		},
+		// checksum_v1
+		{
+			description: "too short package",
+			item:        NewChecksumV1(make([]byte, packageMin-1), testChecksum),
+			wantErr:     true,
+		},
+		{
+			description: "too large package",
+			item:        NewChecksumV1(make([]byte, packageMax+1), testChecksum),
+			wantErr:     true,
+		},
+		{
+			description: "ok package: min",
+			item:        NewChecksumV1(make([]byte, packageMin), testChecksum),
+		},
+		{
+			description: "ok package: max",
+			item:        NewChecksumV1(make([]byte, packageMax), testChecksum),
+		},
+		{
+			description: "too short checksum",
+			item:        NewChecksumV1(testPackage, make([]byte, checksumMin-1)),
+			wantErr:     true,
+		},
+		{
+			description: "too large checksum",
+			item:        NewChecksumV1(testPackage, make([]byte, checksumMax+1)),
+			wantErr:     true,
+		},
+		{
+			description: "ok checksum: min",
+			item:        NewChecksumV1(testPackage, make([]byte, checksumMin)),
+		},
+		{
+			description: "ok checksum: max",
+			item:        NewChecksumV1(testPackage, make([]byte, checksumMax)),
+		},
+	} {
+		b, err := table.item.Marshal()
+		if err != nil && !table.wantErr {
+			t.Errorf("failed marshaling StItem(%s) in test %q: %v", table.item.Format, table.description, err)
+		} else if err == nil && table.wantErr {
+			t.Errorf("succeeded marshaling StItem(%s) in test %q but want failure", table.item.Format, table.description)
+		}
+		if err != nil || table.wantErr {
+			continue // nothing to unmarshal
+		}
 
-	var item StItem
-	if err := item.Unmarshal(b); err != nil {
-		fmt.Printf("%v", err)
-		return
+		var item StItem
+		if err := item.Unmarshal(b); err != nil {
+			t.Errorf("failed unmarshaling StItem(%s) in test %q: %v", table.item.Format, table.description, err)
+		}
 	}
-	fmt.Printf("%v\n", item)
-	// Output: Format(checksum_v1): Package(foobar-1.2.3) Checksum(AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=)
 }
