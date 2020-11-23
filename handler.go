@@ -65,8 +65,8 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 			ExtraData: appendix,
 		},
 	})
-	if status, errInner := checkQueueLeaf(trsp, err); errInner != nil {
-		return status, fmt.Errorf("bad QueueLeafResponse: %v", errInner)
+	if errInner := checkQueueLeaf(trsp, err); errInner != nil {
+		return http.StatusInternalServerError, fmt.Errorf("bad QueueLeafResponse: %v", errInner)
 	}
 
 	sdi, err := i.LogParameters.genV1Sdi(trsp.QueuedLeaf.Leaf.LeafValue)
@@ -182,8 +182,8 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 		LogId: i.LogParameters.TreeId,
 	})
 	var lr types.LogRootV1
-	if status, errInner := checkGetLatestSignedLogRoot(i.LogParameters, trsp, err, &lr); errInner != nil {
-		return status, fmt.Errorf("bad GetLatestSignedLogRootResponse: %v", errInner)
+	if errInner := checkGetLatestSignedLogRoot(i.LogParameters, trsp, err, &lr); errInner != nil {
+		return http.StatusInternalServerError, fmt.Errorf("bad GetLatestSignedLogRootResponse: %v", errInner)
 	}
 
 	sth, err := i.LogParameters.genV1Sth(NewTreeHeadV1(&lr))

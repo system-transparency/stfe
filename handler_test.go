@@ -2,6 +2,7 @@ package stfe
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"fmt"
 	"strings"
@@ -20,7 +21,7 @@ import (
 	"github.com/google/certificate-transparency-go/trillian/mockclient"
 	cttestdata "github.com/google/certificate-transparency-go/trillian/testdata"
 	"github.com/google/trillian"
-	"github.com/system-transparency/stfe/server/testdata"
+	"github.com/system-transparency/stfe/testdata"
 	"github.com/system-transparency/stfe/x509util"
 )
 
@@ -197,7 +198,7 @@ func TestGetEntries(t *testing.T) {
 				Start: 0,
 				End:   1,
 			},
-			trsp:        makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, false),
+			trsp:        makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, false),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
@@ -207,7 +208,7 @@ func TestGetEntries(t *testing.T) {
 				Start: 0,
 				End:   1,
 			},
-			trsp:     makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, true),
+			trsp:     makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, true),
 			wantCode: http.StatusOK,
 		},
 	} {
@@ -226,7 +227,7 @@ func TestGetEntries(t *testing.T) {
 			req.URL.RawQuery = q.Encode()
 
 			if table.trsp != nil || table.terr != nil {
-				th.client.EXPECT().GetLeavesByRange(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+				th.client.EXPECT().GetLeavesByRange(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 			w := httptest.NewRecorder()
 			th.getHandler(t, "get-entries").ServeHTTP(w, req)
@@ -298,29 +299,29 @@ func TestAddEntry(t *testing.T) {
 	}{
 		{
 			description: "empty trillian response",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, true),
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, true),
 			terr:        fmt.Errorf("back-end failure"),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
 		{
 			description: "bad request parameters",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, false),
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, false),
 			wantCode:    http.StatusBadRequest,
 			wantErrText: http.StatusText(http.StatusBadRequest) + "\n",
 		},
 		{
 			description: "log signature failure",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, true),
-			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey),
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, true),
+			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, false),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 			signer:      cttestdata.NewSignerWithErr(nil, fmt.Errorf("signing failed")),
 		},
 		{
 			description: "valid add-entry request-response",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey, true),
-			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.PemChain, testdata.PemChainKey),
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, true),
+			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, false),
 			wantCode:    http.StatusOK,
 			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 32)),
 		},
@@ -338,7 +339,7 @@ func TestAddEntry(t *testing.T) {
 
 			if table.trsp != nil || table.terr != nil {
 				// TODO: replace gomock.Any with a check that leaf and appendix are OK, e.g., chain length should be 3
-				th.client.EXPECT().QueueLeaf(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+				th.client.EXPECT().QueueLeaf(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 			w := httptest.NewRecorder()
 			th.postHandler(t, "add-entry").ServeHTTP(w, req)
@@ -382,8 +383,9 @@ func TestAddEntry(t *testing.T) {
 	}
 }
 
-// TestGetSth: docdoc and TODO: move quirky tests to trillian_tests.go?
 func TestGetSth(t *testing.T) {
+	tr := makeLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32))
+	tr.SignedLogRoot.LogRoot = tr.SignedLogRoot.LogRoot[1:]
 	for _, table := range []struct {
 		description string
 		trsp        *trillian.GetLatestSignedLogRootResponse
@@ -399,45 +401,22 @@ func TestGetSth(t *testing.T) {
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
 		{
-			description: "incomplete trillian response: nil response",
-			wantCode:    http.StatusInternalServerError,
-			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
-		},
-		{
-			description: "incomplete trillian response: no signed log root",
-			trsp:        &trillian.GetLatestSignedLogRootResponse{SignedLogRoot: nil},
-			wantCode:    http.StatusInternalServerError,
-			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
-		},
-		{
-			description: "incomplete trillian response: truncated log root",
-			trsp:        testdata.TruncatedSignedLogRootResponse(t),
-			wantCode:    http.StatusInternalServerError,
-			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
-		},
-		{
-			description: "incomplete trillian response: invalid root hash size",
-			trsp:        testdata.NewGetLatestSignedLogRootResponse(t, 0, 0, make([]byte, 31)),
-			wantCode:    http.StatusInternalServerError,
-			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
-		},
-		{
 			description: "marshal failure: no signature",
-			trsp:        testdata.NewGetLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
+			trsp:        makeLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 0)),
 		},
 		{
 			description: "signature failure",
-			trsp:        testdata.NewGetLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
+			trsp:        makeLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 			signer:      cttestdata.NewSignerWithErr(nil, fmt.Errorf("signing failed")),
 		},
 		{
 			description: "valid request and response",
-			trsp:        testdata.NewGetLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
+			trsp:        makeLatestSignedLogRootResponse(t, 0, 0, make([]byte, 32)),
 			wantCode:    http.StatusOK,
 			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 32)),
 		},
@@ -453,7 +432,7 @@ func TestGetSth(t *testing.T) {
 			}
 
 			w := httptest.NewRecorder()
-			th.client.EXPECT().GetLatestSignedLogRoot(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+			th.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			th.getHandler(t, "get-sth").ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
@@ -562,7 +541,7 @@ func TestGetConsistencyProof(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			if table.trsp != nil || table.terr != nil {
-				th.client.EXPECT().GetConsistencyProof(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+				th.client.EXPECT().GetConsistencyProof(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 			th.getHandler(t, "get-consistency-proof").ServeHTTP(w, req)
 			if w.Code != table.wantCode {
@@ -671,7 +650,7 @@ func TestGetProofByHash(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			if table.trsp != nil || table.terr != nil {
-				th.client.EXPECT().GetInclusionProofByHash(testdata.NewDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
+				th.client.EXPECT().GetInclusionProofByHash(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 			th.getHandler(t, "get-proof-by-hash").ServeHTTP(w, req)
 			if w.Code != table.wantCode {
@@ -772,4 +751,28 @@ func makeTestLeafBuffer(t *testing.T, name, pemChain, pemKey []byte, valid bool)
 		t.Fatalf("failed marshaling add-entry parameters: %v", err)
 	}
 	return bytes.NewBuffer(data)
+}
+
+// deadlineMatcher implements gomock.Matcher, such that an error is raised if
+// there is no context.Context deadline set
+type deadlineMatcher struct{}
+
+// newDeadlineMatcher returns a new DeadlineMatcher
+func newDeadlineMatcher() gomock.Matcher {
+	return &deadlineMatcher{}
+}
+
+// Matches returns true if the passed interface is a context with a deadline
+func (dm *deadlineMatcher) Matches(i interface{}) bool {
+	ctx, ok := i.(context.Context)
+	if !ok {
+		return false
+	}
+	_, ok = ctx.Deadline()
+	return ok
+}
+
+// String is needed to implement gomock.Matcher
+func (dm *deadlineMatcher) String() string {
+	return fmt.Sprintf("deadlineMatcher{}")
 }

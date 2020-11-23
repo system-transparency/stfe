@@ -11,15 +11,15 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func checkQueueLeaf(rsp *trillian.QueueLeafResponse, err error) (int, error) {
+func checkQueueLeaf(rsp *trillian.QueueLeafResponse, err error) error {
 	if err != nil || rsp == nil || rsp.QueuedLeaf == nil {
-		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+		return fmt.Errorf("%v", err)
 	}
 	if codes.Code(rsp.QueuedLeaf.GetStatus().GetCode()) == codes.AlreadyExists {
 		// no need to report this as an invalid request, just (re)issue sdi
 		glog.V(3).Infof("queued leaf is a duplicate => %X", rsp.QueuedLeaf.Leaf.LeafValue)
 	}
-	return 0, nil
+	return nil
 }
 
 func checkGetLeavesByRange(req *GetEntriesRequest, rsp *trillian.GetLeavesByRangeResponse, err error) (int, error) {
@@ -62,17 +62,17 @@ func checkGetConsistencyProof(lp *LogParameters, rsp *trillian.GetConsistencyPro
 	return checkHashPath(lp.HashType.Size(), rsp.Proof.Hashes)
 }
 
-func checkGetLatestSignedLogRoot(lp *LogParameters, rsp *trillian.GetLatestSignedLogRootResponse, err error, out *types.LogRootV1) (int, error) {
+func checkGetLatestSignedLogRoot(lp *LogParameters, rsp *trillian.GetLatestSignedLogRootResponse, err error, out *types.LogRootV1) error {
 	if err != nil || rsp == nil || rsp.SignedLogRoot == nil || rsp.SignedLogRoot.LogRoot == nil {
-		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+		return fmt.Errorf("%v", err)
 	}
 	if err := out.UnmarshalBinary(rsp.SignedLogRoot.LogRoot); err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("cannot unmarshal log root: %v", err)
+		return fmt.Errorf("cannot unmarshal log root: %v", err)
 	}
 	if len(out.RootHash) != lp.HashType.Size() {
-		return http.StatusInternalServerError, fmt.Errorf("invalid root hash: %v", out.RootHash)
+		return fmt.Errorf("invalid root hash: %v", out.RootHash)
 	}
-	return 0, nil
+	return nil
 }
 
 func checkHashPath(hashSize int, path [][]byte) (int, error) {
