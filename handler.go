@@ -134,8 +134,8 @@ func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *
 		TreeSize:        req.TreeSize,
 		OrderBySequence: true,
 	})
-	if status, errInner := checkGetInclusionProofByHash(i.LogParameters, trsp, err); errInner != nil {
-		return status, fmt.Errorf("bad GetInclusionProofByHashResponse: %v", errInner)
+	if errInner := checkGetInclusionProofByHash(i.LogParameters, trsp, err); errInner != nil {
+		return http.StatusInternalServerError, fmt.Errorf("bad GetInclusionProofByHashResponse: %v", errInner)
 	}
 
 	rsp, err := NewInclusionProofV1(i.LogParameters.LogId, uint64(req.TreeSize), uint64(trsp.Proof[0].LeafIndex), trsp.Proof[0].Hashes).MarshalB64()
@@ -161,8 +161,8 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 		FirstTreeSize:  int64(req.First),
 		SecondTreeSize: int64(req.Second),
 	})
-	if status, errInner := checkGetConsistencyProof(i.LogParameters, trsp, err); errInner != nil {
-		return status, fmt.Errorf("bad GetConsistencyProofResponse: %v", errInner)
+	if errInner := checkGetConsistencyProof(i.LogParameters, trsp, err); errInner != nil {
+		return http.StatusInternalServerError, fmt.Errorf("bad GetConsistencyProofResponse: %v", errInner)
 	}
 
 	rsp, err := NewConsistencyProofV1(i.LogParameters.LogId, uint64(req.First), uint64(req.Second), trsp.Proof.Hashes).MarshalB64()

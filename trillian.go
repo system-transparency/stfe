@@ -48,16 +48,16 @@ func checkGetLeavesByRange(req *GetEntriesRequest, rsp *trillian.GetLeavesByRang
 	return 0, nil
 }
 
-func checkGetInclusionProofByHash(lp *LogParameters, rsp *trillian.GetInclusionProofByHashResponse, err error) (int, error) {
+func checkGetInclusionProofByHash(lp *LogParameters, rsp *trillian.GetInclusionProofByHashResponse, err error) error {
 	if err != nil || rsp == nil || len(rsp.Proof) == 0 || rsp.Proof[0] == nil {
-		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+		return fmt.Errorf("%v", err)
 	}
 	return checkHashPath(lp.HashType.Size(), rsp.Proof[0].Hashes)
 }
 
-func checkGetConsistencyProof(lp *LogParameters, rsp *trillian.GetConsistencyProofResponse, err error) (int, error) {
+func checkGetConsistencyProof(lp *LogParameters, rsp *trillian.GetConsistencyProofResponse, err error) error {
 	if err != nil || rsp == nil || rsp.Proof == nil {
-		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+		return fmt.Errorf("%v", err)
 	}
 	return checkHashPath(lp.HashType.Size(), rsp.Proof.Hashes)
 }
@@ -75,11 +75,11 @@ func checkGetLatestSignedLogRoot(lp *LogParameters, rsp *trillian.GetLatestSigne
 	return nil
 }
 
-func checkHashPath(hashSize int, path [][]byte) (int, error) {
+func checkHashPath(hashSize int, path [][]byte) error {
 	for _, hash := range path {
 		if len(hash) != hashSize {
-			return http.StatusInternalServerError, fmt.Errorf("invalid proof: %v", path)
+			return fmt.Errorf("invalid proof: %v", path)
 		}
 	}
-	return 0, nil
+	return nil
 }

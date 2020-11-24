@@ -141,12 +141,91 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 	}
 }
 
-// TODO: TestCheckGetInclusionProofByHash
 func TestCheckGetInclusionProofByHash(t *testing.T) {
+	lp := makeTestLogParameters(t, nil)
+	for _, table := range []struct {
+		description string
+		rsp         *trillian.GetInclusionProofByHashResponse
+		err         error
+		wantErr     bool
+	}{
+		{
+			description: "bad response: trillian error",
+			err:         fmt.Errorf("backend failure"),
+			wantErr:     true,
+		},
+		{
+			description: "bad response: empty",
+			wantErr:     true,
+		},
+		{
+			description: "bad response: no proofs",
+			rsp:         &trillian.GetInclusionProofByHashResponse{},
+			wantErr:     true,
+		},
+		{
+			description: "bad response: no proof",
+			rsp: func(rsp *trillian.GetInclusionProofByHashResponse) *trillian.GetInclusionProofByHashResponse {
+				rsp.Proof[0] = nil
+				return rsp
+			}(makeTrillianGetInclusionProofByHashResponse(t, int64(testIndex), testProof)),
+			wantErr: true,
+		},
+		{
+			description: "bad response: proof with invalid node hash",
+			rsp:         makeTrillianGetInclusionProofByHashResponse(t, int64(testIndex), [][]byte{make([]byte, 31)}),
+			wantErr:     true,
+		},
+		{
+			description: "ok response",
+			rsp:         makeTrillianGetInclusionProofByHashResponse(t, int64(testIndex), testProof),
+		},
+	} {
+		if err := checkGetInclusionProofByHash(lp, table.rsp, table.err); (err != nil) != table.wantErr {
+			t.Errorf("got error %v, but wanted error %v in test %q", err, table.wantErr, table.description)
+		}
+	}
 }
+
+// TODO: fix hardcoded assumed test hash value len of 32?
 
 // TODO: TestGetConsistencyProof
 func TestCheckGetConsistencyProof(t *testing.T) {
+	lp := makeTestLogParameters(t, nil)
+	for _, table := range []struct {
+		description string
+		rsp         *trillian.GetConsistencyProofResponse
+		err         error
+		wantErr     bool
+	}{
+		{
+			description: "bad response: trillian error",
+			err:         fmt.Errorf("backend failure"),
+			wantErr:     true,
+		},
+		{
+			description: "bad response: empty",
+			wantErr:     true,
+		},
+		{
+			description: "bad response: no proof",
+			rsp:         &trillian.GetConsistencyProofResponse{},
+			wantErr:     true,
+		},
+		{
+			description: "bad response: proof with invalid node hash",
+			rsp:         makeTrillianGetConsistencyProofResponse(t, [][]byte{make([]byte, 31)}),
+			wantErr:     true,
+		},
+		{
+			description: "ok response",
+			rsp:         makeTrillianGetConsistencyProofResponse(t, testProof),
+		},
+	} {
+		if err := checkGetConsistencyProof(lp, table.rsp, table.err); (err != nil) != table.wantErr {
+			t.Errorf("got error %v, but wanted error %v in test %q", err, table.wantErr, table.description)
+		}
+	}
 }
 
 func TestCheckGetLatestSignedLogRoot(t *testing.T) {
