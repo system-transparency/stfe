@@ -20,25 +20,25 @@ func TestCheckQueueLeaf(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			description: "trillian error",
+			description: "bad response: trillian error",
 			err:         fmt.Errorf("backend error"),
 			wantErr:     true,
 		},
 		{
-			description: "empty trillian response",
+			description: "bad response: empty",
 			wantErr:     true,
 		},
 		{
-			description: "partial trillian response: empty QueuedLeaf field",
+			description: "bad response: no queued leaf",
 			rsp:         &trillian.QueueLeafResponse{},
 			wantErr:     true,
 		},
 		{
-			description: "ok: duplicate leaf",
+			description: "ok response: duplicate leaf",
 			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true),
 		},
 		{
-			description: "ok: new leaf",
+			description: "ok response: new leaf",
 			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, false),
 		},
 	} {
@@ -49,26 +49,6 @@ func TestCheckQueueLeaf(t *testing.T) {
 }
 
 func TestCheckGetLeavesByRange(t *testing.T) {
-	// rsp without leaves
-	noLeaves := makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)
-	noLeaves.Leaves = nil
-
-	// rsp without signed log root
-	noSlr := makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)
-	noSlr.SignedLogRoot = nil
-
-	// rsp without log root
-	noLr := makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)
-	noLr.SignedLogRoot.LogRoot = nil
-
-	// rsp with root that cannot be unmarshalled
-	tr := makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)
-	tr.SignedLogRoot.LogRoot = tr.SignedLogRoot.LogRoot[1:]
-
-	// rsp with fixed tree size
-	fixedSize := makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)
-	fixedSize.SignedLogRoot = makeLatestSignedLogRootResponse(t, 0, testTreeSize, testNodeHash).SignedLogRoot
-
 	for _, table := range []struct {
 		description string
 		req         *GetEntriesRequest
@@ -77,28 +57,46 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			description: "trillian error",
+			description: "bad response: trillian error",
 			err:         fmt.Errorf("backend error"),
 			wantErr:     true,
 		},
 		{
-			description: "empty trillian response",
+			description: "bad response: empty",
 			wantErr:     true,
 		},
 		{
-			description: "partial trillian response: no leaves",
-			rsp:         noLeaves,
-			wantErr:     true,
+			description: "bad response: no leaves",
+			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
+				rsp.Leaves = nil
+				return rsp
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			wantErr: true,
 		},
 		{
-			description: "partial trillian response: no signed log root",
-			rsp:         noSlr,
-			wantErr:     true,
+			description: "bad response: no signed log root",
+			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
+				rsp.SignedLogRoot = nil
+				return rsp
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			wantErr: true,
 		},
 		{
-			description: "partial trillian response: no log root",
-			rsp:         noLr,
-			wantErr:     true,
+			description: "bad response: no log root",
+			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
+				rsp.SignedLogRoot.LogRoot = nil
+				return rsp
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			wantErr: true,
+		},
+		{
+			description: "bad response: truncated root",
+			req:         &GetEntriesRequest{Start: 0, End: 1},
+			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
+				rsp.SignedLogRoot.LogRoot = rsp.SignedLogRoot.LogRoot[1:]
+				return rsp
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			wantErr: true,
 		},
 		{
 			description: "bad response: too many leaves",
@@ -107,27 +105,27 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			wantErr:     true,
 		},
 		{
-			description: "bad response: too many leaves",
-			req:         &GetEntriesRequest{Start: 0, End: 1},
-			rsp:         tr,
-			wantErr:     true,
-		},
-		{
 			description: "bad response: start is not a valid index",
 			req:         &GetEntriesRequest{Start: int64(testTreeSize), End: int64(testTreeSize)},
-			rsp:         fixedSize,
-			wantErr:     true,
-		},
-		{
-			description: "ok response: interval refers to the latest leaf",
-			req:         &GetEntriesRequest{Start: int64(testTreeSize) - 1, End: int64(testTreeSize) - 1},
-			rsp:         fixedSize,
+			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
+				rsp.SignedLogRoot = makeLatestSignedLogRootResponse(t, 0, testTreeSize, testNodeHash).SignedLogRoot
+				return rsp
+			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			wantErr: true,
 		},
 		{
 			description: "bad response: invalid leaf indices",
 			req:         &GetEntriesRequest{Start: 10, End: 11},
 			rsp:         makeTrillianGetLeavesByRangeResponse(t, 11, 12, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true),
 			wantErr:     true,
+		},
+		{
+			description: "ok response: interval refers to the latest leaf",
+			req:         &GetEntriesRequest{Start: int64(testTreeSize) - 1, End: int64(testTreeSize) - 1},
+			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
+				rsp.SignedLogRoot = makeLatestSignedLogRootResponse(t, 0, testTreeSize, testNodeHash).SignedLogRoot
+				return rsp
+			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
 		},
 		{
 			description: "ok response: a bunch of leaves",
@@ -226,14 +224,6 @@ func TestCheckGetConsistencyProof(t *testing.T) {
 }
 
 func TestCheckGetLatestSignedLogRoot(t *testing.T) {
-	// response with no log root
-	noLr := makeLatestSignedLogRootResponse(t, 0, 0, testNodeHash)
-	noLr.SignedLogRoot.LogRoot = nil
-
-	// response with truncated log root
-	tr := makeLatestSignedLogRootResponse(t, 0, 0, testNodeHash)
-	tr.SignedLogRoot.LogRoot = tr.SignedLogRoot.LogRoot[1:]
-
 	lp := makeTestLogParameters(t, nil)
 	for _, table := range []struct {
 		description string
@@ -257,13 +247,19 @@ func TestCheckGetLatestSignedLogRoot(t *testing.T) {
 		},
 		{
 			description: "bad trillian response: no log root",
-			rsp:         noLr,
-			wantErr:     true,
+			rsp: func(rsp *trillian.GetLatestSignedLogRootResponse) *trillian.GetLatestSignedLogRootResponse {
+				rsp.SignedLogRoot.LogRoot = nil
+				return rsp
+			}(makeLatestSignedLogRootResponse(t, 0, 0, testNodeHash)),
+			wantErr: true,
 		},
 		{
 			description: "bad trillian response: truncated log root",
-			rsp:         tr,
-			wantErr:     true,
+			rsp: func(rsp *trillian.GetLatestSignedLogRootResponse) *trillian.GetLatestSignedLogRootResponse {
+				rsp.SignedLogRoot.LogRoot = rsp.SignedLogRoot.LogRoot[1:]
+				return rsp
+			}(makeLatestSignedLogRootResponse(t, 0, 0, testNodeHash)),
+			wantErr: true,
 		},
 		{
 			description: "bad trillian response: invalid root hash size",
