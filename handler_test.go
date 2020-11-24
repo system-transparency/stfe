@@ -11,7 +11,6 @@ import (
 
 	"crypto/ed25519"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -32,30 +31,15 @@ type testHandler struct {
 }
 
 func newTestHandler(t *testing.T, signer crypto.Signer) *testHandler {
-	anchorList, err := x509util.NewCertificateList(testdata.PemAnchors)
-	if err != nil {
-		t.Fatalf("failed parsing trust anchors: %v", err)
-	}
 	ctrl := gomock.NewController(t)
 	client := mockclient.NewMockTrillianLogClient(ctrl)
 	return &testHandler{
 		mockCtrl: ctrl,
 		client:   client,
 		instance: &Instance{
-			Deadline: time.Second * 10, // TODO: fix me?
-			Client:   client,
-			LogParameters: &LogParameters{
-				LogId:      make([]byte, 32),
-				TreeId:     0,
-				Prefix:     "/test",
-				MaxRange:   3,
-				MaxChain:   3,
-				AnchorPool: x509util.NewCertPool(anchorList),
-				AnchorList: anchorList,
-				KeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-				Signer:     signer,
-				HashType:   crypto.SHA256,
-			},
+			Deadline:      time.Second * 10,
+			Client:        client,
+			LogParameters: makeTestLogParameters(t, signer),
 		},
 	}
 }
@@ -155,7 +139,6 @@ func TestGetAnchors(t *testing.T) {
 		t.Errorf("failed unmarshaling trust anchors response: %v", err)
 		return
 	}
-	// TODO: add an additional root so that it is an actual list
 	if got, want := len(derAnchors), len(th.instance.LogParameters.AnchorList); got != want {
 		t.Errorf("unexpected trust anchor count %d, want %d", got, want)
 	}
