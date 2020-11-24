@@ -10,6 +10,10 @@ import (
 	"github.com/system-transparency/stfe/x509util"
 )
 
+var (
+	testHashLen = 31
+)
+
 func makeTestLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {
 	anchorList, err := x509util.NewCertificateList(testdata.PemAnchors)
 	if err != nil {

@@ -173,7 +173,7 @@ func TestCheckGetInclusionProofByHash(t *testing.T) {
 		},
 		{
 			description: "bad response: proof with invalid node hash",
-			rsp:         makeTrillianGetInclusionProofByHashResponse(t, int64(testIndex), [][]byte{make([]byte, 31)}),
+			rsp:         makeTrillianGetInclusionProofByHashResponse(t, int64(testIndex), [][]byte{make([]byte, testHashLen-1)}),
 			wantErr:     true,
 		},
 		{
@@ -187,9 +187,6 @@ func TestCheckGetInclusionProofByHash(t *testing.T) {
 	}
 }
 
-// TODO: fix hardcoded assumed test hash value len of 32?
-
-// TODO: TestGetConsistencyProof
 func TestCheckGetConsistencyProof(t *testing.T) {
 	lp := makeTestLogParameters(t, nil)
 	for _, table := range []struct {
@@ -214,7 +211,7 @@ func TestCheckGetConsistencyProof(t *testing.T) {
 		},
 		{
 			description: "bad response: proof with invalid node hash",
-			rsp:         makeTrillianGetConsistencyProofResponse(t, [][]byte{make([]byte, 31)}),
+			rsp:         makeTrillianGetConsistencyProofResponse(t, [][]byte{make([]byte, testHashLen-1)}),
 			wantErr:     true,
 		},
 		{
@@ -270,7 +267,7 @@ func TestCheckGetLatestSignedLogRoot(t *testing.T) {
 		},
 		{
 			description: "bad trillian response: invalid root hash size",
-			rsp:         makeLatestSignedLogRootResponse(t, 0, 0, make([]byte, 31)),
+			rsp:         makeLatestSignedLogRootResponse(t, 0, 0, make([]byte, testHashLen-1)),
 			wantErr:     true,
 		},
 		{
