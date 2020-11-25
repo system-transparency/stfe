@@ -184,7 +184,7 @@ func TestNewGetConsistencyProofRequest(t *testing.T) {
 		{
 			description: "bad request: first must be larger than zero",
 			first:       "0",
-			second:      "second",
+			second:      "2",
 			wantErr:     true,
 		},
 		{
