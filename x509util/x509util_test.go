@@ -1,8 +1,11 @@
 package x509util
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
+
+	"github.com/system-transparency/stfe/testdata"
 )
 
 func TestNewEd25519PrivateKey(t *testing.T) {
@@ -211,6 +214,24 @@ Vc510vi4dM8I+e/vcoBsmMQP
 }
 
 func TestNewCertPool(t *testing.T) {
+	for i, chain := range [][]byte{
+		testdata.FirstPemChain,
+		testdata.SecondPemChain,
+	} {
+		list, err := NewCertificateList(chain)
+		if err != nil {
+			t.Fatalf("must parse chain: %v", err)
+		}
+		pool := NewCertPool(list)
+		if got, want := len(pool.Subjects()), len(list); got != want {
+			t.Errorf("got pool of size %d but wanted %d in test %d", got, want, i)
+		}
+		for j, got := range pool.Subjects() {
+			if want := list[j].RawSubject; !bytes.Equal(got, want) {
+				t.Errorf("got subject[%d]=%X but wanted %X in test %d", j, got, want, i)
+			}
+		}
+	}
 }
 
 func TestParseDerChain(t *testing.T) {
