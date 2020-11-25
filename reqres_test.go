@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"net/http"
 
+	"github.com/google/trillian"
 	"github.com/system-transparency/stfe/testdata"
 )
 
@@ -224,8 +225,66 @@ func TestNewGetConsistencyProofRequest(t *testing.T) {
 	}
 }
 
-// TODO: TestNewGetEntryResponse
+func TestNewGetEntryResponse(t *testing.T) {
+	lp := makeTestLogParameters(t, nil)
+
+	var appendix Appendix
+	leaf, app := makeTestLeaf(t, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey)
+	if err := appendix.Unmarshal(app); err != nil {
+		t.Fatalf("must unmarshal appendix: %v", err)
+	}
+	if _, err := lp.newGetEntryResponse(leaf, app[1:]); err == nil {
+		t.Errorf("got no error invalid appendix")
+	}
+
+	// Valid response
+	rsp, err := lp.newGetEntryResponse(leaf, app)
+	if err != nil {
+		t.Errorf("got error %v but wanted none", err)
+		return
+	}
+	if got, want := rsp.Item, leaf; !bytes.Equal(got, want) {
+		t.Errorf("got leaf %X but wanted %X", got, want)
+	}
+	if got, want := rsp.Signature, appendix.Signature; !bytes.Equal(got, want) {
+		t.Errorf("got signature %X but wanted %X", got, want)
+	}
+	if got, want := rsp.SignatureScheme, appendix.SignatureScheme; got != want {
+		t.Errorf("got signature scheme %d but wanted %d", got, want)
+	}
+	if got, want := len(rsp.Chain), len(appendix.Chain); got != want {
+		t.Errorf("got chain length %d but wanted %d", got, want)
+	}
+	for i, n := 0, len(rsp.Chain); i < n; i++ {
+		if got, want := rsp.Chain[i], appendix.Chain[i].Data; !bytes.Equal(got, want) {
+			t.Errorf("got chain[%d]=%X but wanted %X", i, got, want)
+		}
+	}
+}
+
 func TestNewGetEntriesResponse(t *testing.T) {
+	lp := makeTestLogParameters(t, nil)
+
+	// Invalid
+	leaf := makeTrillianQueueLeafResponse(t, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, false).QueuedLeaf.Leaf
+	leaf.ExtraData = leaf.ExtraData[1:]
+	if _, err := lp.newGetEntriesResponse([]*trillian.LogLeaf{leaf}); err == nil {
+		t.Errorf("got no error for invalid appendix")
+	}
+
+	// Valid, including empty
+	for n, numEntries := 0, 5; n < numEntries; n++ {
+		leaves := make([]*trillian.LogLeaf, 0, n)
+		for i := 0; i < n; i++ {
+			leaves = append(leaves, makeTrillianQueueLeafResponse(t, []byte(fmt.Sprintf("%s-%d", testPackage, i)), testdata.FirstPemChain, testdata.FirstPemChainKey, false).QueuedLeaf.Leaf)
+		}
+		if rsp, err := lp.newGetEntriesResponse(leaves); err != nil {
+			t.Errorf("got error for %d valid leaves: %v", n, err)
+		} else if got, want := len(rsp), n; got != want {
+			t.Errorf("got %d leaves but wanted %d", got, want)
+		}
+		// note that we tested actual leaf contents in TestNewGetEntryResponse
+	}
 }
 
 func TestNewGetAnchorsResponse(t *testing.T) {
