@@ -114,11 +114,14 @@ func (lp *LogParameters) newGetProofByHashRequest(httpRequest *http.Request) (*G
 		return nil, fmt.Errorf("bad tree_size parameter: %v", err)
 	}
 	if size < 1 {
-		return nil, fmt.Errorf("bad tree_size parameter: negative value")
+		return nil, fmt.Errorf("bad tree_size parameter: must be larger than zero")
 	}
 	hash, err := deb64(httpRequest.FormValue("hash"))
 	if err != nil {
 		return nil, fmt.Errorf("bad hash parameter: %v", err)
+	}
+	if len(hash) != lp.HashType.Size() {
+		return nil, fmt.Errorf("bad hash parameter: must be %d bytes", lp.HashType.Size())
 	}
 	return &GetProofByHashRequest{TreeSize: size, Hash: hash}, nil
 }
