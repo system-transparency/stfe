@@ -6,6 +6,74 @@ import (
 )
 
 func TestNewEd25519PrivateKey(t *testing.T) {
+	for _, table := range []struct {
+		description string
+		pem         []byte
+		wantErr     bool
+	}{
+		{
+			description: "bad block: unwanted white space",
+			pem: []byte(`
+				-----BEGIN PRIVATE KEY-----
+				MC4CAQAwBQYDK2VwBCIEIH65lXoCT4N9q4mPmDcsmAqIqG9CrqrB4KV2nqBC9JlZ
+				-----END PRIVATE KEY-----
+			`),
+			wantErr: true,
+		},
+		{
+			description: "invalid block type",
+			pem: []byte(`-----BEGIN CERTIFICATE-----
+MIIBbDCCAR4CFDfeuu6XURfn7AE4WShuwZBHEaLIMAUGAytlcDBsMQswCQYDVQQG
+EwJOQTELMAkGA1UECAwCTkExCzAJBgNVBAcMAk5BMQswCQYDVQQKDAJOQTELMAkG
+A1UECwwCTkExFjAUBgNVBAMMDXN0ZmUgdGVzdGRhdGExETAPBgkqhkiG9w0BCQEW
+Ak5BMB4XDTIwMTEwMzE4MzI0MFoXDTMyMDEyMTE4MzI0MFowRTELMAkGA1UEBhMC
+QVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdp
+dHMgUHR5IEx0ZDAqMAUGAytlcAMhAJvk390ZvwULplBri03Od4LLz+Sf/OUHu+20
+wik+T9y5MAUGAytlcANBANekliXq4ttoClBJDZoktIQxyHHNcWyXFrj1HlOaT5bC
+I3GIqqZ60Ua3jKytnEsKsD2rLMPItDwmG6wYSecy2ws=
+-----END CERTIFICATE-----`),
+			wantErr: true,
+		},
+		{
+			description: "bad block: too many",
+			pem: []byte(`-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIH65lXoCT4N9q4mPmDcsmAqIqG9CrqrB4KV2nqBC9JlZ
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIH65lXoCT4N9q4mPmDcsmAqIqG9CrqrB4KV2nqBC9JlZ
+-----END PRIVATE KEY-----`),
+			wantErr: true,
+		},
+		{
+			description: "bad block bytes: truncated key",
+			pem: []byte(`-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIH6
+-----END PRIVATE KEY-----`),
+			wantErr: true,
+		},
+		{
+			description: "bad block bytes: not an ed25519 private key",
+			pem: []byte(`-----BEGIN PRIVATE KEY-----
+MIHcAgEBBEIAtxq7RExTFraqJYhyedPFppJiV05tXb1gxmn+9DGNsfmZ5aD2ZwDo
+PoIVDYudwj7gDL4MXzJj7LUh6WW0qALm4MugBwYFK4EEACOhgYkDgYYABAAcg0Y3
+WTBxfVuw/OPdLf65N6hmBoCGgW8DOhfRXtZNzqkf3u1LnNpWrt/Xva7K6uthvLRr
+A3djeuCmg8MlHdtFYQDa9QSsc0ZBhp6Lg7JSED8nopQIvKPocsUejqJVDqJ4ZK1E
++2qB5BQl9vGLUpZ5HKkWvKvo8jpNbstVyeOFtvLfGg==
+-----END PRIVATE KEY-----`),
+			wantErr: true,
+		},
+		{
+			description: "ok ed25519 private key",
+			pem: []byte(`-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIH65lXoCT4N9q4mPmDcsmAqIqG9CrqrB4KV2nqBC9JlZ
+-----END PRIVATE KEY-----`),
+		},
+	} {
+		_, err := NewEd25519PrivateKey(table.pem)
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got error=%v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+	}
 }
 
 func TestNewCertificateList(t *testing.T) {
