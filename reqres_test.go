@@ -6,7 +6,10 @@ import (
 	"strconv"
 	"testing"
 
+	"crypto/x509"
 	"net/http"
+
+	"github.com/system-transparency/stfe/testdata"
 )
 
 // TODO: TestNewAddEntryRequest
@@ -225,8 +228,16 @@ func TestNewGetConsistencyProofRequest(t *testing.T) {
 func TestNewGetEntriesResponse(t *testing.T) {
 }
 
-// TODO: TestNewGetAnchorsResponse
 func TestNewGetAnchorsResponse(t *testing.T) {
+	rawAnchors := makeTestLogParameters(t, nil).newGetAnchorsResponse()
+	if got, want := len(rawAnchors), testdata.NumPemAnchors; got != want {
+		t.Errorf("got %d anchors but wanted %d", got, want)
+	}
+	for _, rawAnchor := range rawAnchors {
+		if _, err := x509.ParseCertificate(rawAnchor); err != nil {
+			t.Errorf("invalid trust anchor %X: %v", rawAnchor, err)
+		}
+	}
 }
 
 func mustParseInt64(t *testing.T, num string) int64 {
