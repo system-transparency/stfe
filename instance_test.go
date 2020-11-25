@@ -11,7 +11,13 @@ import (
 )
 
 var (
-	testHashLen = 31
+	testHashLen     = 31
+	testMaxRange    = int64(3)
+	testMaxChain    = int64(3)
+	testTreeId      = int64(0)
+	testPrefix      = "/test"
+	testHashType    = crypto.SHA256
+	testExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageAny}
 )
 
 func makeTestLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {
@@ -23,15 +29,15 @@ func makeTestLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {
 		t.Fatalf("must have %d trust anchor(s), got %d", want, got)
 	}
 	return &LogParameters{
-		LogId:      make([]byte, 32),
-		TreeId:     0,
-		Prefix:     "/test",
-		MaxRange:   3,
-		MaxChain:   3,
+		LogId:      testLogId,
+		TreeId:     testTreeId,
+		Prefix:     testPrefix,
+		MaxRange:   testMaxRange,
+		MaxChain:   testMaxChain,
 		AnchorPool: x509util.NewCertPool(anchorList),
 		AnchorList: anchorList,
-		KeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		KeyUsage:   testExtKeyUsage,
 		Signer:     signer,
-		HashType:   crypto.SHA256,
+		HashType:   testHashType,
 	}
 }
