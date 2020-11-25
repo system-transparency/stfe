@@ -157,8 +157,68 @@ func TestNewGetProofByHashRequest(t *testing.T) {
 	}
 }
 
-// TODO: TestNewGetConsistencyProofRequest
 func TestNewGetConsistencyProofRequest(t *testing.T) {
+	lp := makeTestLogParameters(t, nil)
+	for _, table := range []struct {
+		description string
+		first       string
+		second      string
+		wantErr     bool
+	}{
+		{
+			description: "bad reuqest: first must be an integer",
+			first:       "first",
+			second:      "1",
+			wantErr:     true,
+		},
+		{
+			description: "bad request: second must be an integer",
+			first:       "1",
+			second:      "second",
+			wantErr:     true,
+		},
+		{
+			description: "bad request: first must be larger than zero",
+			first:       "0",
+			second:      "second",
+			wantErr:     true,
+		},
+		{
+			description: "bad request: second must be larger than firsst",
+			first:       "2",
+			second:      "1",
+			wantErr:     true,
+		},
+		{
+			description: "ok request",
+			first:       "1",
+			second:      "2",
+		},
+	} {
+		r, err := http.NewRequest("GET", "http://example.com/"+lp.Prefix+"/get-consistency-proof", nil)
+		if err != nil {
+			t.Fatalf("must make http request in test %q: %v", table.description, err)
+		}
+		q := r.URL.Query()
+		q.Add("first", table.first)
+		q.Add("second", table.second)
+		r.URL.RawQuery = q.Encode()
+
+		req, err := lp.newGetConsistencyProofRequest(r)
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got error is %v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+		if err != nil {
+			continue
+		}
+
+		if got, want := req.First, mustParseInt64(t, table.first); got != want {
+			t.Errorf("got first %d but wanted %d in test %q", got, want, table.description)
+		}
+		if got, want := req.Second, mustParseInt64(t, table.second); got != want {
+			t.Errorf("got second %d but wanted %d in test %q", got, want, table.description)
+		}
+	}
 }
 
 // TODO: TestNewGetEntryResponse
