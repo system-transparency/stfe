@@ -30,7 +30,7 @@ var (
 // TestEncDecStItem tests that valid StItems can be (un)marshaled, and that
 // invalid ones in fact fail.
 //
-// TODO: max limits for inclusion and consistency proofs are not tested.
+// Note: max limits for inclusion and consistency proofs are not tested.
 // Note: TreeHeadV1 extensions are not tested (not used by stfe)
 func TestEncDecStItem(t *testing.T) {
 	logIdSize := 32
@@ -273,7 +273,7 @@ func TestEncDecStItem(t *testing.T) {
 // TestEncDecAppendix tests that valid appendices can be (un)marshaled, and that
 // invalid ones in fact dail.
 //
-// TODO: max limits for certificate chains are not tested.
+// Note: max limits for certificate chains are not tested.
 func TestEncDecAppendix(t *testing.T) {
 	chain, err := x509util.NewCertificateList(testdata.FirstPemChain)
 	if err != nil {
