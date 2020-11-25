@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 )
 
+// TODO: remove LoadCertificates
 // LoadCertificates loads a PEM-encoded list of certificates from file
 func LoadCertificates(path string) ([]*x509.Certificate, error) {
 	pem, err := ioutil.ReadFile(path)
@@ -18,6 +19,7 @@ func LoadCertificates(path string) ([]*x509.Certificate, error) {
 	return NewCertificateList(pem)
 }
 
+// TODO: remove LoadTrustAnchors
 // LoadTrustAnchors loads a list of PEM-encoded certificates from file
 func LoadTrustAnchors(path string) ([]*x509.Certificate, *x509.CertPool, error) {
 	pem, err := ioutil.ReadFile(path)
@@ -31,6 +33,7 @@ func LoadTrustAnchors(path string) ([]*x509.Certificate, *x509.CertPool, error) 
 	return anchorList, NewCertPool(anchorList), nil
 }
 
+// TODO: remove LoadEd25519SigningKey
 // LoadEd25519SigningKey loads an Ed25519 private key from a given path
 func LoadEd25519SigningKey(path string) (ed25519.PrivateKey, error) {
 	data, err := ioutil.ReadFile(path)
@@ -47,7 +50,7 @@ func NewCertificateList(rest []byte) ([]*x509.Certificate, error) {
 		var block *pem.Block
 		block, rest = pem.Decode(rest)
 		if block == nil {
-			break // TODO: fix such that new line in input is OK?
+			return nil, fmt.Errorf("no block: probably caused by leading white space")
 		}
 		if block.Type != "CERTIFICATE" {
 			return nil, fmt.Errorf("unexpected pem block type: %v", block.Type)
@@ -97,12 +100,12 @@ func NewEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
 }
 
 // ParseDerChain parses a list of DER-encoded X.509 certificates, such that the
-// first (zero-index) string is interpretted as an end-entity certificate and
-// the remaining ones as the an intermediate CertPool.
+// first (zero-index) blob is interpretted as an end-entity certificate and
+// the remaining ones as its intermediate CertPool.
 func ParseDerChain(chain [][]byte) (*x509.Certificate, *x509.CertPool, error) {
 	certificates, err := ParseDerList(chain)
 	if err != nil || len(certificates) == 0 {
-		return nil, nil, err
+		return nil, nil, err // TODO: don't think the len check works now..
 	}
 	intermediatePool := x509.NewCertPool()
 	for _, certificate := range certificates[1:] {
