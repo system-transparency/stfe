@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"testing"
 
+	"crypto/ed25519"
+	"crypto/tls"
+
 	cttestdata "github.com/google/certificate-transparency-go/trillian/testdata"
 	"github.com/system-transparency/stfe/x509util"
 	"github.com/system-transparency/stfe/x509util/testdata"
@@ -100,8 +103,70 @@ func TestBuildChainFromDerList(t *testing.T) {
 	}
 }
 
-// TODO: TestVerifySignature
 func TestVerifySignature(t *testing.T) {
+	lp := makeTestLogParameters(t, nil)
+	for _, table := range []struct {
+		description string
+		certificate []byte // pem
+		key         []byte // pem
+		scheme      tls.SignatureScheme
+		wantErr     bool
+	}{
+		{
+			description: "invalid signature scheme",
+			certificate: testdata.EndEntityCertificate,
+			key:         testdata.EndEntityPrivateKey,
+			scheme:      tls.ECDSAWithP256AndSHA256,
+			wantErr:     true,
+		},
+		{
+			description: "invalid signature: certificate and key mismatch",
+			certificate: testdata.EndEntityCertificate,
+			key:         testdata.EndEntityPrivateKey2,
+			scheme:      tls.Ed25519,
+			wantErr:     true,
+		},
+		{
+			description: "valid signature",
+			certificate: testdata.EndEntityCertificate,
+			key:         testdata.EndEntityPrivateKey,
+			scheme:      tls.Ed25519,
+		},
+	} {
+		msg := []byte("msg")
+		key, err := x509util.NewEd25519PrivateKey(table.key)
+		if err != nil {
+			t.Fatalf("must make ed25519 signing key: %v", err)
+		}
+		list, err := x509util.NewCertificateList(table.certificate)
+		if err != nil {
+			t.Fatalf("must make certificate list: %v", err)
+		}
+		if len(list) != 1 {
+			t.Fatalf("must make one certificate: got %d", len(list))
+		}
+		certificate := list[0]
+		sig := ed25519.Sign(key, msg)
+
+		err = lp.verifySignature(certificate, table.scheme, msg, sig)
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got error=%v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+		if err != nil {
+			continue
+		}
+
+		msg[0] += 1 // modify message
+		if err = lp.verifySignature(certificate, table.scheme, msg, sig); err == nil {
+			t.Errorf("got no error for modified msg in test %q", table.description)
+		}
+
+		msg[0] -= 1 // restore message
+		sig[0] += 1 // modify signature
+		if err = lp.verifySignature(certificate, table.scheme, msg, sig); err == nil {
+			t.Errorf("got no error for modified signature in test %q", table.description)
+		}
+	}
 }
 
 // TestGenV1Sdi tests that a signature failure works as expected, and that
