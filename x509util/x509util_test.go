@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"crypto/x509"
+
 	"github.com/system-transparency/stfe/x509util/testdata"
 )
 
@@ -150,8 +152,66 @@ func TestNewCertPool(t *testing.T) {
 	}
 }
 
-// TODO: TestParseDerChain
 func TestParseDerChain(t *testing.T) {
+	for _, table := range []struct {
+		description string
+		chain       [][]byte
+		wantErr     bool
+	}{
+		{
+			description: "invalid chain: empty",
+			wantErr:     true,
+		},
+		{
+			description: "invalid chain: first certificate: byte is missing",
+			chain: [][]byte{
+				mustMakeDerList(t, testdata.IntermediateChain)[0][1:],
+				mustMakeDerList(t, testdata.IntermediateChain)[1],
+			},
+			wantErr: true,
+		},
+		{
+			description: "valid chain: size 1",
+			chain:       mustMakeDerList(t, testdata.EndEntityCertificate),
+		},
+		{
+			description: "valid chain: size 2",
+			chain:       mustMakeDerList(t, testdata.IntermediateChain),
+		},
+		{
+			description: "valid chain: size 3",
+			chain:       mustMakeDerList(t, testdata.RootChain),
+		},
+	} {
+		cert, pool, err := ParseDerChain(table.chain)
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got error=%v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+		if err != nil {
+			continue
+		}
+
+		if got, want := cert.Raw, table.chain[0]; !bytes.Equal(got, want) {
+			t.Errorf("got end-entity certificate %X but wanted %X in test %q", got, want, table.description)
+		}
+		if got, want := len(pool.Subjects()), len(table.chain)-1; got != want {
+			t.Errorf("got %d intermediates but wanted %d in test %q", got, want, table.description)
+			continue
+		}
+		for _, der := range table.chain[1:] {
+			want := mustMakeCertificate(t, der).RawSubject
+			ok := false
+			for _, got := range pool.Subjects() {
+				if bytes.Equal(got, want) {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				t.Errorf("want subject %X but found no match in test %q", want, table.description)
+			}
+		}
+	}
 }
 
 func TestParseDerList(t *testing.T) {
@@ -161,9 +221,18 @@ func TestParseDerList(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			description: "invalid certificate: first byte is missing",
+			description: "invalid certificate: first certificate: byte is missing",
 			list: [][]byte{
-				mustMakeDerList(t, testdata.EndEntityCertificate)[0][1:],
+				mustMakeDerList(t, testdata.IntermediateChain)[0][1:],
+				mustMakeDerList(t, testdata.IntermediateChain)[1],
+			},
+			wantErr: true,
+		},
+		{
+			description: "invalid certificate: second certificate: byte is missing",
+			list: [][]byte{
+				mustMakeDerList(t, testdata.IntermediateChain)[0],
+				mustMakeDerList(t, testdata.IntermediateChain)[1][1:],
 			},
 			wantErr: true,
 		},
@@ -203,20 +272,6 @@ func TestParseDerList(t *testing.T) {
 	}
 }
 
-// mustMakeDerList must create a list of DER-encoded certificates from PEM
-func mustMakeDerList(t *testing.T, pem []byte) [][]byte {
-	certs, err := NewCertificateList(pem)
-	if err != nil {
-		t.Fatalf("must parse pem-encoded certificates: %v", err)
-	}
-
-	list := make([][]byte, 0, len(certs))
-	for _, cert := range certs {
-		list = append(list, cert.Raw)
-	}
-	return list
-}
-
 func TestVerifyChain(t *testing.T) {
 	for _, table := range []struct {
 		description string
@@ -251,4 +306,27 @@ func TestVerifyChain(t *testing.T) {
 			t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
 		}
 	}
+}
+
+// mustMakeDerList must parse a PEM-encoded list of certificates to DER
+func mustMakeDerList(t *testing.T, pem []byte) [][]byte {
+	certs, err := NewCertificateList(pem)
+	if err != nil {
+		t.Fatalf("must parse pem-encoded certificates: %v", err)
+	}
+
+	list := make([][]byte, 0, len(certs))
+	for _, cert := range certs {
+		list = append(list, cert.Raw)
+	}
+	return list
+}
+
+// mustMakeCertificate must parse a DER-encoded certificate
+func mustMakeCertificate(t *testing.T, der []byte) *x509.Certificate {
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatalf("must parsse der-encoded certificate: %v", err)
+	}
+	return cert
 }

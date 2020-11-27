@@ -104,8 +104,11 @@ func NewEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
 // the remaining ones as its intermediate CertPool.
 func ParseDerChain(chain [][]byte) (*x509.Certificate, *x509.CertPool, error) {
 	certificates, err := ParseDerList(chain)
-	if err != nil || len(certificates) == 0 {
-		return nil, nil, err // TODO: don't think the len check works now..
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(certificates) == 0 {
+		return nil, nil, fmt.Errorf("empty certificate chain")
 	}
 	intermediatePool := x509.NewCertPool()
 	for _, certificate := range certificates[1:] {
