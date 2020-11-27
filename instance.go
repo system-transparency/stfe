@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/golang/glog"
@@ -61,12 +62,16 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 
 // NewLogParameters initializes log parameters, assuming ed25519 signatures.
 func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string, maxRange, maxChain int64) (*LogParameters, error) {
-	anchorList, anchorPool, err := x509util.LoadTrustAnchors(anchorPath)
+	anchorList, anchorPool, err := loadTrustAnchors(anchorPath)
 	if err != nil {
 		return nil, err
 	}
 
-	key, err := x509util.LoadEd25519SigningKey(keyPath)
+	pem, err := ioutil.ReadFile(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading %s: %v", keyPath, err)
+	}
+	key, err := x509util.NewEd25519PrivateKey(pem)
 	if err != nil {
 		return nil, err
 	}
@@ -108,4 +113,17 @@ func (i *Instance) registerHandlers(mux *http.ServeMux) {
 		glog.Infof("adding handler for %v", endpoint.path)
 		mux.Handle(endpoint.path, endpoint.handler)
 	}
+}
+
+// loadTrustAnchors loads a list of PEM-encoded certificates from file
+func loadTrustAnchors(path string) ([]*x509.Certificate, *x509.CertPool, error) {
+	pem, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed reading trust anchors: %v", err)
+	}
+	anchorList, err := x509util.NewCertificateList(pem)
+	if err != nil || len(anchorList) == 0 {
+		return nil, nil, fmt.Errorf("failed parsing trust anchors: %v", err)
+	}
+	return anchorList, x509util.NewCertPool(anchorList), nil
 }
