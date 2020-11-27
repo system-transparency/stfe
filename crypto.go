@@ -30,8 +30,8 @@ func (lp *LogParameters) buildChainFromDerList(derChain [][]byte) ([]*x509.Certi
 	if err != nil {
 		return nil, fmt.Errorf("chain verification failed: %v", err)
 	}
-	if len(chains) == 0 {
-		return nil, fmt.Errorf("bad certificate chain length: empty")
+	if len(chains) == 0 { // better safe than sorry
+		return nil, fmt.Errorf("chain verification failed: no path")
 	}
 
 	// there might be several valid chains

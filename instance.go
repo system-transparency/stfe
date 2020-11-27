@@ -92,7 +92,7 @@ func NewLogParameters(treeId int64, prefix string, anchorPath, keyPath string, m
 		MaxChain:   maxChain,
 		AnchorPool: anchorPool,
 		AnchorList: anchorList,
-		KeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		KeyUsage:   []x509.ExtKeyUsage{}, // placeholder, must be tested if used
 		Signer:     key,
 		HashType:   crypto.SHA256,
 	}, nil

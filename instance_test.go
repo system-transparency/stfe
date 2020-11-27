@@ -17,7 +17,7 @@ var (
 	testTreeId      = int64(0)
 	testPrefix      = "/test"
 	testHashType    = crypto.SHA256
-	testExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageAny}
+	testExtKeyUsage = []x509.ExtKeyUsage{}
 )
 
 func makeTestLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {

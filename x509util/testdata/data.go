@@ -154,6 +154,33 @@ MC4CAQAwBQYDK2VwBCIEIKQd3B84w9pB6zJLGljuDyGKfz9uPP6QBeLiFcw0EME4
 		IntermediateCertificate2,
 		RootCertificate2,
 	}, []byte("\n"))
+	
+	// TrustAnchors is composed of two PEM-encoded trust anchors, namely,
+	// RootCertificate and RootCertificate2.
+	TrustAnchors = bytes.Join([][]byte{
+		RootCertificate,
+		RootCertificate2,
+	}, []byte("\n"))
+
+	// ExpiredCertificate is a PEM-encoded certificate that is always expired,
+	// i.e., `Not Before`=`Not After`.  It is signed by IntermediateCertificate.
+	ExpiredCertificate = []byte(`
+-----BEGIN CERTIFICATE-----
+MIIBbDCCAR4CFDfeuu6XURfn7AE4WShuwZBHEaLIMAUGAytlcDBsMQswCQYDVQQG
+EwJOQTELMAkGA1UECAwCTkExCzAJBgNVBAcMAk5BMQswCQYDVQQKDAJOQTELMAkG
+A1UECwwCTkExFjAUBgNVBAMMDXN0ZmUgdGVzdGRhdGExETAPBgkqhkiG9w0BCQEW
+Ak5BMB4XDTIwMTEwMzE4MzI0MFoXDTMyMDEyMTE4MzI0MFowRTELMAkGA1UEBhMC
+QVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdp
+dHMgUHR5IEx0ZDAqMAUGAytlcAMhAJvk390ZvwULplBri03Od4LLz+Sf/OUHu+20
+wik+T9y5MAUGAytlcANBANekliXq4ttoClBJDZoktIQxyHHNcWyXFrj1HlOaT5bC
+I3GIqqZ60Ua3jKytnEsKsD2rLMPItDwmG6wYSecy2ws=
+-----END CERTIFICATE-----`)
+	// ExpiredChain is an expired PEM-encoded certificate chain.  It is composed
+	// of two certificates: ExpiredCertificate and IntermediateCertificate.
+	ExpiredChain = bytes.Join([][]byte{
+		ExpiredCertificate,
+		IntermediateCertificate,
+	}, []byte("\n"))
 
 	// ChainBadIntermediate is a PEM-encoded certificate chain that contains
 	// an end-entity certificate, an intermediate certificate, and a root
