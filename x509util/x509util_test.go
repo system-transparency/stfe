@@ -117,6 +117,7 @@ func TestNewCertificateList(t *testing.T) {
 		}
 		if got, want := len(list), len(table.wantSerial); got != want {
 			t.Errorf("got list of length %d but wanted %d in test %q", got, want, table.description)
+			continue
 		}
 		for i, certificate := range list {
 			if got, want := fmt.Sprintf("%v", certificate.SerialNumber), table.wantSerial[i]; got != want {
@@ -139,6 +140,7 @@ func TestNewCertPool(t *testing.T) {
 		pool := NewCertPool(list)
 		if got, want := len(pool.Subjects()), len(list); got != want {
 			t.Errorf("got pool of size %d but wanted %d in test %d", got, want, i)
+			continue
 		}
 		for j, got := range pool.Subjects() {
 			if want := list[j].RawSubject; !bytes.Equal(got, want) {
@@ -152,8 +154,67 @@ func TestNewCertPool(t *testing.T) {
 func TestParseDerChain(t *testing.T) {
 }
 
-// TODO: TestParseDerList
 func TestParseDerList(t *testing.T) {
+	for _, table := range []struct {
+		description string
+		list        [][]byte
+		wantErr     bool
+	}{
+		{
+			description: "invalid certificate: first byte is missing",
+			list: [][]byte{
+				mustMakeDerList(t, testdata.EndEntityCertificate)[0][1:],
+			},
+			wantErr: true,
+		},
+		{
+			description: "valid certificate list: empty",
+		},
+		{
+			description: "valid certificate list: size 1",
+			list:        mustMakeDerList(t, testdata.EndEntityCertificate),
+		},
+		{
+			description: "valid certificate list: size 2",
+			list:        mustMakeDerList(t, testdata.IntermediateChain),
+		},
+		{
+			description: "valid certificate list: size 3",
+			list:        mustMakeDerList(t, testdata.RootChain),
+		},
+	} {
+		list, err := ParseDerList(table.list)
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got error=%v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+		if err != nil {
+			continue
+		}
+
+		if got, want := len(list), len(table.list); got != want {
+			t.Errorf("got %d certifictes but wanted %d in test %q", got, want, table.description)
+			continue
+		}
+		for i, cert := range list {
+			if got, want := cert.Raw, table.list[i]; !bytes.Equal(got, want) {
+				t.Errorf("got certificate bytes %X but wanted %X in test %q", got, want, table.description)
+			}
+		}
+	}
+}
+
+// mustMakeDerList must create a list of DER-encoded certificates from PEM
+func mustMakeDerList(t *testing.T, pem []byte) [][]byte {
+	certs, err := NewCertificateList(pem)
+	if err != nil {
+		t.Fatalf("must parse pem-encoded certificates: %v", err)
+	}
+
+	list := make([][]byte, 0, len(certs))
+	for _, cert := range certs {
+		list = append(list, cert.Raw)
+	}
+	return list
 }
 
 func TestVerifyChain(t *testing.T) {
