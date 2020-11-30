@@ -17,7 +17,7 @@ import (
 var (
 	httpEndpoint = flag.String("http_endpoint", "localhost:6965", "host:port specification of where stfe serves clients")
 	rpcBackend   = flag.String("log_rpc_server", "localhost:6962", "host:port specification of where Trillian serves clients")
-	prefix       = flag.String("prefix", "/st/v1", "a prefix that proceeds each endpoint path")
+	prefix       = flag.String("prefix", "st/v1", "a prefix that proceeds each endpoint path")
 	trillianID   = flag.Int64("trillian_id", 5991359069696313945, "log identifier in the Trillian database")
 	rpcDeadline  = flag.Duration("rpc_deadline", time.Second*10, "deadline for backend RPC requests")
 	anchorPath   = flag.String("anchor_path", "../x509util/testdata/anchors.pem", "path to a file containing PEM-encoded X.509 root certificates")
@@ -55,7 +55,7 @@ func main() {
 	}
 	glog.Infof("Configured: %s", i)
 
-	glog.Infof("Serving on %v%v", *httpEndpoint, *prefix)
+	glog.Infof("Serving on %v/%v", *httpEndpoint, *prefix)
 	srv := http.Server{Addr: *httpEndpoint}
 	err = srv.ListenAndServe()
 	if err != http.ErrServerClosed {

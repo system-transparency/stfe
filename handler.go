@@ -16,7 +16,7 @@ import (
 // to an STFE server instance as well as a function that uses it.
 type handler struct {
 	instance *Instance // STFE server instance
-	endpoint string    // e.g., add-entry
+	endpoint Endpoint  // e.g., add-entry
 	method   string    // e.g., GET
 	handler  func(context.Context, *Instance, http.ResponseWriter, *http.Request) (int, error)
 }
@@ -26,16 +26,16 @@ func (a handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var now time.Time = time.Now()
 	var statusCode int
 	defer func() {
-		rspcnt.Inc(a.instance.LogParameters.id(), a.endpoint, fmt.Sprintf("%d", statusCode))
-		latency.Observe(time.Now().Sub(now).Seconds(), a.instance.LogParameters.id(), a.endpoint, fmt.Sprintf("%d", statusCode))
+		rspcnt.Inc(a.instance.LogParameters.id(), a.endpoint.String(), fmt.Sprintf("%d", statusCode))
+		latency.Observe(time.Now().Sub(now).Seconds(), a.instance.LogParameters.id(), a.endpoint.String(), fmt.Sprintf("%d", statusCode))
 	}()
-	reqcnt.Inc(a.instance.LogParameters.id(), a.endpoint)
+	reqcnt.Inc(a.instance.LogParameters.id(), a.endpoint.String())
 
 	ctx, cancel := context.WithDeadline(r.Context(), now.Add(a.instance.Deadline))
 	defer cancel()
 
 	if r.Method != a.method {
-		glog.Warningf("%s: got HTTP %s, wanted HTTP %s", a.instance.LogParameters.Prefix+a.endpoint, r.Method, a.method)
+		glog.Warningf("%s: got HTTP %s, wanted HTTP %s", a.instance.LogParameters.Prefix+a.endpoint.String(), r.Method, a.method)
 		a.sendHTTPError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed: %s", r.Method))
 		return
 	}

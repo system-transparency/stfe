@@ -15,7 +15,7 @@ var (
 	testMaxRange    = int64(3)
 	testMaxChain    = int64(3)
 	testTreeId      = int64(0)
-	testPrefix      = "/test"
+	testPrefix      = "test"
 	testHashType    = crypto.SHA256
 	testExtKeyUsage = []x509.ExtKeyUsage{}
 )

@@ -44,17 +44,17 @@ func newTestHandler(t *testing.T, signer crypto.Signer) *testHandler {
 	}
 }
 
-func (th *testHandler) getHandlers(t *testing.T) map[string]handler {
-	return map[string]handler{
-		"get-sth":               handler{instance: th.instance, handler: getSth, endpoint: "get-sth", method: http.MethodGet},
-		"get-consistency-proof": handler{instance: th.instance, handler: getConsistencyProof, endpoint: "get-consistency-proof", method: http.MethodGet},
-		"get-proof-by-hash":     handler{instance: th.instance, handler: getProofByHash, endpoint: "get-proof-by-hash", method: http.MethodGet},
-		"get-anchors":           handler{instance: th.instance, handler: getAnchors, endpoint: "get-anchors", method: http.MethodGet},
-		"get-entries":           handler{instance: th.instance, handler: getEntries, endpoint: "get-entries", method: http.MethodGet},
+func (th *testHandler) getHandlers(t *testing.T) map[Endpoint]handler {
+	return map[Endpoint]handler{
+		EndpointGetSth:              handler{instance: th.instance, handler: getSth, endpoint: EndpointGetSth, method: http.MethodGet},
+		EndpointGetConsistencyProof: handler{instance: th.instance, handler: getConsistencyProof, endpoint: EndpointGetConsistencyProof, method: http.MethodGet},
+		EndpointGetProofByHash:      handler{instance: th.instance, handler: getProofByHash, endpoint: EndpointGetProofByHash, method: http.MethodGet},
+		EndpointGetAnchors:          handler{instance: th.instance, handler: getAnchors, endpoint: EndpointGetAnchors, method: http.MethodGet},
+		EndpointGetEntries:          handler{instance: th.instance, handler: getEntries, endpoint: EndpointGetEntries, method: http.MethodGet},
 	}
 }
 
-func (th *testHandler) getHandler(t *testing.T, endpoint string) handler {
+func (th *testHandler) getHandler(t *testing.T, endpoint Endpoint) handler {
 	handler, ok := th.getHandlers(t)[endpoint]
 	if !ok {
 		t.Fatalf("no such get endpoint: %s", endpoint)
@@ -62,13 +62,13 @@ func (th *testHandler) getHandler(t *testing.T, endpoint string) handler {
 	return handler
 }
 
-func (th *testHandler) postHandlers(t *testing.T) map[string]handler {
-	return map[string]handler{
-		"add-entry": handler{instance: th.instance, handler: addEntry, endpoint: "add-entry", method: http.MethodPost},
+func (th *testHandler) postHandlers(t *testing.T) map[Endpoint]handler {
+	return map[Endpoint]handler{
+		EndpointAddEntry: handler{instance: th.instance, handler: addEntry, endpoint: EndpointAddEntry, method: http.MethodPost},
 	}
 }
 
-func (th *testHandler) postHandler(t *testing.T, endpoint string) handler {
+func (th *testHandler) postHandler(t *testing.T, endpoint Endpoint) handler {
 	handler, ok := th.postHandlers(t)[endpoint]
 	if !ok {
 		t.Fatalf("no such post endpoint: %s", endpoint)
@@ -82,11 +82,11 @@ func TestGetHandlersRejectPost(t *testing.T) {
 	defer th.mockCtrl.Finish()
 
 	for endpoint, handler := range th.getHandlers(t) {
-		t.Run(endpoint, func(t *testing.T) {
+		t.Run(endpoint.String(), func(t *testing.T) {
 			s := httptest.NewServer(handler)
 			defer s.Close()
 
-			url := s.URL + strings.Join([]string{th.instance.LogParameters.Prefix, endpoint}, "/")
+			url := strings.Join([]string{s.URL, th.instance.LogParameters.Prefix, endpoint.String()}, "/")
 			if rsp, err := http.Post(url, "application/json", nil); err != nil {
 				t.Fatalf("http.Post(%s)=(_,%q), want (_,nil)", url, err)
 			} else if rsp.StatusCode != http.StatusMethodNotAllowed {
@@ -102,11 +102,11 @@ func TestPostHandlersRejectGet(t *testing.T) {
 	defer th.mockCtrl.Finish()
 
 	for endpoint, handler := range th.postHandlers(t) {
-		t.Run(endpoint, func(t *testing.T) {
+		t.Run(endpoint.String(), func(t *testing.T) {
 			s := httptest.NewServer(handler)
 			defer s.Close()
 
-			url := s.URL + strings.Join([]string{th.instance.LogParameters.Prefix, endpoint}, "/")
+			url := strings.Join([]string{s.URL, th.instance.LogParameters.Prefix, endpoint.String()}, "/")
 			if rsp, err := http.Get(url); err != nil {
 				t.Fatalf("http.Get(%s)=(_,%q), want (_,nil)", url, err)
 			} else if rsp.StatusCode != http.StatusMethodNotAllowed {
@@ -121,14 +121,14 @@ func TestGetAnchors(t *testing.T) {
 	th := newTestHandler(t, nil)
 	defer th.mockCtrl.Finish()
 
-	url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-anchors"
+	url := strings.Join([]string{"http://example.com", th.instance.LogParameters.Prefix, EndpointGetAnchors.String()}, "/")
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		t.Fatalf("failed creating http request: %v", err)
 	}
 
 	w := httptest.NewRecorder()
-	th.getHandler(t, "get-anchors").ServeHTTP(w, req)
+	th.getHandler(t, EndpointGetAnchors).ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, http.StatusOK)
 		return
@@ -200,7 +200,7 @@ func TestGetEntries(t *testing.T) {
 			th := newTestHandler(t, nil)
 			defer th.mockCtrl.Finish()
 
-			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-entries"
+			url := strings.Join([]string{"http://example.com", th.instance.LogParameters.Prefix, EndpointGetEntries.String()}, "/")
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -214,7 +214,7 @@ func TestGetEntries(t *testing.T) {
 				th.client.EXPECT().GetLeavesByRange(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 			w := httptest.NewRecorder()
-			th.getHandler(t, "get-entries").ServeHTTP(w, req)
+			th.getHandler(t, EndpointGetEntries).ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
 			}
@@ -313,7 +313,7 @@ func TestAddEntry(t *testing.T) {
 			th := newTestHandler(t, table.signer)
 			defer th.mockCtrl.Finish()
 
-			url := "http://example.com" + th.instance.LogParameters.Prefix + "/add-entry"
+			url := strings.Join([]string{"http://example.com", th.instance.LogParameters.Prefix, EndpointAddEntry.String()}, "/")
 			req, err := http.NewRequest("POST", url, table.breq)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -324,7 +324,7 @@ func TestAddEntry(t *testing.T) {
 				th.client.EXPECT().QueueLeaf(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 			w := httptest.NewRecorder()
-			th.postHandler(t, "add-entry").ServeHTTP(w, req)
+			th.postHandler(t, EndpointAddEntry).ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
 			}
@@ -407,7 +407,7 @@ func TestGetSth(t *testing.T) {
 			th := newTestHandler(t, table.signer)
 			defer th.mockCtrl.Finish()
 
-			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-sth"
+			url := strings.Join([]string{"http://example.com", th.instance.LogParameters.Prefix, EndpointGetSth.String()}, "/")
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -415,7 +415,7 @@ func TestGetSth(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			th.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
-			th.getHandler(t, "get-sth").ServeHTTP(w, req)
+			th.getHandler(t, EndpointGetSth).ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
 			}
@@ -511,7 +511,7 @@ func TestGetConsistencyProof(t *testing.T) {
 			th := newTestHandler(t, nil)
 			defer th.mockCtrl.Finish()
 
-			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-consistency-proof"
+			url := strings.Join([]string{"http://example.com", th.instance.LogParameters.Prefix, EndpointGetConsistencyProof.String()}, "/")
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -525,7 +525,7 @@ func TestGetConsistencyProof(t *testing.T) {
 			if table.trsp != nil || table.terr != nil {
 				th.client.EXPECT().GetConsistencyProof(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
-			th.getHandler(t, "get-consistency-proof").ServeHTTP(w, req)
+			th.getHandler(t, EndpointGetConsistencyProof).ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
 			}
@@ -620,7 +620,7 @@ func TestGetProofByHash(t *testing.T) {
 			th := newTestHandler(t, nil)
 			defer th.mockCtrl.Finish()
 
-			url := "http://example.com" + th.instance.LogParameters.Prefix + "/get-proof-by-hash"
+			url := strings.Join([]string{"http://example.com", th.instance.LogParameters.Prefix, EndpointGetProofByHash.String()}, "/")
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -634,7 +634,7 @@ func TestGetProofByHash(t *testing.T) {
 			if table.trsp != nil || table.terr != nil {
 				th.client.EXPECT().GetInclusionProofByHash(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
-			th.getHandler(t, "get-proof-by-hash").ServeHTTP(w, req)
+			th.getHandler(t, EndpointGetProofByHash).ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
 			}

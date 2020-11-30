@@ -3,6 +3,7 @@ package stfe
 import (
 	"crypto"
 	"fmt"
+	"strings"
 	"time"
 
 	"crypto/sha256"
@@ -16,6 +17,23 @@ import (
 	"github.com/system-transparency/stfe/x509util"
 )
 
+type Endpoint string
+
+const (
+	EndpointAddEntry            = Endpoint("add-entry")
+	EndpointGetEntries          = Endpoint("get-entries")
+	EndpointGetAnchors          = Endpoint("get-anchors")
+	EndpointGetProofByHash      = Endpoint("get-proof-by-hash")
+	EndpointGetConsistencyProof = Endpoint("get-consistency-proof")
+	EndpointGetSth              = Endpoint("get-sth")
+)
+
+func (e Endpoint) String() string {
+	return string(e)
+}
+
+// TODO: type EndpointParam string?
+
 // Instance is an instance of a particular log front-end
 type Instance struct {
 	LogParameters *LogParameters
@@ -25,9 +43,9 @@ type Instance struct {
 
 // LogParameters is a collection of log parameters
 type LogParameters struct {
-	LogId      []byte // used externally by everyone
-	TreeId     int64  // used internally by Trillian
-	Prefix     string
+	LogId      []byte              // used externally by everyone
+	TreeId     int64               // used internally by Trillian
+	Prefix     string              // e.g., "test" for <base>/test
 	MaxRange   int64               // max entries per get-entries request
 	MaxChain   int64               // max submitter certificate chain length
 	AnchorPool *x509.CertPool      // for chain verification
@@ -103,12 +121,30 @@ func (i *Instance) registerHandlers(mux *http.ServeMux) {
 		path    string
 		handler handler
 	}{
-		{i.LogParameters.Prefix + "/add-entry", handler{instance: i, handler: addEntry, endpoint: "add-entry", method: http.MethodPost}},
-		{i.LogParameters.Prefix + "/get-entries", handler{instance: i, handler: getEntries, endpoint: "get-entries", method: http.MethodGet}},
-		{i.LogParameters.Prefix + "/get-anchors", handler{instance: i, handler: getAnchors, endpoint: "get-anchors", method: http.MethodGet}},
-		{i.LogParameters.Prefix + "/get-proof-by-hash", handler{instance: i, handler: getProofByHash, endpoint: "get-proof-by-hash", method: http.MethodGet}},
-		{i.LogParameters.Prefix + "/get-consistency-proof", handler{instance: i, handler: getConsistencyProof, endpoint: "get-consistency-proof", method: http.MethodGet}},
-		{i.LogParameters.Prefix + "/get-sth", handler{instance: i, handler: getSth, endpoint: "get-sth", method: http.MethodGet}},
+		{
+			strings.Join([]string{"", i.LogParameters.Prefix, EndpointAddEntry.String()}, "/"),
+			handler{instance: i, handler: addEntry, endpoint: EndpointAddEntry, method: http.MethodPost},
+		},
+		{
+			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetEntries.String()}, "/"),
+			handler{instance: i, handler: getEntries, endpoint: EndpointGetEntries, method: http.MethodGet},
+		},
+		{
+			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetAnchors.String()}, "/"),
+			handler{instance: i, handler: getAnchors, endpoint: EndpointGetAnchors, method: http.MethodGet},
+		},
+		{
+			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetProofByHash.String()}, "/"),
+			handler{instance: i, handler: getProofByHash, endpoint: EndpointGetProofByHash, method: http.MethodGet},
+		},
+		{
+			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetConsistencyProof.String()}, "/"),
+			handler{instance: i, handler: getConsistencyProof, endpoint: EndpointGetConsistencyProof, method: http.MethodGet},
+		},
+		{
+			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetSth.String()}, "/"),
+			handler{instance: i, handler: getSth, endpoint: EndpointGetSth, method: http.MethodGet},
+		},
 	} {
 		glog.Infof("adding handler for %v", endpoint.path)
 		mux.Handle(endpoint.path, endpoint.handler)
