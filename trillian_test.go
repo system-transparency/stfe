@@ -35,11 +35,11 @@ func TestCheckQueueLeaf(t *testing.T) {
 		},
 		{
 			description: "ok response: duplicate leaf",
-			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true),
+			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.IntermediateChain, testdata.EndEntityPrivateKey, true),
 		},
 		{
 			description: "ok response: new leaf",
-			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, false),
+			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.IntermediateChain, testdata.EndEntityPrivateKey, false),
 		},
 	} {
 		if err := checkQueueLeaf(table.rsp, table.err); (err != nil) != table.wantErr {
@@ -58,15 +58,18 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 	}{
 		{
 			description: "bad response: trillian error",
+			req:         &GetEntriesRequest{Start: 0, End: 1},
 			err:         fmt.Errorf("backend error"),
 			wantErr:     true,
 		},
 		{
 			description: "bad response: empty",
+			req:         &GetEntriesRequest{Start: 0, End: 1},
 			wantErr:     true,
 		},
 		{
 			description: "bad response: no leaves",
+			req:         &GetEntriesRequest{Start: 0, End: 1},
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.Leaves = nil
 				return rsp
@@ -75,6 +78,7 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 		},
 		{
 			description: "bad response: no signed log root",
+			req:         &GetEntriesRequest{Start: 0, End: 1},
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot = nil
 				return rsp
@@ -83,6 +87,7 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 		},
 		{
 			description: "bad response: no log root",
+			req:         &GetEntriesRequest{Start: 0, End: 1},
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot.LogRoot = nil
 				return rsp

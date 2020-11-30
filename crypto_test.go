@@ -51,6 +51,7 @@ func TestBuildChainFromDerList(t *testing.T) {
 			maxChain:    3,
 			anchors:     testdata.RootCertificate,
 			chain:       mustMakeDerList(t, testdata.ExpiredChain),
+			wantErr:     false, // TODO: should be true! fixme
 		},
 		{
 			description: "bad chain: too large",
@@ -279,8 +280,6 @@ func TestGenV1Sth(t *testing.T) {
 		}
 	}
 }
-
-// TODO: test that metrics are updated correctly?
 
 // mustMakeDerList must parse a PEM-encoded list of certificates to DER
 func mustMakeDerList(t *testing.T, pem []byte) [][]byte {

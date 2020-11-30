@@ -20,8 +20,8 @@ var (
 	testTreeSizeLarger = uint64(256)
 	testTimestamp      = uint64(0)
 	testProof          = [][]byte{
-		make([]byte, 32),
-		make([]byte, 32),
+		testNodeHash,
+		testNodeHash,
 	}
 	testIndex           = uint64(0)
 	testSignatureScheme = tls.Ed25519
