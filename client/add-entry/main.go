@@ -15,8 +15,8 @@ import (
 var (
 	operators = flag.String("operators", "../../descriptor/stfe.json", "path to json-encoded list of log operators")
 	logId     = flag.String("log_id", "B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM=", "base64-encoded log identifier")
-	chain     = flag.String("chain", "../../server/testdata/x509/chain.pem", "path to pem-encoded certificate chain that the log accepts")
-	key       = flag.String("key", "../../server/testdata/x509/end-entity.key", "path to ed25519 private key that corresponds to the chain's end-entity certificate")
+	chain     = flag.String("chain", "../../x509util/testdata/chain.pem", "path to pem-encoded certificate chain that the log accepts")
+	key       = flag.String("key", "../../x509util/testdata/end-entity.key", "path to ed25519 private key that corresponds to the chain's end-entity certificate")
 	name      = flag.String("name", "foobar-1.2.3", "package name")
 	checksum  = flag.String("checksum", "50e7967bce266a506f8f614bb5096beba580d205046b918f47d23b2ec626d75e", "base64-encoded package checksum")
 )

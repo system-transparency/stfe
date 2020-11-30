@@ -1,8 +1,0 @@
-#!/bin/bash
-
-set -eo pipefail
-source config
-
-info "downloading trust anchors"
-curl -G $base_url/get-anchors
-newline
