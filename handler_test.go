@@ -20,8 +20,8 @@ import (
 	"github.com/google/certificate-transparency-go/trillian/mockclient"
 	cttestdata "github.com/google/certificate-transparency-go/trillian/testdata"
 	"github.com/google/trillian"
-	"github.com/system-transparency/stfe/testdata"
 	"github.com/system-transparency/stfe/x509util"
+	"github.com/system-transparency/stfe/x509util/testdata"
 )
 
 type testHandler struct {
@@ -148,6 +148,7 @@ func TestGetAnchors(t *testing.T) {
 }
 
 func TestGetEntries(t *testing.T) {
+	chainLen := 3
 	for _, table := range []struct {
 		description string
 		breq        *GetEntriesRequest
@@ -181,7 +182,7 @@ func TestGetEntries(t *testing.T) {
 				Start: 0,
 				End:   1,
 			},
-			trsp:        makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, false),
+			trsp:        makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.RootChain, testdata.EndEntityPrivateKey, false),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
@@ -191,7 +192,7 @@ func TestGetEntries(t *testing.T) {
 				Start: 0,
 				End:   1,
 			},
-			trsp:     makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, true),
+			trsp:     makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.RootChain, testdata.EndEntityPrivateKey, true),
 			wantCode: http.StatusOK,
 		},
 	} {
@@ -251,8 +252,7 @@ func TestGetEntries(t *testing.T) {
 				chain, err := x509util.ParseDerList(rsp.Chain)
 				if err != nil {
 					t.Errorf("failed parsing certificate chain: %v", err)
-				} else if got, want := len(chain), 2; got != want {
-					// TODO: test data with trust anchor in chain
+				} else if got, want := len(chain), chainLen; got != want {
 					t.Errorf("got chain length %d, want %d", got, want)
 				} else {
 					if err := x509util.VerifyChain(chain); err != nil {
@@ -282,29 +282,29 @@ func TestAddEntry(t *testing.T) {
 	}{
 		{
 			description: "empty trillian response",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, true),
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, true),
 			terr:        fmt.Errorf("back-end failure"),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
 		{
 			description: "bad request parameters",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, false),
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, false),
 			wantCode:    http.StatusBadRequest,
 			wantErrText: http.StatusText(http.StatusBadRequest) + "\n",
 		},
 		{
 			description: "log signature failure",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, true),
-			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, false),
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, true),
+			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, false),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 			signer:      cttestdata.NewSignerWithErr(nil, fmt.Errorf("signing failed")),
 		},
 		{
 			description: "valid add-entry request-response",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, true),
-			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.FirstPemChain, testdata.FirstPemChainKey, false),
+			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, true),
+			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, false),
 			wantCode:    http.StatusOK,
 			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 32)),
 		},

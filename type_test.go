@@ -5,8 +5,8 @@ import (
 
 	"crypto/tls"
 
-	"github.com/system-transparency/stfe/testdata"
 	"github.com/system-transparency/stfe/x509util"
+	"github.com/system-transparency/stfe/x509util/testdata"
 )
 
 var (
@@ -275,7 +275,7 @@ func TestEncDecStItem(t *testing.T) {
 //
 // Note: max limits for certificate chains are not tested.
 func TestEncDecAppendix(t *testing.T) {
-	chain, err := x509util.NewCertificateList(testdata.FirstPemChain)
+	chain, err := x509util.NewCertificateList(testdata.RootChain)
 	if err != nil {
 		t.Fatalf("must decode certificate chain: %v", err)
 	}
@@ -398,7 +398,7 @@ func TestStItemUnmarshalFailure(t *testing.T) {
 
 // TestAppendixUnmarshal tests that invalid appendices cannot be unmarshaled
 func TestAppendixUnmarshalFailure(t *testing.T) {
-	chain, err := x509util.NewCertificateList(testdata.FirstPemChain)
+	chain, err := x509util.NewCertificateList(testdata.RootChain)
 	if err != nil {
 		t.Fatalf("must decode certificate chain: %v", err)
 	}

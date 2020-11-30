@@ -161,6 +161,8 @@ MC4CAQAwBQYDK2VwBCIEIKQd3B84w9pB6zJLGljuDyGKfz9uPP6QBeLiFcw0EME4
 		RootCertificate,
 		RootCertificate2,
 	}, []byte("\n"))
+	// NumTrustAnchors is the number of test trust anchors
+	NumTrustAnchors = 2
 
 	// ExpiredCertificate is a PEM-encoded certificate that is always expired,
 	// i.e., `Not Before`=`Not After`.  It is signed by IntermediateCertificate.

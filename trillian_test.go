@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/trillian"
 	"github.com/google/trillian/types"
-	"github.com/system-transparency/stfe/testdata"
+	"github.com/system-transparency/stfe/x509util/testdata"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,11 +35,11 @@ func TestCheckQueueLeaf(t *testing.T) {
 		},
 		{
 			description: "ok response: duplicate leaf",
-			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true),
+			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true),
 		},
 		{
 			description: "ok response: new leaf",
-			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, false),
+			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, false),
 		},
 	} {
 		if err := checkQueueLeaf(table.rsp, table.err); (err != nil) != table.wantErr {
@@ -70,7 +70,7 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.Leaves = nil
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
 			wantErr: true,
 		},
 		{
@@ -78,7 +78,7 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot = nil
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
 			wantErr: true,
 		},
 		{
@@ -86,7 +86,7 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot.LogRoot = nil
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
 			wantErr: true,
 		},
 		{
@@ -95,13 +95,13 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot.LogRoot = rsp.SignedLogRoot.LogRoot[1:]
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
 			wantErr: true,
 		},
 		{
 			description: "bad response: too many leaves",
 			req:         &GetEntriesRequest{Start: 0, End: 1},
-			rsp:         makeTrillianGetLeavesByRangeResponse(t, 0, 2, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true),
+			rsp:         makeTrillianGetLeavesByRangeResponse(t, 0, 2, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true),
 			wantErr:     true,
 		},
 		{
@@ -110,13 +110,13 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot = makeLatestSignedLogRootResponse(t, 0, testTreeSize, testNodeHash).SignedLogRoot
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
 			wantErr: true,
 		},
 		{
 			description: "bad response: invalid leaf indices",
 			req:         &GetEntriesRequest{Start: 10, End: 11},
-			rsp:         makeTrillianGetLeavesByRangeResponse(t, 11, 12, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true),
+			rsp:         makeTrillianGetLeavesByRangeResponse(t, 11, 12, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true),
 			wantErr:     true,
 		},
 		{
@@ -125,12 +125,12 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot = makeLatestSignedLogRootResponse(t, 0, testTreeSize, testNodeHash).SignedLogRoot
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
 		},
 		{
 			description: "ok response: a bunch of leaves",
 			req:         &GetEntriesRequest{Start: 10, End: 20},
-			rsp:         makeTrillianGetLeavesByRangeResponse(t, 10, 20, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, true),
+			rsp:         makeTrillianGetLeavesByRangeResponse(t, 10, 20, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true),
 		},
 	} {
 		if _, err := checkGetLeavesByRange(table.req, table.rsp, table.err); (err != nil) != table.wantErr {

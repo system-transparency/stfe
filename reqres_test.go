@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	"github.com/google/trillian"
-	"github.com/system-transparency/stfe/testdata"
+	"github.com/system-transparency/stfe/x509util/testdata"
 )
 
 // TODO: TestNewAddEntryRequest
@@ -229,7 +229,7 @@ func TestNewGetEntryResponse(t *testing.T) {
 	lp := makeTestLogParameters(t, nil)
 
 	var appendix Appendix
-	leaf, app := makeTestLeaf(t, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey)
+	leaf, app := makeTestLeaf(t, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey)
 	if err := appendix.Unmarshal(app); err != nil {
 		t.Fatalf("must unmarshal appendix: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestNewGetEntriesResponse(t *testing.T) {
 	lp := makeTestLogParameters(t, nil)
 
 	// Invalid
-	leaf := makeTrillianQueueLeafResponse(t, testPackage, testdata.FirstPemChain, testdata.FirstPemChainKey, false).QueuedLeaf.Leaf
+	leaf := makeTrillianQueueLeafResponse(t, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, false).QueuedLeaf.Leaf
 	leaf.ExtraData = leaf.ExtraData[1:]
 	if _, err := lp.newGetEntriesResponse([]*trillian.LogLeaf{leaf}); err == nil {
 		t.Errorf("got no error for invalid appendix")
@@ -276,7 +276,7 @@ func TestNewGetEntriesResponse(t *testing.T) {
 	for n, numEntries := 0, 5; n < numEntries; n++ {
 		leaves := make([]*trillian.LogLeaf, 0, n)
 		for i := 0; i < n; i++ {
-			leaves = append(leaves, makeTrillianQueueLeafResponse(t, []byte(fmt.Sprintf("%s-%d", testPackage, i)), testdata.FirstPemChain, testdata.FirstPemChainKey, false).QueuedLeaf.Leaf)
+			leaves = append(leaves, makeTrillianQueueLeafResponse(t, []byte(fmt.Sprintf("%s-%d", testPackage, i)), testdata.RootChain, testdata.EndEntityPrivateKey, false).QueuedLeaf.Leaf)
 		}
 		if rsp, err := lp.newGetEntriesResponse(leaves); err != nil {
 			t.Errorf("got error for %d valid leaves: %v", n, err)
@@ -289,7 +289,7 @@ func TestNewGetEntriesResponse(t *testing.T) {
 
 func TestNewGetAnchorsResponse(t *testing.T) {
 	rawAnchors := makeTestLogParameters(t, nil).newGetAnchorsResponse()
-	if got, want := len(rawAnchors), testdata.NumPemAnchors; got != want {
+	if got, want := len(rawAnchors), testdata.NumTrustAnchors; got != want {
 		t.Errorf("got %d anchors but wanted %d", got, want)
 	}
 	for _, rawAnchor := range rawAnchors {
