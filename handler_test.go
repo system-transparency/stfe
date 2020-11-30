@@ -321,7 +321,6 @@ func TestAddEntry(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			if table.trsp != nil || table.terr != nil {
-				// TODO: replace gomock.Any with a check that leaf and appendix are OK, e.g., chain length should be 3
 				th.client.EXPECT().QueueLeaf(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 			w := httptest.NewRecorder()
