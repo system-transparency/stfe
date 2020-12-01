@@ -3,14 +3,18 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
+	"crypto/x509"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/system-transparency/stfe"
+	"github.com/system-transparency/stfe/x509util"
 	"google.golang.org/grpc"
 )
 
@@ -44,14 +48,31 @@ func main() {
 	glog.Info("Adding prometheus handler on path: /metrics")
 	http.Handle("/metrics", promhttp.Handler())
 
-	lp, err := stfe.NewLogParameters(*trillianID, *prefix, *anchorPath, *keyPath, *maxRange, *maxChain)
+	glog.Infof("Loading trust anchors from file: %s", *anchorPath)
+	anchors, err := loadCertificates(*anchorPath)
+	if err != nil {
+		glog.Fatalf("no trust anchors: %v", err)
+	}
+
+	glog.Infof("Loading Ed25519 signing key from file: %s", *keyPath)
+	pem, err := ioutil.ReadFile(*keyPath)
+	if err != nil {
+		glog.Fatalf("no signing key: %v", err)
+	}
+	signer, err := x509util.NewEd25519PrivateKey(pem)
+	if err != nil {
+		glog.Fatalf("no signing key: %v", err)
+	}
+
+	lp, err := stfe.NewLogParameters(*trillianID, *prefix, anchors, signer, *maxRange, *maxChain)
 	if err != nil {
 		glog.Fatalf("failed setting up log parameters: %v", err)
 	}
 
-	i, err := stfe.NewInstance(lp, client, *rpcDeadline, mux)
-	if err != nil {
-		glog.Fatalf("failed setting up log instance: %v", err)
+	i := stfe.NewInstance(lp, client, *rpcDeadline, mux)
+	for _, handler := range i.Handlers() {
+		glog.Infof("adding handler: %s", handler.Path())
+		mux.Handle(handler.Path(), handler)
 	}
 	glog.Infof("Configured: %s", i)
 
@@ -63,4 +84,20 @@ func main() {
 	}
 
 	glog.Flush()
+}
+
+// loadCertificates loads a non-empty list of PEM-encoded certificates from file
+func loadCertificates(path string) ([]*x509.Certificate, error) {
+	pem, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading %s: %v", path, err)
+	}
+	anchors, err := x509util.NewCertificateList(pem)
+	if err != nil {
+		return nil, fmt.Errorf("failed parsing: %v", err)
+	}
+	if len(anchors) == 0 {
+		return nil, fmt.Errorf("no trust anchors")
+	}
+	return anchors, nil
 }

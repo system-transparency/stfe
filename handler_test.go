@@ -43,17 +43,17 @@ func newTestHandler(t *testing.T, signer crypto.Signer) *testHandler {
 	}
 }
 
-func (th *testHandler) getHandlers(t *testing.T) map[Endpoint]handler {
-	return map[Endpoint]handler{
-		EndpointGetSth:              handler{instance: th.instance, handler: getSth, endpoint: EndpointGetSth, method: http.MethodGet},
-		EndpointGetConsistencyProof: handler{instance: th.instance, handler: getConsistencyProof, endpoint: EndpointGetConsistencyProof, method: http.MethodGet},
-		EndpointGetProofByHash:      handler{instance: th.instance, handler: getProofByHash, endpoint: EndpointGetProofByHash, method: http.MethodGet},
-		EndpointGetAnchors:          handler{instance: th.instance, handler: getAnchors, endpoint: EndpointGetAnchors, method: http.MethodGet},
-		EndpointGetEntries:          handler{instance: th.instance, handler: getEntries, endpoint: EndpointGetEntries, method: http.MethodGet},
+func (th *testHandler) getHandlers(t *testing.T) map[Endpoint]Handler {
+	return map[Endpoint]Handler{
+		EndpointGetSth:              Handler{instance: th.instance, handler: getSth, endpoint: EndpointGetSth, method: http.MethodGet},
+		EndpointGetConsistencyProof: Handler{instance: th.instance, handler: getConsistencyProof, endpoint: EndpointGetConsistencyProof, method: http.MethodGet},
+		EndpointGetProofByHash:      Handler{instance: th.instance, handler: getProofByHash, endpoint: EndpointGetProofByHash, method: http.MethodGet},
+		EndpointGetAnchors:          Handler{instance: th.instance, handler: getAnchors, endpoint: EndpointGetAnchors, method: http.MethodGet},
+		EndpointGetEntries:          Handler{instance: th.instance, handler: getEntries, endpoint: EndpointGetEntries, method: http.MethodGet},
 	}
 }
 
-func (th *testHandler) getHandler(t *testing.T, endpoint Endpoint) handler {
+func (th *testHandler) getHandler(t *testing.T, endpoint Endpoint) Handler {
 	handler, ok := th.getHandlers(t)[endpoint]
 	if !ok {
 		t.Fatalf("no such get endpoint: %s", endpoint)
@@ -61,13 +61,13 @@ func (th *testHandler) getHandler(t *testing.T, endpoint Endpoint) handler {
 	return handler
 }
 
-func (th *testHandler) postHandlers(t *testing.T) map[Endpoint]handler {
-	return map[Endpoint]handler{
-		EndpointAddEntry: handler{instance: th.instance, handler: addEntry, endpoint: EndpointAddEntry, method: http.MethodPost},
+func (th *testHandler) postHandlers(t *testing.T) map[Endpoint]Handler {
+	return map[Endpoint]Handler{
+		EndpointAddEntry: Handler{instance: th.instance, handler: addEntry, endpoint: EndpointAddEntry, method: http.MethodPost},
 	}
 }
 
-func (th *testHandler) postHandler(t *testing.T, endpoint Endpoint) handler {
+func (th *testHandler) postHandler(t *testing.T, endpoint Endpoint) Handler {
 	handler, ok := th.postHandlers(t)[endpoint]
 	if !ok {
 		t.Fatalf("no such post endpoint: %s", endpoint)

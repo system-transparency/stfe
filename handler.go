@@ -12,16 +12,22 @@ import (
 	"github.com/google/trillian/types"
 )
 
-// handler implements the http.Handler interface, and contains a reference
+// Handler implements the http.Handler interface, and contains a reference
 // to an STFE server instance as well as a function that uses it.
-type handler struct {
+type Handler struct {
 	instance *Instance // STFE server instance
 	endpoint Endpoint  // e.g., add-entry
 	method   string    // e.g., GET
 	handler  func(context.Context, *Instance, http.ResponseWriter, *http.Request) (int, error)
 }
 
-func (a handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// Path returns a path that should be configured for this handler
+func (h Handler) Path() string {
+	return h.endpoint.Path("", h.instance.LogParameters.Prefix)
+}
+
+// ServeHTTP is part of the http.Handler interface
+func (a Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// export prometheus metrics
 	var now time.Time = time.Now()
 	var statusCode int
@@ -47,7 +53,7 @@ func (a handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a handler) sendHTTPError(w http.ResponseWriter, statusCode int, err error) {
+func (a Handler) sendHTTPError(w http.ResponseWriter, statusCode int, err error) {
 	http.Error(w, http.StatusText(statusCode), statusCode)
 }
 
