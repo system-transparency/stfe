@@ -98,7 +98,7 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 	}
 	glog.V(3).Infof("created post data: %s", string(data))
 
-	url := stfe.EndpointAddEntry.Url(c.protocol() + c.Log.BaseUrl)
+	url := stfe.EndpointAddEntry.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
@@ -125,7 +125,7 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 // GetSth fetches and verifies the most recent STH.  Safe to use without a
 // client chain and corresponding private key.
 func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
-	url := stfe.EndpointGetSth.Url(c.protocol() + c.Log.BaseUrl)
+	url := stfe.EndpointGetSth.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
@@ -151,7 +151,7 @@ func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 // GetConsistencyProof fetches and verifies a consistency proof between two
 // STHs.  Safe to use without a client chain and corresponding private key.
 func (c *Client) GetConsistencyProof(ctx context.Context, first, second *stfe.StItem) (*stfe.StItem, error) {
-	url := stfe.EndpointGetConsistencyProof.Url(c.protocol() + c.Log.BaseUrl)
+	url := stfe.EndpointGetConsistencyProof.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
@@ -180,7 +180,7 @@ func (c *Client) GetConsistencyProof(ctx context.Context, first, second *stfe.St
 // STH.  Safe to use without a client chain and corresponding private key.
 func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, leaf []byte) (*stfe.StItem, error) {
 	leafHash := rfc6962.DefaultHasher.HashLeaf(leaf)
-	url := stfe.EndpointGetProofByHash.Url(c.protocol() + c.Log.BaseUrl)
+	url := stfe.EndpointGetProofByHash.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
@@ -213,7 +213,7 @@ func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, 
 // Note that a certificate chain is considered valid if it is chained correctly.
 // In other words, the caller may want to check whether the anchor is trusted.
 func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.GetEntryResponse, error) {
-	url := stfe.EndpointGetEntries.Url(c.protocol() + c.Log.BaseUrl)
+	url := stfe.EndpointGetEntries.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
@@ -251,7 +251,7 @@ func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.Get
 // GetAnchors fetches the log's trust anchors.  Safe to use without a client
 // chain and corresponding private key.
 func (c *Client) GetAnchors(ctx context.Context) ([]*x509.Certificate, error) {
-	url := stfe.EndpointGetAnchors.Url(c.protocol() + c.Log.BaseUrl)
+	url := stfe.EndpointGetAnchors.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)

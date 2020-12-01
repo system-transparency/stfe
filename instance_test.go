@@ -39,7 +39,7 @@ func makeTestLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {
 	}
 }
 
-func TestEndpointUrl(t *testing.T) {
+func TestEndpointPath(t *testing.T) {
 	base, prefix := "http://example.com", "test"
 	for _, table := range []struct {
 		endpoint Endpoint
@@ -70,10 +70,10 @@ func TestEndpointUrl(t *testing.T) {
 			want:     "http://example.com/test/get-anchors",
 		},
 	} {
-		if got, want := table.endpoint.Url(base, prefix), table.want; got != want {
+		if got, want := table.endpoint.Path(base, prefix), table.want; got != want {
 			t.Errorf("got %s but wanted %s with multiple components", got, want)
 		}
-		if got, want := table.endpoint.Url(base+"/"+prefix), table.want; got != want {
+		if got, want := table.endpoint.Path(base+"/"+prefix), table.want; got != want {
 			t.Errorf("got %s but wanted %s with one component", got, want)
 		}
 	}

@@ -85,7 +85,7 @@ func TestGetHandlersRejectPost(t *testing.T) {
 			s := httptest.NewServer(handler)
 			defer s.Close()
 
-			url := endpoint.Url(s.URL, th.instance.LogParameters.Prefix)
+			url := endpoint.Path(s.URL, th.instance.LogParameters.Prefix)
 			if rsp, err := http.Post(url, "application/json", nil); err != nil {
 				t.Fatalf("http.Post(%s)=(_,%q), want (_,nil)", url, err)
 			} else if rsp.StatusCode != http.StatusMethodNotAllowed {
@@ -105,7 +105,7 @@ func TestPostHandlersRejectGet(t *testing.T) {
 			s := httptest.NewServer(handler)
 			defer s.Close()
 
-			url := endpoint.Url(s.URL, th.instance.LogParameters.Prefix)
+			url := endpoint.Path(s.URL, th.instance.LogParameters.Prefix)
 			if rsp, err := http.Get(url); err != nil {
 				t.Fatalf("http.Get(%s)=(_,%q), want (_,nil)", url, err)
 			} else if rsp.StatusCode != http.StatusMethodNotAllowed {
@@ -120,7 +120,7 @@ func TestGetAnchors(t *testing.T) {
 	th := newTestHandler(t, nil)
 	defer th.mockCtrl.Finish()
 
-	url := EndpointGetAnchors.Url("http://example.com", th.instance.LogParameters.Prefix)
+	url := EndpointGetAnchors.Path("http://example.com", th.instance.LogParameters.Prefix)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		t.Fatalf("failed creating http request: %v", err)
@@ -199,7 +199,7 @@ func TestGetEntries(t *testing.T) {
 			th := newTestHandler(t, nil)
 			defer th.mockCtrl.Finish()
 
-			url := EndpointGetEntries.Url("http://example.com", th.instance.LogParameters.Prefix)
+			url := EndpointGetEntries.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -312,7 +312,7 @@ func TestAddEntry(t *testing.T) {
 			th := newTestHandler(t, table.signer)
 			defer th.mockCtrl.Finish()
 
-			url := EndpointAddEntry.Url("http://example.com", th.instance.LogParameters.Prefix)
+			url := EndpointAddEntry.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("POST", url, table.breq)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -406,7 +406,7 @@ func TestGetSth(t *testing.T) {
 			th := newTestHandler(t, table.signer)
 			defer th.mockCtrl.Finish()
 
-			url := EndpointGetSth.Url("http://example.com", th.instance.LogParameters.Prefix)
+			url := EndpointGetSth.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -510,7 +510,7 @@ func TestGetConsistencyProof(t *testing.T) {
 			th := newTestHandler(t, nil)
 			defer th.mockCtrl.Finish()
 
-			url := EndpointGetConsistencyProof.Url("http://example.com", th.instance.LogParameters.Prefix)
+			url := EndpointGetConsistencyProof.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -619,7 +619,7 @@ func TestGetProofByHash(t *testing.T) {
 			th := newTestHandler(t, nil)
 			defer th.mockCtrl.Finish()
 
-			url := EndpointGetProofByHash.Url("http://example.com", th.instance.LogParameters.Prefix)
+			url := EndpointGetProofByHash.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
