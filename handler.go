@@ -26,16 +26,16 @@ func (a handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var now time.Time = time.Now()
 	var statusCode int
 	defer func() {
-		rspcnt.Inc(a.instance.LogParameters.id(), a.endpoint.String(), fmt.Sprintf("%d", statusCode))
-		latency.Observe(time.Now().Sub(now).Seconds(), a.instance.LogParameters.id(), a.endpoint.String(), fmt.Sprintf("%d", statusCode))
+		rspcnt.Inc(a.instance.LogParameters.id(), string(a.endpoint), fmt.Sprintf("%d", statusCode))
+		latency.Observe(time.Now().Sub(now).Seconds(), a.instance.LogParameters.id(), string(a.endpoint), fmt.Sprintf("%d", statusCode))
 	}()
-	reqcnt.Inc(a.instance.LogParameters.id(), a.endpoint.String())
+	reqcnt.Inc(a.instance.LogParameters.id(), string(a.endpoint))
 
 	ctx, cancel := context.WithDeadline(r.Context(), now.Add(a.instance.Deadline))
 	defer cancel()
 
 	if r.Method != a.method {
-		glog.Warningf("%s: got HTTP %s, wanted HTTP %s", a.instance.LogParameters.Prefix+a.endpoint.String(), r.Method, a.method)
+		glog.Warningf("%s/%s: got HTTP %s, wanted HTTP %s", a.instance.LogParameters.Prefix, string(a.endpoint), r.Method, a.method)
 		a.sendHTTPError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed: %s", r.Method))
 		return
 	}

@@ -28,10 +28,6 @@ const (
 	EndpointGetSth              = Endpoint("get-sth")
 )
 
-func (e Endpoint) String() string {
-	return string(e)
-}
-
 // TODO: type EndpointParam string?
 
 // Instance is an instance of a particular log front-end
@@ -122,27 +118,27 @@ func (i *Instance) registerHandlers(mux *http.ServeMux) {
 		handler handler
 	}{
 		{
-			strings.Join([]string{"", i.LogParameters.Prefix, EndpointAddEntry.String()}, "/"),
+			strings.Join([]string{"", i.LogParameters.Prefix, string(EndpointAddEntry)}, "/"),
 			handler{instance: i, handler: addEntry, endpoint: EndpointAddEntry, method: http.MethodPost},
 		},
 		{
-			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetEntries.String()}, "/"),
+			strings.Join([]string{"", i.LogParameters.Prefix, string(EndpointGetEntries)}, "/"),
 			handler{instance: i, handler: getEntries, endpoint: EndpointGetEntries, method: http.MethodGet},
 		},
 		{
-			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetAnchors.String()}, "/"),
+			strings.Join([]string{"", i.LogParameters.Prefix, string(EndpointGetAnchors)}, "/"),
 			handler{instance: i, handler: getAnchors, endpoint: EndpointGetAnchors, method: http.MethodGet},
 		},
 		{
-			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetProofByHash.String()}, "/"),
+			strings.Join([]string{"", i.LogParameters.Prefix, string(EndpointGetProofByHash)}, "/"),
 			handler{instance: i, handler: getProofByHash, endpoint: EndpointGetProofByHash, method: http.MethodGet},
 		},
 		{
-			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetConsistencyProof.String()}, "/"),
+			strings.Join([]string{"", i.LogParameters.Prefix, string(EndpointGetConsistencyProof)}, "/"),
 			handler{instance: i, handler: getConsistencyProof, endpoint: EndpointGetConsistencyProof, method: http.MethodGet},
 		},
 		{
-			strings.Join([]string{"", i.LogParameters.Prefix, EndpointGetSth.String()}, "/"),
+			strings.Join([]string{"", i.LogParameters.Prefix, string(EndpointGetSth)}, "/"),
 			handler{instance: i, handler: getSth, endpoint: EndpointGetSth, method: http.MethodGet},
 		},
 	} {
