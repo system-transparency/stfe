@@ -28,8 +28,6 @@ const (
 	EndpointGetSth              = Endpoint("get-sth")
 )
 
-// TODO: type EndpointParam string?
-
 // Instance is an instance of a particular log front-end
 type Instance struct {
 	LogParameters *LogParameters
