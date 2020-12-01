@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
-	"strings"
 	"testing"
 
 	"crypto/x509"
@@ -66,7 +65,7 @@ func TestNewGetEntriesRequest(t *testing.T) {
 			end:         fmt.Sprintf("%d", testMaxRange-1),
 		},
 	} {
-		url := strings.Join([]string{"http://example.com/", lp.Prefix, string(EndpointGetEntries)}, "/")
+		url := EndpointGetEntries.Url("http://example.com/", lp.Prefix)
 		r, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			t.Fatalf("must make http request in test %q: %v", table.description, err)
@@ -137,7 +136,7 @@ func TestNewGetProofByHashRequest(t *testing.T) {
 			hash:        b64(testNodeHash),
 		},
 	} {
-		url := strings.Join([]string{"http://example.com/", lp.Prefix, string(EndpointGetProofByHash)}, "/")
+		url := EndpointGetProofByHash.Url("http://example.com/", lp.Prefix)
 		r, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			t.Fatalf("must make http request in test %q: %v", table.description, err)
@@ -202,7 +201,7 @@ func TestNewGetConsistencyProofRequest(t *testing.T) {
 			second:      "2",
 		},
 	} {
-		url := strings.Join([]string{"http://example.com/", lp.Prefix, string(EndpointGetConsistencyProof)}, "/")
+		url := EndpointGetConsistencyProof.Url("http://example.com/", lp.Prefix)
 		r, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			t.Fatalf("must make http request in test %q: %v", table.description, err)
