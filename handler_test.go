@@ -23,6 +23,10 @@ import (
 	"github.com/system-transparency/stfe/x509util/testdata"
 )
 
+var (
+	testDeadline = time.Second * 10
+)
+
 type testHandler struct {
 	mockCtrl *gomock.Controller
 	client   *mockclient.MockTrillianLogClient
@@ -36,7 +40,7 @@ func newTestHandler(t *testing.T, signer crypto.Signer) *testHandler {
 		mockCtrl: ctrl,
 		client:   client,
 		instance: &Instance{
-			Deadline:      time.Second * 10,
+			Deadline:      testDeadline,
 			Client:        client,
 			LogParameters: makeTestLogParameters(t, signer),
 		},

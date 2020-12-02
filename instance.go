@@ -8,7 +8,6 @@ import (
 
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"net/http"
 
 	"github.com/google/trillian"
@@ -52,8 +51,8 @@ func (i Instance) String() string {
 	return fmt.Sprintf("%s Deadline(%v)\n", i.LogParameters, i.Deadline)
 }
 
-func (p LogParameters) String() string {
-	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) NumAnchors(%d)", base64.StdEncoding.EncodeToString(p.LogId), p.TreeId, p.Prefix, len(p.AnchorList))
+func (lp LogParameters) String() string {
+	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) MaxRange(%d) MaxChain(%d) NumAnchors(%d)", lp.id(), lp.TreeId, lp.Prefix, lp.MaxRange, lp.MaxChain, len(lp.AnchorList))
 }
 
 func (e Endpoint) String() string {
@@ -61,7 +60,7 @@ func (e Endpoint) String() string {
 }
 
 // NewInstance creates a new STFE instance
-func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline time.Duration, mux *http.ServeMux) *Instance {
+func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline time.Duration) *Instance {
 	return &Instance{
 		LogParameters: lp,
 		Client:        client,
@@ -72,15 +71,21 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 // NewLogParameters creates new log parameters.  Note that the signer is
 // assumed to be an ed25519 signing key.  Could be fixed at some point.
 func NewLogParameters(treeId int64, prefix string, anchors []*x509.Certificate, signer crypto.Signer, maxRange, maxChain int64) (*LogParameters, error) {
+	if signer == nil {
+		return nil, fmt.Errorf("need a signer but got none")
+	}
+	if len(anchors) < 1 {
+		return nil, fmt.Errorf("need at least one trust anchor")
+	}
+	if maxRange < 1 {
+		return nil, fmt.Errorf("max range must be at least one")
+	}
+	if maxChain < 1 {
+		return nil, fmt.Errorf("max chain must be at least one")
+	}
 	pub, err := x509.MarshalPKIXPublicKey(signer.Public())
 	if err != nil {
 		return nil, fmt.Errorf("failed DER encoding SubjectPublicKeyInfo: %v", err)
-	}
-	if maxRange < 1 {
-		return nil, fmt.Errorf("invalid max range: must be at least 1")
-	}
-	if maxChain < 1 {
-		return nil, fmt.Errorf("invalid max chain: must be at least 1")
 	}
 	hasher := sha256.New()
 	hasher.Write(pub)
@@ -98,17 +103,6 @@ func NewLogParameters(treeId int64, prefix string, anchors []*x509.Certificate, 
 	}, nil
 }
 
-// Path joins a number of components to form a full endpoint path, e.g., base
-// ("example.com"), prefix ("st/v1"), and the endpoint itself ("get-sth").
-func (e Endpoint) Path(components ...string) string {
-	return strings.Join(append(components, string(e)), "/")
-}
-
-// TODO: id() docdoc
-func (i *LogParameters) id() string {
-	return base64.StdEncoding.EncodeToString(i.LogId)
-}
-
 // Handlers returns a list of STFE handlers
 func (i *Instance) Handlers() []Handler {
 	return []Handler{
@@ -119,4 +113,15 @@ func (i *Instance) Handlers() []Handler {
 		Handler{instance: i, handler: getConsistencyProof, endpoint: EndpointGetConsistencyProof, method: http.MethodGet},
 		Handler{instance: i, handler: getSth, endpoint: EndpointGetSth, method: http.MethodGet},
 	}
+}
+
+// id formats the log's identifier as base64
+func (i *LogParameters) id() string {
+	return b64(i.LogId)
+}
+
+// Path joins a number of components to form a full endpoint path, e.g., base
+// ("example.com"), prefix ("st/v1"), and the endpoint itself ("get-sth").
+func (e Endpoint) Path(components ...string) string {
+	return strings.Join(append(components, string(e)), "/")
 }

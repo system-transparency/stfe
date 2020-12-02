@@ -164,6 +164,11 @@ MC4CAQAwBQYDK2VwBCIEIKQd3B84w9pB6zJLGljuDyGKfz9uPP6QBeLiFcw0EME4
 	// NumTrustAnchors is the number of test trust anchors
 	NumTrustAnchors = 2
 
+	// LogPrivateKey is an Ed25519 signing key
+	LogPrivateKey = []byte(`-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIAhqlhKgY/TiEyTIe5BcZKLELGa2kODtJ3S+oMP4JwsA
+-----END PRIVATE KEY-----`)
+
 	// ExpiredCertificate is a PEM-encoded certificate that is always expired,
 	// i.e., `Not Before`=`Not After`.  It is signed by IntermediateCertificate.
 	ExpiredCertificate = []byte(`

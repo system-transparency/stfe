@@ -69,7 +69,7 @@ func main() {
 		glog.Fatalf("failed setting up log parameters: %v", err)
 	}
 
-	i := stfe.NewInstance(lp, client, *rpcDeadline, mux)
+	i := stfe.NewInstance(lp, client, *rpcDeadline)
 	for _, handler := range i.Handlers() {
 		glog.Infof("adding handler: %s", handler.Path())
 		mux.Handle(handler.Path(), handler)
