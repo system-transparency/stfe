@@ -66,6 +66,7 @@ type InclusionProofV1 struct {
 
 // ChecksumV1 associates a leaf type as defined by markdown/api.md
 type ChecksumV1 struct {
+	// TODO: refactor package as `Namespace`, s.t., start is sha256(anchor pub)
 	Package  []byte `tls:"minlen:1,maxlen:255"`
 	Checksum []byte `tls:"minlen:1,maxlen:64"`
 }
