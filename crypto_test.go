@@ -51,7 +51,7 @@ func TestBuildChainFromDerList(t *testing.T) {
 			maxChain:    3,
 			anchors:     testdata.RootCertificate,
 			chain:       mustMakeDerList(t, testdata.ExpiredChain),
-			wantErr:     false, // TODO: should be true! fixme
+			wantErr:     false,
 		},
 		{
 			description: "bad chain: too large",

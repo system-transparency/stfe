@@ -171,16 +171,15 @@ MC4CAQAwBQYDK2VwBCIEIAhqlhKgY/TiEyTIe5BcZKLELGa2kODtJ3S+oMP4JwsA
 
 	// ExpiredCertificate is a PEM-encoded certificate that is always expired,
 	// i.e., `Not Before`=`Not After`.  It is signed by IntermediateCertificate.
-	ExpiredCertificate = []byte(`
------BEGIN CERTIFICATE-----
-MIIBbDCCAR4CFDfeuu6XURfn7AE4WShuwZBHEaLIMAUGAytlcDBsMQswCQYDVQQG
+	ExpiredCertificate = []byte(`-----BEGIN CERTIFICATE-----
+MIIBbDCCAR4CFFO1655aK8KvWIacn4KVPCo+3rgmMAUGAytlcDBsMQswCQYDVQQG
 EwJOQTELMAkGA1UECAwCTkExCzAJBgNVBAcMAk5BMQswCQYDVQQKDAJOQTELMAkG
 A1UECwwCTkExFjAUBgNVBAMMDXN0ZmUgdGVzdGRhdGExETAPBgkqhkiG9w0BCQEW
-Ak5BMB4XDTIwMTEwMzE4MzI0MFoXDTMyMDEyMTE4MzI0MFowRTELMAkGA1UEBhMC
+Ak5BMB4XDTIwMTIwMjE2MzI0MloXDTIwMTIwMjE2MzI0MlowRTELMAkGA1UEBhMC
 QVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdp
-dHMgUHR5IEx0ZDAqMAUGAytlcAMhAJvk390ZvwULplBri03Od4LLz+Sf/OUHu+20
-wik+T9y5MAUGAytlcANBANekliXq4ttoClBJDZoktIQxyHHNcWyXFrj1HlOaT5bC
-I3GIqqZ60Ua3jKytnEsKsD2rLMPItDwmG6wYSecy2ws=
+dHMgUHR5IEx0ZDAqMAUGAytlcAMhAFkRtny1XBNw3E7Bk8yE/dp1NfysaK9wevma
+UQUqtJrHMAUGAytlcANBABXlP0XMtPhBwbilzJ6riD2j49uXFUkdYxP8jTCXyHw7
+CrTlv9wj2MV3UJs7CQigEA21LJVENwYusMnGi2pTIQE=
 -----END CERTIFICATE-----`)
 	// ExpiredChain is an expired PEM-encoded certificate chain.  It is composed
 	// of two certificates: ExpiredCertificate and IntermediateCertificate.
