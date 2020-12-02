@@ -95,7 +95,7 @@ func TestNewLogParameters(t *testing.T) {
 			prefix:      testPrefix,
 			maxRange:    testMaxRange,
 			maxChain:    testMaxChain,
-			anchors:     []*x509.Certificate{},
+			anchors:     anchors,
 			signer:      cttestdata.NewSignerWithFixedSig("no pub", testSignature),
 			wantErr:     true,
 		},
