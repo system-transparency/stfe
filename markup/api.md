@@ -12,14 +12,13 @@ For reference you may look at Certificate Transparency (CT) logging and
 [CTFE](https://github.com/google/certificate-transparency-go/tree/master/trillian/ctfe),
 which implements [RFC 6962](https://tools.ietf.org/html/rfc6962).
 
-We reuse RFC 6962 and its follow-up specification [RFC
-6962/bis](https://datatracker.ietf.org/doc/draft-ietf-trans-rfc6962-bis/) to the
-largest extent possible.
+We take inspiration from from RFC 6962 and its follow-up specification [RFC
+6962/bis](https://datatracker.ietf.org/doc/draft-ietf-trans-rfc6962-bis/).
 
 ## Log parameters
 A log is defined by the following immutable parameters:
 - Log identifier: `SHA256(public key)`, see RFC 6962
-[§3.2](https://tools.ietf.org/html/rfc6962#section-3.2)
+[§3.2](https://tools.ietf.org/html/rfc6962#section-3.2). TODO: use KID instead.
 - Public key: DER encoding of the key represented as `SubjectPublicKeyInfo`
 - Supported signature schemes: a list of signature schemes that the
 log recognizes.  Possible values are defined in RFC 8446,
@@ -27,8 +26,6 @@ log recognizes.  Possible values are defined in RFC 8446,
 use a signature algorithm that the log supports.
 - Signature scheme: the signature scheme that the log uses to sign tree heads
 and debug info statements.
-- Maximum chain length: e.g., three means that we would reject submissions that
-were signed by a certificate chain of length four.
 - Base URL: where can this log be reached?  E.g., example.com:1234/log
 
 Note that **there is no MMD**.  The idea is to merge added entries as soon as
@@ -43,7 +40,7 @@ A log should accept a submission if it is:
 - Well-formed, see below.
 - Digitally signed
 	- Proves who submitted an entry for logging
-	- The signing key must chain back to a valid trust anchor
+	- Verification key must be registered in the log as a namespace
 
 ## Data structure definitions
 We encode everything that is digitally signed as in [RFC
@@ -80,16 +77,76 @@ struct {
 } StItem;
 ```
 
+### Namespace
+The submitter's verification key is used to establish a _namespace_.  Added
+log entries must be signed by a registered namespace, such that anyone that
+observes the log can determine which artifact hashes belong to which namespaces.
+```
+enum {
+	reserved(0),
+	ed25519_v1(1),
+	(65535)
+} NamespaceFormat;
+
+struct {
+	NamespaceFormat format;
+	select (format) {
+		case ed25519_v1: Ed25519V1;
+	} message;
+} Namespace;
+```
+
+Credit: inspired by Keybase's [KID format](https://keybase.io/docs/api/1.0/kid).
+
+#### Ed25519V1
+At this time the only supported key type is Ed25519 as defined by [RFC
+8032](https://tools.ietf.org/html/rfc8032).  The namespace field contains the
+full verification key.
+```
+struct {
+	opaque namespace<32>; // public key
+} Ed25519V1;
+```
+
+#### Other
+In the future we will support other key types, such as RSA.  For example, we
+could add [RSASSA-PKCS1-v1_5](https://tools.ietf.org/html/rfc3447#section-8.2)
+as follows:
+1. Add `rsa_v1` format and RSAV1 namespace.  This is what we would register on
+the server-side such that the server knows the namespace and complete key.
+```
+struct {
+	opaque namespace<32>; // key fingerprint
+	// + some encoding of public key
+} RSAV1;
+```
+2. Add `rsassa_pkcs1_5_v1` format and `RSASSAPKCS1_5_v1`.  This is what the
+submitter would use to communicate namespace and RSA signature mode.
+```
+struct {
+	opaque namespace<32>; // key fingerprint
+	// + necessary parameters, e.g., SHA256 as hash function
+} RSASSAPKCS1_5V1;
+```
+
+Another option is to just never bother with key fingerprint, i.e., use the
+complete (encoded) RSA key as the namespace.  Makes the leaf a lot larger
+though.
+
 ### Merkle tree leaf types
 In the future there might be several types of leaves.  Say, one for operating
 system packages, another one for Debian packages, and a third one for
 general-purpose checksums.  For now we only define the latter.
 
+TODO: scope of this spec should only be checksum
+
 #### Checksum
+
 ```
 struct {
 	opaque package<1..2^8-1>; // package identifier
 	opaque checksum<1..64>; // hash of some artifact
+	Namespace namespace;
 } ChecksumV1;
 ```
 
@@ -99,6 +156,9 @@ artifact hash.  For example, the checksum type could be used by Firefox to
 update](https://wiki.mozilla.org/Security/Binary_Transparency).  It is assumed
 that the entities relying on the checksum type know how to find the artifact
 source (if not already at hand) and then reproduce the logged hash from it.
+
+Namespace is used to determine who this artifact hash belongs to.  Note that we
+do not connect namespaces to real-world identities.  It is just _a namespace_.
 
 ### Signed Debug Info
 RFC 6962 uses Signed Certificate Timestamps (SCTs) as promises of public
@@ -122,11 +182,17 @@ e.g., `ed25519(0x0807)` refers to [RFC
 schemes and their interpretations can be found in RFC 8446,
 [§4.2.3](https://tools.ietf.org/html/rfc8446#section-4.2.3).
 
+TODO: when log id is namespace this information is already communicated.
+TODO: remove SDI?
+
 ## Public endpoints
 Clients talk to the log with HTTPS GET/POST requests.  POST parameters
 are JSON objects, GET parameters are URL encoded, and serialized data is
 expressed as base-64.  See details in as in RFC 6962,
 [§4](https://tools.ietf.org/html/rfc6962#section-4).
+
+TODO: remove json
+TODO: and b64?
 
 Unless specified otherwise, the data in question is serialized.
 
@@ -138,12 +204,7 @@ POST https://<base url>/st/v1/add-entry
 Input:
 - item: an `StItem` that corresponds to a valid leaf type.  Only
 `checksum_v1` at this time.
-- signature_scheme: decimal, possible values are defined in RFC 8446
-[§4.2.3](https://tools.ietf.org/html/rfc8446#section-4.2.3).  The serialized
-signature encoding follows from this.
 - signature: covers the submitted item.
-- chain: a list of base-64 encoded X.509 certificates that chain back to
-a trust anchor and which produced the above signature.
 
 Output:
 - an `StItem` structure of type `signed_debug_info_v1` that covers the added
@@ -163,23 +224,16 @@ Output:
 	- leaf: `StItem` that corresponds to the leaf's type.
 	- signature: signature that covers the retrieved item using the below
 	signature scheme.
-	- signature_scheme: one that the log accepts, see supported signature
-	schemes and how they are represeneted in the log's parameters.
-	- chain: an array of base-64 encoded certificates, where the first
-	corresponds to the signing certificate and the final one a trust anchor.
 
-The signature and chain can be viewed as a leaf's appendix, i.e., something that
-is stored by the log but not part of the leaf itself.
-
-### get-anchors
+### get-namespaces
 ```
-GET https://<base url>/st/v1/get-anchors
+GET https://<base url>/st/v1/get-namespaces
 ```
 
 No input.
 
 Output:
-- an array of base-64 encoded trust anchors that the log accept.
+- an array of base-64 encoded namespaces that the log accept. TODO: format?
 
 ### get-proof-by-hash
 ```
