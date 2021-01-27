@@ -4,10 +4,10 @@
 //
 // For example, this is how a serialized Ed25519 namespace looks like:
 //
-// 0   2                      34 (byte index)
-// +---+----------------------+
-// | 1 +   Verification key   +
-// +---+----------------------+
+// 0    2    3                  35 (byte index)
+// +----+-----------------------+
+// | 1  + 32 + Verification key +
+// +----+-----------------------+
 package namespace
 
 import (

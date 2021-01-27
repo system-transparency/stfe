@@ -59,7 +59,7 @@ func (a Handler) sendHTTPError(w http.ResponseWriter, statusCode int, err error)
 
 func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.V(3).Info("handling add-entry request")
-	leaf, appendix, err := i.LogParameters.newAddEntryRequest(r)
+	req, err := i.LogParameters.newAddEntryRequest(r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
@@ -67,8 +67,8 @@ func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.R
 	trsp, err := i.Client.QueueLeaf(ctx, &trillian.QueueLeafRequest{
 		LogId: i.LogParameters.TreeId,
 		Leaf: &trillian.LogLeaf{
-			LeafValue: leaf,
-			ExtraData: appendix,
+			LeafValue: req.Item,
+			ExtraData: req.Signature,
 		},
 	})
 	if errInner := checkQueueLeaf(trsp, err); errInner != nil {

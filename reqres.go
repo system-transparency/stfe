@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"crypto/tls"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -14,10 +13,8 @@ import (
 
 // AddEntryRequest is a collection of add-entry input parameters
 type AddEntryRequest struct {
-	Item            []byte   `json:"item"`             // tls-serialized StItem
-	Signature       []byte   `json:"signature"`        // serialized signature using the signature scheme below
-	SignatureScheme uint16   `json:"signature_scheme"` // rfc 8446, §4.2.3
-	Chain           [][]byte `json:"chain"`            // der-encoded X.509 certificates
+	Item      []byte `json:"item"`      // tls-serialized StItem
+	Signature []byte `json:"signature"` // serialized signature using the signature scheme below
 }
 
 // GetEntriesRequest is a collection of get-entry input parameters
@@ -44,40 +41,30 @@ type GetConsistencyProofRequest struct {
 type GetEntryResponse AddEntryRequest
 
 // newAddEntryRequest parses and sanitizes the JSON-encoded add-entry
-// parameters from an incoming HTTP post.  The serialized leaf value and
-// associated appendix is returned if the submitted data is valid: well-formed,
-// signed using a supported scheme, and chains back to a valid trust anchor.
-func (lp *LogParameters) newAddEntryRequest(r *http.Request) ([]byte, []byte, error) {
+// parameters from an incoming HTTP post.  The request is returned if it is
+// a checksumV1 entry that is signed by a valid namespace.
+func (lp *LogParameters) newAddEntryRequest(r *http.Request) (*AddEntryRequest, error) {
 	var entry AddEntryRequest
 	if err := unpackJsonPost(r, &entry); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Try decoding as ChecksumV1 StItem
 	var item StItem
 	if err := item.Unmarshal(entry.Item); err != nil {
-		return nil, nil, fmt.Errorf("StItem(%s): %v", item.Format, err)
+		return nil, fmt.Errorf("StItem(%s): %v", item.Format, err)
 	}
 	if item.Format != StFormatChecksumV1 {
-		return nil, nil, fmt.Errorf("invalid StItem format: %s", item.Format)
+		return nil, fmt.Errorf("invalid StItem format: %s", item.Format)
 	}
 
-	// Check that there is a valid trust anchor
-	chain, err := lp.buildChainFromDerList(entry.Chain)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid certificate chain: %v", err)
+	// Check that namespace is valid for item
+	if namespace, ok := lp.Namespaces.Find(&item.ChecksumV1.Namespace); !ok {
+		return nil, fmt.Errorf("unknown namespace: %s", item.ChecksumV1.Namespace.String())
+	} else if err := namespace.Verify(entry.Item, entry.Signature); err != nil {
+		return nil, fmt.Errorf("invalid namespace: %v", err)
 	}
-
-	// Check that there is a valid signature
-	if err := lp.verifySignature(chain[0], tls.SignatureScheme(entry.SignatureScheme), entry.Item, entry.Signature); err != nil {
-		return nil, nil, fmt.Errorf("invalid signature: %v", err)
-	}
-
-	extra, err := NewAppendix(chain, entry.Signature, entry.SignatureScheme).Marshal()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed marshaling appendix: %v", err)
-	}
-	return entry.Item, extra, nil
+	return &entry, nil
 }
 
 // newGetEntriesRequest parses and sanitizes the URL-encoded get-entries
@@ -149,15 +136,7 @@ func (lp *LogParameters) newGetConsistencyProofRequest(httpRequest *http.Request
 
 // newGetEntryResponse assembles a log entry and its appendix
 func (lp *LogParameters) newGetEntryResponse(leaf, appendix []byte) (*GetEntryResponse, error) {
-	var app Appendix
-	if err := app.Unmarshal(appendix); err != nil {
-		return nil, err
-	}
-	chain := make([][]byte, 0, len(app.Chain))
-	for _, c := range app.Chain {
-		chain = append(chain, c.Data)
-	}
-	return &GetEntryResponse{leaf, app.Signature, app.SignatureScheme, chain}, nil
+	return &GetEntryResponse{leaf, appendix}, nil // TODO: remove me
 }
 
 // newGetEntriesResponse assembles a get-entries response
@@ -175,11 +154,16 @@ func (lp *LogParameters) newGetEntriesResponse(leaves []*trillian.LogLeaf) ([]*G
 
 // newGetAnchorsResponse assembles a get-anchors response
 func (lp *LogParameters) newGetAnchorsResponse() [][]byte {
-	certificates := make([][]byte, 0, len(lp.AnchorList))
-	for _, certificate := range lp.AnchorList {
-		certificates = append(certificates, certificate.Raw)
+	namespaces := make([][]byte, 0, len(lp.Namespaces.List()))
+	for _, namespace := range lp.Namespaces.List() {
+		raw, err := namespace.Marshal()
+		if err != nil {
+			fmt.Printf("TODO: fix me and entire func\n")
+			continue
+		}
+		namespaces = append(namespaces, raw)
 	}
-	return certificates
+	return namespaces
 }
 
 // unpackJsonPost unpacks a json-encoded HTTP POST request into `unpack`

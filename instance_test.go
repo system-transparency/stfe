@@ -3,121 +3,110 @@ package stfe
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"crypto"
-	"crypto/sha256"
-	"crypto/x509"
+	"crypto/ed25519"
 
-	cttestdata "github.com/google/certificate-transparency-go/trillian/testdata"
-	"github.com/system-transparency/stfe/x509util"
-	"github.com/system-transparency/stfe/x509util/testdata"
+	"github.com/system-transparency/stfe/namespace"
+	"github.com/system-transparency/stfe/namespace/testdata"
 )
 
 var (
-	testHashLen     = 31
-	testMaxRange    = int64(3)
-	testMaxChain    = int64(3)
-	testTreeId      = int64(0)
-	testPrefix      = "test"
-	testHashType    = crypto.SHA256
-	testExtKeyUsage = []x509.ExtKeyUsage{}
+	testLogId          = append([]byte{0x00, 0x01, 0x20}, testdata.Ed25519Vk3...)
+	testTreeId         = int64(0)
+	testMaxRange       = int64(3)
+	testPrefix         = "test"
+	testHashType       = crypto.SHA256
+	testSignature      = make([]byte, 32)
+	testNodeHash       = make([]byte, 32)
+	testMessage        = []byte("test message")
+	testPackage        = []byte("foobar")
+	testChecksum       = make([]byte, 32)
+	testTreeSize       = uint64(128)
+	testTreeSizeLarger = uint64(256)
+	testTimestamp      = uint64(0)
+	testProof          = [][]byte{
+		testNodeHash,
+		testNodeHash,
+	}
+	testIndex    = uint64(0)
+	testHashLen  = 31
+	testDeadline = time.Second * 10
 )
 
 func TestNewLogParameters(t *testing.T) {
-	anchors, err := x509util.NewCertificateList(testdata.TrustAnchors)
-	if err != nil {
-		t.Fatalf("must decode trust anchors: %v", err)
-	}
-	signer, err := x509util.NewEd25519PrivateKey(testdata.LogPrivateKey)
-	if err != nil {
-		t.Fatalf("must decode private key: %v", err)
-	}
-	pub, err := x509.MarshalPKIXPublicKey(signer.Public())
-	if err != nil {
-		t.Fatalf("must encode public key: %v", err)
-	}
-	hasher := sha256.New()
-	hasher.Write(pub)
-	logId := hasher.Sum(nil)
+	testLogId := mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk3)
+	namespaces := mustNewNamespacePool(t, []*namespace.Namespace{
+		mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk),
+	})
+	signer := ed25519.PrivateKey(testdata.Ed25519Sk)
 	for _, table := range []struct {
 		description string
-		treeId      int64
-		prefix      string
+		logId       *namespace.Namespace
 		maxRange    int64
-		maxChain    int64
-		anchors     []*x509.Certificate
+		namespaces  *namespace.NamespacePool
 		signer      crypto.Signer
 		wantErr     bool
 	}{
 		{
 			description: "invalid signer: nil",
-			treeId:      testTreeId,
-			prefix:      testPrefix,
-			maxRange:    0,
-			maxChain:    testMaxChain,
-			anchors:     anchors,
+			logId:       testLogId,
+			maxRange:    testMaxRange,
+			namespaces:  namespaces,
 			signer:      nil,
 			wantErr:     true,
 		},
 		{
-			description: "no trust anchors",
-			treeId:      testTreeId,
-			prefix:      testPrefix,
-			maxRange:    testMaxRange,
-			maxChain:    testMaxChain,
-			anchors:     []*x509.Certificate{},
-			signer:      signer,
-			wantErr:     true,
-		},
-		{
 			description: "invalid max range",
-			treeId:      testTreeId,
-			prefix:      testPrefix,
+			logId:       testLogId,
 			maxRange:    0,
-			maxChain:    testMaxChain,
-			anchors:     anchors,
+			namespaces:  namespaces,
 			signer:      signer,
 			wantErr:     true,
 		},
 		{
-			description: "invalid max chain",
-			treeId:      testTreeId,
-			prefix:      testPrefix,
+			description: "no namespaces",
+			logId:       testLogId,
 			maxRange:    testMaxRange,
-			maxChain:    0,
-			anchors:     anchors,
+			namespaces:  mustNewNamespacePool(t, []*namespace.Namespace{}),
 			signer:      signer,
 			wantErr:     true,
 		},
 		{
-			description: "public key marshal failure",
-			treeId:      testTreeId,
-			prefix:      testPrefix,
-			maxRange:    testMaxRange,
-			maxChain:    testMaxChain,
-			anchors:     anchors,
-			signer:      cttestdata.NewSignerWithFixedSig("no pub", testSignature),
-			wantErr:     true,
+			description: "invalid log identifier",
+			logId: &namespace.Namespace{
+				Format: namespace.NamespaceFormatEd25519V1,
+				NamespaceEd25519V1: &namespace.NamespaceEd25519V1{
+					Namespace: make([]byte, 31), // too short
+				},
+			},
+			maxRange:   testMaxRange,
+			namespaces: namespaces,
+			signer:     signer,
+			wantErr:    true,
 		},
 		{
 			description: "valid log parameters",
-			treeId:      testTreeId,
-			prefix:      testPrefix,
+			logId:       testLogId,
 			maxRange:    testMaxRange,
-			maxChain:    testMaxChain,
-			anchors:     anchors,
+			namespaces:  namespaces,
 			signer:      signer,
 		},
 	} {
-		lp, err := NewLogParameters(table.treeId, table.prefix, table.anchors, table.signer, table.maxRange, table.maxChain)
+		lp, err := NewLogParameters(table.signer, table.logId, testTreeId, testPrefix, table.namespaces, table.maxRange)
 		if got, want := err != nil, table.wantErr; got != want {
 			t.Errorf("got error=%v but wanted %v in test %q: %v", got, want, table.description, err)
 		}
 		if err != nil {
 			continue
 		}
+		lid, err := table.logId.Marshal()
+		if err != nil {
+			t.Fatalf("must marshal log id: %v", err)
+		}
 
-		if got, want := lp.LogId, logId; !bytes.Equal(got, want) {
+		if got, want := lp.LogId, lid; !bytes.Equal(got, want) {
 			t.Errorf("got log id %X but wanted %X in test %q", got, want, table.description)
 		}
 		if got, want := lp.TreeId, testTreeId; got != want {
@@ -129,17 +118,8 @@ func TestNewLogParameters(t *testing.T) {
 		if got, want := lp.MaxRange, testMaxRange; got != want {
 			t.Errorf("got max range %d but wanted %d in test %q", got, want, table.description)
 		}
-		if got, want := lp.MaxChain, testMaxChain; got != want {
-			t.Errorf("got max chain %d but wanted %d in test %q", got, want, table.description)
-		}
-		if got, want := lp.MaxChain, testMaxChain; got != want {
-			t.Errorf("got max chain %d but wanted %d in test %q", got, want, table.description)
-		}
-		if got, want := len(lp.AnchorList), len(anchors); got != want {
+		if got, want := len(lp.Namespaces.List()), len(namespaces.List()); got != want {
 			t.Errorf("got %d anchors but wanted %d in test %q", got, want, table.description)
-		}
-		if got, want := len(lp.AnchorPool.Subjects()), len(anchors); got != want {
-			t.Errorf("got %d anchors in pool but wanted %d in test %q", got, want, table.description)
 		}
 	}
 }
@@ -209,24 +189,48 @@ func TestEndpointPath(t *testing.T) {
 	}
 }
 
-// makeTestLogParameters makes a collection of test log parameters that
-// correspond to testLogId, testTreeId, testPrefix, testMaxRange, testMaxChain,
-// the anchors in testdata.TrustAnchors, testHashType, and an optional signer.
-func makeTestLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {
-	anchors, err := x509util.NewCertificateList(testdata.TrustAnchors)
+func mustNewLogId(t *testing.T, namespace *namespace.Namespace) []byte {
+	b, err := namespace.Marshal()
 	if err != nil {
-		t.Fatalf("must decode trust anchors: %v", err)
+		t.Fatalf("must marshal log id: %v", err)
 	}
+	return b
+}
+
+func mustNewNamespaceEd25519V1(t *testing.T, vk []byte) *namespace.Namespace {
+	namespace, err := namespace.NewNamespaceEd25519V1(vk)
+	if err != nil {
+		t.Fatalf("must make ed25519 namespace: %v", err)
+	}
+	return namespace
+}
+
+func mustNewNamespacePool(t *testing.T, anchors []*namespace.Namespace) *namespace.NamespacePool {
+	namespaces, err := namespace.NewNamespacePool(anchors)
+	if err != nil {
+		t.Fatalf("must make namespaces: %v", err)
+	}
+	return namespaces
+}
+
+// makeTestLogParameters makes a collection of test log parameters.
+//
+// The log's identity is based on testdata.Ed25519{Vk3,Sk3}.  The log's accepted
+// namespaces is based on testdata.Ed25519{Vk,Vk2}.  The remaining log
+// parameters are based on the global test* variables in this file.
+//
+// For convenience the passed signer is optional (i.e., it may be nil).
+func makeTestLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {
 	return &LogParameters{
-		LogId:      testLogId,
-		TreeId:     testTreeId,
-		Prefix:     testPrefix,
-		MaxRange:   testMaxRange,
-		MaxChain:   testMaxChain,
-		AnchorPool: x509util.NewCertPool(anchors),
-		AnchorList: anchors,
-		KeyUsage:   testExtKeyUsage,
-		Signer:     signer,
-		HashType:   testHashType,
+		LogId:    mustNewLogId(t, mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk3)),
+		TreeId:   testTreeId,
+		Prefix:   testPrefix,
+		MaxRange: testMaxRange,
+		Namespaces: mustNewNamespacePool(t, []*namespace.Namespace{
+			mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk),
+			mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk2),
+		}),
+		Signer:   signer,
+		HashType: testHashType,
 	}
 }

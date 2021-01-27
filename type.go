@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"crypto/x509"
 	"encoding/base64"
 
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/trillian/types"
+	"github.com/system-transparency/stfe/namespace"
 )
 
 // StFormat defines a particular StItem type that is versioned
@@ -35,7 +35,7 @@ type StItem struct {
 
 // SignedTreeHeadV1 is a signed tree head as defined by RFC 6962/bis, §4.10
 type SignedTreeHeadV1 struct {
-	LogId     []byte `tls:"minlen:32,maxlen:32"`
+	LogId     []byte `tls:"minlen:35,maxlen:35"`
 	TreeHead  TreeHeadV1
 	Signature []byte `tls:"minlen:1,maxlen:65535"`
 }
@@ -43,14 +43,14 @@ type SignedTreeHeadV1 struct {
 // SignedDebugInfoV1 is a signed statement that we intend (but do not promise)
 // to insert an entry into the log as defined by markdown/api.md
 type SignedDebugInfoV1 struct {
-	LogId     []byte `tls:"minlen:32,maxlen:32"`
+	LogId     []byte `tls:"minlen:35,maxlen:35"`
 	Message   []byte `tls:"minlen:0,maxlen:65535"`
 	Signature []byte `tls:"minlen:1,maxlen:65535"`
 }
 
 // ConsistencyProofV1 is a consistency proof as defined by RFC 6962/bis, §4.11
 type ConsistencyProofV1 struct {
-	LogId           []byte `tls:"minlen:32,maxlen:32"`
+	LogId           []byte `tls:"minlen:35,maxlen:35"`
 	TreeSize1       uint64
 	TreeSize2       uint64
 	ConsistencyPath []NodeHash `tls:"minlen:0,maxlen:65535"`
@@ -58,7 +58,7 @@ type ConsistencyProofV1 struct {
 
 // InclusionProofV1 is an inclusion proof as defined by RFC 6962/bis, §4.12
 type InclusionProofV1 struct {
-	LogId         []byte `tls:"minlen:32,maxlen:32"`
+	LogId         []byte `tls:"minlen:35,maxlen:35"`
 	TreeSize      uint64
 	LeafIndex     uint64
 	InclusionPath []NodeHash `tls:"minlen:0,maxlen:65535"`
@@ -66,9 +66,9 @@ type InclusionProofV1 struct {
 
 // ChecksumV1 associates a leaf type as defined by markdown/api.md
 type ChecksumV1 struct {
-	// TODO: refactor package as `Namespace`, s.t., start is sha256(anchor pub)
-	Package  []byte `tls:"minlen:1,maxlen:255"`
-	Checksum []byte `tls:"minlen:1,maxlen:64"`
+	Package   []byte `tls:"minlen:1,maxlen:255"`
+	Checksum  []byte `tls:"minlen:1,maxlen:64"`
+	Namespace namespace.Namespace
 }
 
 // TreeHeadV1 is a tree head as defined by RFC 6962/bis, §4.10
@@ -87,13 +87,6 @@ type NodeHash struct {
 // RawCertificate is a serialized X.509 certificate
 type RawCertificate struct {
 	Data []byte `tls:"minlen:0,maxlen:65535"`
-}
-
-// Appendix is extra leaf data that is not stored in the log's Merkle tree
-type Appendix struct {
-	Signature       []byte `tls:"minlen:1,maxlen:16383"`
-	SignatureScheme uint16
-	Chain           []RawCertificate `tls:"minlen:1,maxlen:65535"`
 }
 
 func (f StFormat) String() string {
@@ -149,7 +142,7 @@ func (i InclusionProofV1) String() string {
 }
 
 func (i ChecksumV1) String() string {
-	return fmt.Sprintf("Package(%s) Checksum(%s)", string(i.Package), b64(i.Checksum))
+	return fmt.Sprintf("Package(%s) Checksum(%s) Namespace(%s)", string(i.Package), string(i.Checksum), i.Namespace.String())
 }
 
 func (th TreeHeadV1) String() string {
@@ -192,26 +185,6 @@ func (i *StItem) UnmarshalB64(s string) error {
 		return fmt.Errorf("base64 decoding failed for StItem(%s): %v", i.Format, err)
 	}
 	return i.Unmarshal(serialized)
-}
-
-// Marshal serializes an Appendix as defined by RFC 5246
-func (a *Appendix) Marshal() ([]byte, error) {
-	serialized, err := tls.Marshal(*a)
-	if err != nil {
-		return nil, fmt.Errorf("marshal failed for Appendix(%v): %v", a, err)
-	}
-	return serialized, nil
-}
-
-// Unmarshal unpacks a serialized Appendix
-func (a *Appendix) Unmarshal(serialized []byte) error {
-	extra, err := tls.Unmarshal(serialized, a)
-	if err != nil {
-		return fmt.Errorf("unmarshal failed for Appendix(%v): %v", a, err)
-	} else if len(extra) > 0 {
-		return fmt.Errorf("unmarshal found extra data for Appendix(%v): %v", a, extra)
-	}
-	return nil
 }
 
 // Marshal serializes a TreeHeadV1 as defined by RFC 5246
@@ -273,10 +246,10 @@ func NewConsistencyProofV1(logId []byte, first, second uint64, proof [][]byte) *
 }
 
 // NewChecksumV1 creates a new StItem of type checksum_v1
-func NewChecksumV1(identifier []byte, checksum []byte) *StItem {
+func NewChecksumV1(identifier, checksum []byte, namespace *namespace.Namespace) *StItem {
 	return &StItem{
 		Format:     StFormatChecksumV1,
-		ChecksumV1: &ChecksumV1{identifier, checksum},
+		ChecksumV1: &ChecksumV1{identifier, checksum, *namespace},
 	}
 }
 
@@ -289,15 +262,6 @@ func NewTreeHeadV1(lr *types.LogRootV1) *TreeHeadV1 {
 		NodeHash{lr.RootHash},
 		nil,
 	}
-}
-
-// NewAppendix creates a new leaf Appendix for an X.509 chain and signature
-func NewAppendix(x509Chain []*x509.Certificate, signature []byte, signatureScheme uint16) *Appendix {
-	chain := make([]RawCertificate, 0, len(x509Chain))
-	for _, c := range x509Chain {
-		chain = append(chain, RawCertificate{c.Raw})
-	}
-	return &Appendix{signature, signatureScheme, chain}
 }
 
 func b64(b []byte) string {

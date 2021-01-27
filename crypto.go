@@ -6,54 +6,7 @@ import (
 
 	"crypto"
 	"crypto/rand"
-	"crypto/tls"
-	"crypto/x509"
-
-	"github.com/system-transparency/stfe/x509util"
 )
-
-// buildChainFromDerList builds an X.509 certificate chain from a list of
-// DER-encoded certificates using the log's configured trust anchors, extended
-// key-usages, and maximum chain length (which includes the trust anchor).
-func (lp *LogParameters) buildChainFromDerList(derChain [][]byte) ([]*x509.Certificate, error) {
-	certificate, intermediatePool, err := x509util.ParseDerChain(derChain)
-	if err != nil {
-		return nil, err
-	}
-	opts := x509.VerifyOptions{
-		Roots:         lp.AnchorPool,
-		Intermediates: intermediatePool,
-		KeyUsages:     lp.KeyUsage, // no extended key usage passes by default
-	}
-
-	chains, err := certificate.Verify(opts)
-	if err != nil {
-		return nil, fmt.Errorf("chain verification failed: %v", err)
-	}
-	if len(chains) == 0 { // better safe than sorry
-		return nil, fmt.Errorf("chain verification failed: no path")
-	}
-
-	// there might be several valid chains
-	for _, chain := range chains {
-		if int64(len(chain)) <= lp.MaxChain {
-			return chain, nil // just pick the first valid chain
-		}
-	}
-	return nil, fmt.Errorf("bad certificate chain length: too large")
-}
-
-// verifySignature checks if signature is valid for some serialized data.  The
-// only supported signature scheme is ed25519(0x0807), see §4.2.3 in RFC 8446.
-func (lp *LogParameters) verifySignature(certificate *x509.Certificate, scheme tls.SignatureScheme, serialized, signature []byte) error {
-	if scheme != tls.Ed25519 {
-		return fmt.Errorf("unsupported signature scheme: %v", scheme)
-	}
-	if err := certificate.CheckSignature(x509.PureEd25519, serialized, signature); err != nil {
-		return fmt.Errorf("invalid signature: %v", err)
-	}
-	return nil
-}
 
 // genV1Sdi issues a new SignedDebugInfoV1 StItem from a serialized leaf value
 func (lp *LogParameters) genV1Sdi(serialized []byte) (*StItem, error) {

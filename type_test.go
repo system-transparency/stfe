@@ -3,28 +3,7 @@ package stfe
 import (
 	"testing"
 
-	"crypto/tls"
-
-	"github.com/system-transparency/stfe/x509util"
-	"github.com/system-transparency/stfe/x509util/testdata"
-)
-
-var (
-	testLogId          = make([]byte, 32)
-	testSignature      = make([]byte, 32)
-	testNodeHash       = make([]byte, 32)
-	testMessage        = []byte("test message")
-	testPackage        = []byte("foobar")
-	testChecksum       = make([]byte, 32)
-	testTreeSize       = uint64(128)
-	testTreeSizeLarger = uint64(256)
-	testTimestamp      = uint64(0)
-	testProof          = [][]byte{
-		testNodeHash,
-		testNodeHash,
-	}
-	testIndex           = uint64(0)
-	testSignatureScheme = tls.Ed25519
+	"github.com/system-transparency/stfe/namespace/testdata"
 )
 
 // TestEncDecStItem tests that valid StItems can be (un)marshaled, and that
@@ -33,7 +12,7 @@ var (
 // Note: max limits for inclusion and consistency proofs are not tested.
 // Note: TreeHeadV1 extensions are not tested (not used by stfe)
 func TestEncDecStItem(t *testing.T) {
-	logIdSize := 32
+	logIdSize := 35
 	signatureMin := 1
 	signatureMax := 65535
 	messageMax := 65535
@@ -218,39 +197,39 @@ func TestEncDecStItem(t *testing.T) {
 		// checksum_v1
 		{
 			description: "too short package",
-			item:        NewChecksumV1(make([]byte, packageMin-1), testChecksum),
+			item:        NewChecksumV1(make([]byte, packageMin-1), testChecksum, mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 			wantErr:     true,
 		},
 		{
 			description: "too large package",
-			item:        NewChecksumV1(make([]byte, packageMax+1), testChecksum),
+			item:        NewChecksumV1(make([]byte, packageMax+1), testChecksum, mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 			wantErr:     true,
 		},
 		{
 			description: "ok package: min",
-			item:        NewChecksumV1(make([]byte, packageMin), testChecksum),
+			item:        NewChecksumV1(make([]byte, packageMin), testChecksum, mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 		},
 		{
 			description: "ok package: max",
-			item:        NewChecksumV1(make([]byte, packageMax), testChecksum),
+			item:        NewChecksumV1(make([]byte, packageMax), testChecksum, mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 		},
 		{
 			description: "too short checksum",
-			item:        NewChecksumV1(testPackage, make([]byte, checksumMin-1)),
+			item:        NewChecksumV1(testPackage, make([]byte, checksumMin-1), mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 			wantErr:     true,
 		},
 		{
 			description: "too large checksum",
-			item:        NewChecksumV1(testPackage, make([]byte, checksumMax+1)),
+			item:        NewChecksumV1(testPackage, make([]byte, checksumMax+1), mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 			wantErr:     true,
-		},
+		}, // namespace (un)marshal is already tested in its own package (skip)
 		{
 			description: "ok checksum: min",
-			item:        NewChecksumV1(testPackage, make([]byte, checksumMin)),
+			item:        NewChecksumV1(testPackage, make([]byte, checksumMin), mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 		},
 		{
 			description: "ok checksum: max",
-			item:        NewChecksumV1(testPackage, make([]byte, checksumMax)),
+			item:        NewChecksumV1(testPackage, make([]byte, checksumMax), mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 		},
 	} {
 		b, err := table.item.MarshalB64()
@@ -266,64 +245,6 @@ func TestEncDecStItem(t *testing.T) {
 		var item StItem
 		if err := item.UnmarshalB64(b); err != nil {
 			t.Errorf("failed unmarshaling StItem(%s) in test %q: %v", table.item.Format, table.description, err)
-		}
-	}
-}
-
-// TestEncDecAppendix tests that valid appendices can be (un)marshaled, and that
-// invalid ones in fact dail.
-//
-// Note: max limits for certificate chains are not tested.
-func TestEncDecAppendix(t *testing.T) {
-	chain, err := x509util.NewCertificateList(testdata.RootChain)
-	if err != nil {
-		t.Fatalf("must decode certificate chain: %v", err)
-	}
-
-	signatureMin := 1
-	signatureMax := 16383
-	for _, table := range []struct {
-		description string
-		appendix    *Appendix
-		wantErr     bool
-	}{
-		{
-			description: "too short signature",
-			appendix:    NewAppendix(chain, make([]byte, signatureMin-1), uint16(testSignatureScheme)),
-			wantErr:     true,
-		},
-		{
-			description: "too large signature",
-			appendix:    NewAppendix(chain, make([]byte, signatureMax+1), uint16(testSignatureScheme)),
-			wantErr:     true,
-		},
-		{
-			description: "ok signature: min",
-			appendix:    NewAppendix(chain, make([]byte, signatureMin), uint16(testSignatureScheme)),
-		},
-		{
-			description: "ok signature: max",
-			appendix:    NewAppendix(chain, make([]byte, signatureMax), uint16(testSignatureScheme)),
-		},
-		{
-			description: "too short chain",
-			appendix:    NewAppendix(nil, testSignature, uint16(testSignatureScheme)),
-			wantErr:     true,
-		},
-	} {
-		b, err := table.appendix.Marshal()
-		if err != nil && !table.wantErr {
-			t.Errorf("failed marshaling Appendix for %q: %v", table.description, err)
-		} else if err == nil && table.wantErr {
-			t.Errorf("succeeded marshaling Appendix but wanted error for %q", table.description)
-		}
-		if err != nil || table.wantErr {
-			continue // nothing to unmarshal
-		}
-
-		var appendix Appendix
-		if err := appendix.Unmarshal(b); err != nil {
-			t.Errorf("failed unmarshaling Appendix: %v", err)
 		}
 	}
 }
@@ -369,7 +290,7 @@ func TestTreeHeadMarshal(t *testing.T) {
 
 // TestStItemUnmarshal tests that invalid ST items cannot be unmarshaled
 func TestStItemUnmarshalFailure(t *testing.T) {
-	b, err := NewChecksumV1(testPackage, testChecksum).Marshal()
+	b, err := NewChecksumV1(testPackage, testChecksum, mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)).Marshal()
 	if err != nil {
 		t.Errorf("must marshal ChecksumV1 StItem: %v", err)
 		return
@@ -393,33 +314,5 @@ func TestStItemUnmarshalFailure(t *testing.T) {
 
 	if err := checksum.UnmarshalB64("@" + b64(b[1:])); err == nil {
 		t.Errorf("succeded unmarshaling base64 but wanted error: bad byte")
-	}
-}
-
-// TestAppendixUnmarshal tests that invalid appendices cannot be unmarshaled
-func TestAppendixUnmarshalFailure(t *testing.T) {
-	chain, err := x509util.NewCertificateList(testdata.RootChain)
-	if err != nil {
-		t.Fatalf("must decode certificate chain: %v", err)
-	}
-	b, err := NewAppendix(chain, testSignature, uint16(testSignatureScheme)).Marshal()
-	if err != nil {
-		t.Fatalf("must marshal Appendix: %v", err)
-	}
-
-	var appendix Appendix
-	if err := appendix.Unmarshal(append(b[:], []byte{0}...)); err == nil {
-		t.Errorf("succeeded unmarshaling but wanted error: one extra byte")
-	}
-	if err := appendix.Unmarshal(append(b[:], b[:]...)); err == nil {
-		t.Errorf("succeeded unmarshaling but wanted error: one extra item")
-	}
-	if err := appendix.Unmarshal([]byte{0}); err == nil {
-		t.Errorf("succeeded unmarshaling but wanted error: just a single byte")
-	}
-
-	b[0] = byte(len(testSignature)) + 1 // will mess up the first length specifier
-	if err := appendix.Unmarshal(b); err == nil {
-		t.Errorf("succeeded unmarshaling but wanted error: bad length")
 	}
 }

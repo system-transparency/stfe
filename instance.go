@@ -6,12 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"crypto/sha256"
-	"crypto/x509"
 	"net/http"
 
 	"github.com/google/trillian"
-	"github.com/system-transparency/stfe/x509util"
+	"github.com/system-transparency/stfe/namespace"
 )
 
 // Instance is an instance of a particular log front-end
@@ -23,14 +21,12 @@ type Instance struct {
 
 // LogParameters is a collection of log parameters
 type LogParameters struct {
-	LogId      []byte              // used externally by everyone
-	TreeId     int64               // used internally by Trillian
-	Prefix     string              // e.g., "test" for <base>/test
-	MaxRange   int64               // max entries per get-entries request
-	MaxChain   int64               // max submitter certificate chain length
-	AnchorPool *x509.CertPool      // for chain verification
-	AnchorList []*x509.Certificate // for access to the raw certificates
-	KeyUsage   []x509.ExtKeyUsage  // which extended key usages are accepted
+	LogId      []byte                   // used externally by everyone
+	TreeId     int64                    // used internally by Trillian
+	Prefix     string                   // e.g., "test" for <base>/test
+	MaxRange   int64                    // max entries per get-entries request
+	MaxChain   int64                    // max submitter certificate chain length
+	Namespaces *namespace.NamespacePool // trust namespaces
 	Signer     crypto.Signer
 	HashType   crypto.Hash // hash function used by Trillian
 }
@@ -52,7 +48,7 @@ func (i Instance) String() string {
 }
 
 func (lp LogParameters) String() string {
-	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) MaxRange(%d) MaxChain(%d) NumAnchors(%d)", lp.id(), lp.TreeId, lp.Prefix, lp.MaxRange, lp.MaxChain, len(lp.AnchorList))
+	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) MaxRange(%d) MaxChain(%d) NumAnchors(%d)", lp.id(), lp.TreeId, lp.Prefix, lp.MaxRange, lp.MaxChain, len(lp.Namespaces.List()))
 }
 
 func (e Endpoint) String() string {
@@ -70,34 +66,26 @@ func NewInstance(lp *LogParameters, client trillian.TrillianLogClient, deadline 
 
 // NewLogParameters creates new log parameters.  Note that the signer is
 // assumed to be an ed25519 signing key.  Could be fixed at some point.
-func NewLogParameters(treeId int64, prefix string, anchors []*x509.Certificate, signer crypto.Signer, maxRange, maxChain int64) (*LogParameters, error) {
+func NewLogParameters(signer crypto.Signer, logId *namespace.Namespace, treeId int64, prefix string, namespaces *namespace.NamespacePool, maxRange int64) (*LogParameters, error) {
 	if signer == nil {
 		return nil, fmt.Errorf("need a signer but got none")
-	}
-	if len(anchors) < 1 {
-		return nil, fmt.Errorf("need at least one trust anchor")
 	}
 	if maxRange < 1 {
 		return nil, fmt.Errorf("max range must be at least one")
 	}
-	if maxChain < 1 {
-		return nil, fmt.Errorf("max chain must be at least one")
+	if len(namespaces.List()) < 1 {
+		return nil, fmt.Errorf("need at least one trusted namespace")
 	}
-	pub, err := x509.MarshalPKIXPublicKey(signer.Public())
+	lid, err := logId.Marshal()
 	if err != nil {
-		return nil, fmt.Errorf("failed DER encoding SubjectPublicKeyInfo: %v", err)
+		return nil, fmt.Errorf("failed encoding log identifier: %v", err)
 	}
-	hasher := sha256.New()
-	hasher.Write(pub)
 	return &LogParameters{
-		LogId:      hasher.Sum(nil),
+		LogId:      lid,
 		TreeId:     treeId,
 		Prefix:     prefix,
 		MaxRange:   maxRange,
-		MaxChain:   maxChain,
-		AnchorPool: x509util.NewCertPool(anchors),
-		AnchorList: anchors,
-		KeyUsage:   []x509.ExtKeyUsage{}, // placeholder, must be tested if used
+		Namespaces: namespaces,
 		Signer:     signer,
 		HashType:   crypto.SHA256, // STFE assumes RFC 6962 hashing
 	}, nil

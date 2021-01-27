@@ -6,10 +6,9 @@ import (
 	"crypto"
 	"fmt"
 	"testing"
-	"time"
 
 	"crypto/ed25519"
-	"crypto/tls"
+	//"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -19,12 +18,8 @@ import (
 	"github.com/google/certificate-transparency-go/trillian/mockclient"
 	cttestdata "github.com/google/certificate-transparency-go/trillian/testdata"
 	"github.com/google/trillian"
-	"github.com/system-transparency/stfe/x509util"
-	"github.com/system-transparency/stfe/x509util/testdata"
-)
 
-var (
-	testDeadline = time.Second * 10
+	"github.com/system-transparency/stfe/namespace/testdata"
 )
 
 type testHandler struct {
@@ -119,39 +114,39 @@ func TestPostHandlersRejectGet(t *testing.T) {
 	}
 }
 
-// TestGetAnchors checks for a valid number of decodable trust anchors
-func TestGetAnchors(t *testing.T) {
-	th := newTestHandler(t, nil)
-	defer th.mockCtrl.Finish()
-
-	url := EndpointGetAnchors.Path("http://example.com", th.instance.LogParameters.Prefix)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		t.Fatalf("failed creating http request: %v", err)
-	}
-
-	w := httptest.NewRecorder()
-	th.getHandler(t, EndpointGetAnchors).ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, http.StatusOK)
-		return
-	}
-
-	var derAnchors [][]byte
-	if err := json.Unmarshal([]byte(w.Body.String()), &derAnchors); err != nil {
-		t.Errorf("failed unmarshaling trust anchors response: %v", err)
-		return
-	}
-	if got, want := len(derAnchors), len(th.instance.LogParameters.AnchorList); got != want {
-		t.Errorf("unexpected trust anchor count %d, want %d", got, want)
-	}
-	if _, err := x509util.ParseDerList(derAnchors); err != nil {
-		t.Errorf("failed decoding trust anchors: %v", err)
-	}
-}
+//// TestGetAnchors checks for a valid number of decodable trust anchors
+//func TestGetAnchors(t *testing.T) {
+//	// TODO: refactor with namespaces
+//	//th := newTestHandler(t, nil)
+//	//defer th.mockCtrl.Finish()
+//
+//	//url := EndpointGetAnchors.Path("http://example.com", th.instance.LogParameters.Prefix)
+//	//req, err := http.NewRequest("GET", url, nil)
+//	//if err != nil {
+//	//	t.Fatalf("failed creating http request: %v", err)
+//	//}
+//
+//	//w := httptest.NewRecorder()
+//	//th.getHandler(t, EndpointGetAnchors).ServeHTTP(w, req)
+//	//if w.Code != http.StatusOK {
+//	//	t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, http.StatusOK)
+//	//	return
+//	//}
+//
+//	//var derAnchors [][]byte
+//	//if err := json.Unmarshal([]byte(w.Body.String()), &derAnchors); err != nil {
+//	//	t.Errorf("failed unmarshaling trust anchors response: %v", err)
+//	//	return
+//	//}
+//	//if got, want := len(derAnchors), len(th.instance.LogParameters.); got != want {
+//	//	t.Errorf("unexpected trust anchor count %d, want %d", got, want)
+//	//}
+//	//if _, err := x509util.ParseDerList(derAnchors); err != nil {
+//	//	t.Errorf("failed decoding trust anchors: %v", err)
+//	//}
+//}
 
 func TestGetEntries(t *testing.T) {
-	chainLen := 3
 	for _, table := range []struct {
 		description string
 		breq        *GetEntriesRequest
@@ -179,23 +174,24 @@ func TestGetEntries(t *testing.T) {
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
-		{
-			description: "invalid get-entries response",
-			breq: &GetEntriesRequest{
-				Start: 0,
-				End:   1,
-			},
-			trsp:        makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.RootChain, testdata.EndEntityPrivateKey, false),
-			wantCode:    http.StatusInternalServerError,
-			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
-		},
+		// TODO: make invalid get-entries response
+		//{
+		//	description: "invalid get-entries response",
+		//	breq: &GetEntriesRequest{
+		//		Start: 0,
+		//		End:   1,
+		//	},
+		//	trsp:        makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk),
+		//	wantCode:    http.StatusInternalServerError,
+		//	wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
+		//},
 		{
 			description: "valid get-entries response",
 			breq: &GetEntriesRequest{
 				Start: 0,
 				End:   1,
 			},
-			trsp:     makeTrillianGetLeavesByRangeResponse(t, 0, 1, []byte("foobar-1.2.3"), testdata.RootChain, testdata.EndEntityPrivateKey, true),
+			trsp:     makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk),
 			wantCode: http.StatusOK,
 		},
 	} {
@@ -206,7 +202,7 @@ func TestGetEntries(t *testing.T) {
 			url := EndpointGetEntries.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
-				t.Fatalf("failed creating http request: %v", err)
+				t.Fatalf("must create http request: %v", err)
 			}
 			q := req.URL.Query()
 			q.Add("start", fmt.Sprintf("%d", table.breq.Start))
@@ -244,30 +240,19 @@ func TestGetEntries(t *testing.T) {
 						t.Errorf("invalid StFormat: got %v, want %v", item.Format, StFormatChecksumV1)
 					}
 					checksum := item.ChecksumV1
-					if got, want := checksum.Package, []byte(fmt.Sprintf("%s_%d", "foobar-1.2.3", int64(i)+table.breq.Start)); !bytes.Equal(got, want) {
+					if got, want := checksum.Package, []byte(fmt.Sprintf("%s_%d", testPackage, int64(i)+table.breq.Start)); !bytes.Equal(got, want) {
 						t.Errorf("got package name %s, want %s", string(got), string(want))
 					}
 					if got, want := checksum.Checksum, make([]byte, 32); !bytes.Equal(got, want) {
 						t.Errorf("got package checksum %X, want %X", got, want)
 					}
+					// TODO: check namespace?
 				}
 
-				chain, err := x509util.ParseDerList(rsp.Chain)
-				if err != nil {
-					t.Errorf("failed parsing certificate chain: %v", err)
-				} else if got, want := len(chain), chainLen; got != want {
-					t.Errorf("got chain length %d, want %d", got, want)
-				} else {
-					if err := x509util.VerifyChain(chain); err != nil {
-						t.Errorf("invalid certificate chain: %v", err)
-					}
-				}
-				if got, want := tls.SignatureScheme(rsp.SignatureScheme), tls.Ed25519; got != want {
-					t.Errorf("got signature scheme %s, want %s", got, want)
-				}
-				if !ed25519.Verify(chain[0].PublicKey.(ed25519.PublicKey), rsp.Item, rsp.Signature) {
-					t.Errorf("invalid ed25519 signature")
-				}
+				// TODO: verify signaturew w/ namespace?
+				//if !ed25519.Verify(chain[0].PublicKey.(ed25519.PublicKey), rsp.Item, rsp.Signature) {
+				//	t.Errorf("invalid ed25519 signature")
+				//}
 			}
 		}()
 	}
@@ -285,29 +270,29 @@ func TestAddEntry(t *testing.T) {
 	}{
 		{
 			description: "empty trillian response",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, true),
+			breq:        mustMakeEd25519ChecksumV1Buffer(t, testPackage, testChecksum, testdata.Ed25519Vk, testdata.Ed25519Sk),
 			terr:        fmt.Errorf("back-end failure"),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 		},
 		{
-			description: "bad request parameters",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, false),
+			description: "bad request parameters: invalid signature",
+			breq:        mustMakeEd25519ChecksumV1Buffer(t, testPackage, testChecksum, make([]byte, 32), testdata.Ed25519Sk),
 			wantCode:    http.StatusBadRequest,
 			wantErrText: http.StatusText(http.StatusBadRequest) + "\n",
 		},
 		{
 			description: "log signature failure",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, true),
-			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, false),
+			breq:        mustMakeEd25519ChecksumV1Buffer(t, testPackage, testChecksum, testdata.Ed25519Vk, testdata.Ed25519Sk),
+			trsp:        makeTrillianQueueLeafResponse(t, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk, false),
 			wantCode:    http.StatusInternalServerError,
 			wantErrText: http.StatusText(http.StatusInternalServerError) + "\n",
 			signer:      cttestdata.NewSignerWithErr(nil, fmt.Errorf("signing failed")),
 		},
 		{
 			description: "valid add-entry request-response",
-			breq:        makeTestLeafBuffer(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, true),
-			trsp:        makeTrillianQueueLeafResponse(t, []byte("foobar-1.2.3"), testdata.IntermediateChain, testdata.EndEntityPrivateKey, false),
+			breq:        mustMakeEd25519ChecksumV1Buffer(t, testPackage, testChecksum, testdata.Ed25519Vk, testdata.Ed25519Sk),
+			trsp:        makeTrillianQueueLeafResponse(t, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk, false),
 			wantCode:    http.StatusOK,
 			signer:      cttestdata.NewSignerWithFixedSig(nil, make([]byte, 32)),
 		},
@@ -686,54 +671,28 @@ func TestGetProofByHash(t *testing.T) {
 	}
 }
 
-// makeTestLeaf creates add-entry test data
-func makeTestLeaf(t *testing.T, name, pemChain, pemKey []byte) ([]byte, []byte) {
+// mustMakeEd25519ChecksumV1 creates an ed25519-signed ChecksumV1 leaf
+func mustMakeEd25519ChecksumV1(t *testing.T, id, checksum, vk, sk []byte) ([]byte, []byte) {
 	t.Helper()
-	key, err := x509util.NewEd25519PrivateKey(pemKey)
+	leaf, err := NewChecksumV1(id, checksum, mustNewNamespaceEd25519V1(t, vk)).Marshal()
 	if err != nil {
-		t.Fatalf("failed creating ed25519 signing key: %v", err)
+		t.Fatalf("must serialize checksum_v1: %v", err)
 	}
-	chain, err := x509util.NewCertificateList(pemChain)
-	if err != nil {
-		t.Fatalf("failed parsing x509 chain: %v", err)
-	}
-	leaf, err := NewChecksumV1(name, make([]byte, 32)).Marshal()
-	if err != nil {
-		t.Fatalf("failed creating serialized checksum_v1: %v", err)
-	}
-	appendix, err := NewAppendix(chain, ed25519.Sign(key, leaf), uint16(tls.Ed25519)).Marshal()
-	if err != nil {
-		t.Fatalf("failed creating serialized appendix: %v", err)
-	}
-	return leaf, appendix
+	return leaf, ed25519.Sign(ed25519.PrivateKey(sk), leaf)
 }
 
-// makeTestLeafBuffer creates an add-entry data buffer that can be posted.  If
-// valid is set to false an invalid signature will be used.
-func makeTestLeafBuffer(t *testing.T, name, pemChain, pemKey []byte, valid bool) *bytes.Buffer {
+// mustMakeEd25519ChecksumV1Buffer creates an add-entry data buffer with an
+// Ed25519 namespace that can be posted.
+func mustMakeEd25519ChecksumV1Buffer(t *testing.T, identifier, checksum, vk, sk []byte) *bytes.Buffer {
 	t.Helper()
-	leaf, appendix := makeTestLeaf(t, name, pemChain, pemKey)
-
-	var a Appendix
-	if err := a.Unmarshal(appendix); err != nil {
-		t.Fatalf("failed unmarshaling Appendix: %v", err)
-	}
-	chain := make([][]byte, 0, len(a.Chain))
-	for _, certificate := range a.Chain {
-		chain = append(chain, certificate.Data)
-	}
+	leaf, signature := mustMakeEd25519ChecksumV1(t, identifier, checksum, vk, sk)
 	req := AddEntryRequest{
-		Item:            leaf,
-		Signature:       a.Signature,
-		SignatureScheme: a.SignatureScheme,
-		Chain:           chain,
-	}
-	if !valid {
-		req.Signature = []byte{0, 1, 2, 3}
+		Item:      leaf,
+		Signature: signature,
 	}
 	data, err := json.Marshal(req)
 	if err != nil {
-		t.Fatalf("failed marshaling add-entry parameters: %v", err)
+		t.Fatalf("must marshal add-entry request: %v", err)
 	}
 	return bytes.NewBuffer(data)
 }

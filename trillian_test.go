@@ -6,10 +6,10 @@ import (
 
 	"github.com/google/trillian"
 	"github.com/google/trillian/types"
-	"github.com/system-transparency/stfe/x509util/testdata"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/system-transparency/stfe/namespace/testdata"
 )
 
 func TestCheckQueueLeaf(t *testing.T) {
@@ -35,11 +35,11 @@ func TestCheckQueueLeaf(t *testing.T) {
 		},
 		{
 			description: "ok response: duplicate leaf",
-			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.IntermediateChain, testdata.EndEntityPrivateKey, true),
+			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk, true),
 		},
 		{
 			description: "ok response: new leaf",
-			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.IntermediateChain, testdata.EndEntityPrivateKey, false),
+			rsp:         makeTrillianQueueLeafResponse(t, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk, false),
 		},
 	} {
 		if err := checkQueueLeaf(table.rsp, table.err); (err != nil) != table.wantErr {
@@ -73,7 +73,7 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.Leaves = nil
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk)),
 			wantErr: true,
 		},
 		{
@@ -82,7 +82,7 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot = nil
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk)),
 			wantErr: true,
 		},
 		{
@@ -91,7 +91,7 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot.LogRoot = nil
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk)),
 			wantErr: true,
 		},
 		{
@@ -100,13 +100,13 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot.LogRoot = rsp.SignedLogRoot.LogRoot[1:]
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, 0, 1, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk)),
 			wantErr: true,
 		},
 		{
 			description: "bad response: too many leaves",
 			req:         &GetEntriesRequest{Start: 0, End: 1},
-			rsp:         makeTrillianGetLeavesByRangeResponse(t, 0, 2, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true),
+			rsp:         makeTrillianGetLeavesByRangeResponse(t, 0, 2, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk),
 			wantErr:     true,
 		},
 		{
@@ -115,13 +115,13 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot = makeLatestSignedLogRootResponse(t, 0, testTreeSize, testNodeHash).SignedLogRoot
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk)),
 			wantErr: true,
 		},
 		{
 			description: "bad response: invalid leaf indices",
 			req:         &GetEntriesRequest{Start: 10, End: 11},
-			rsp:         makeTrillianGetLeavesByRangeResponse(t, 11, 12, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true),
+			rsp:         makeTrillianGetLeavesByRangeResponse(t, 11, 12, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk),
 			wantErr:     true,
 		},
 		{
@@ -130,12 +130,12 @@ func TestCheckGetLeavesByRange(t *testing.T) {
 			rsp: func(rsp *trillian.GetLeavesByRangeResponse) *trillian.GetLeavesByRangeResponse {
 				rsp.SignedLogRoot = makeLatestSignedLogRootResponse(t, 0, testTreeSize, testNodeHash).SignedLogRoot
 				return rsp
-			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true)),
+			}(makeTrillianGetLeavesByRangeResponse(t, int64(testTreeSize)-1, int64(testTreeSize)-1, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk)),
 		},
 		{
 			description: "ok response: a bunch of leaves",
 			req:         &GetEntriesRequest{Start: 10, End: 20},
-			rsp:         makeTrillianGetLeavesByRangeResponse(t, 10, 20, testPackage, testdata.RootChain, testdata.EndEntityPrivateKey, true),
+			rsp:         makeTrillianGetLeavesByRangeResponse(t, 10, 20, testPackage, testdata.Ed25519Vk, testdata.Ed25519Sk),
 		},
 	} {
 		if _, err := checkGetLeavesByRange(table.req, table.rsp, table.err); (err != nil) != table.wantErr {
@@ -284,13 +284,13 @@ func TestCheckGetLatestSignedLogRoot(t *testing.T) {
 }
 
 // makeTrillianQueueLeafResponse creates a valid trillian QueueLeafResponse
-// for a package `name` where the checksum is all zeros (32 bytes).  The pemKey
-// is a PEM-encoded ed25519 signing key, and pemChain its certificate chain.
+// for a package `name` where the checksum is all zeros (32 bytes).  Namespace
+// is based on vk and sk (ed25519).
 //
 // Note: MerkleLeafHash and LeafIdentityHash are unset (not used by stfe).
-func makeTrillianQueueLeafResponse(t *testing.T, name, pemChain, pemKey []byte, dupCode bool) *trillian.QueueLeafResponse {
+func makeTrillianQueueLeafResponse(t *testing.T, name, vk, sk []byte, dupCode bool) *trillian.QueueLeafResponse {
 	t.Helper()
-	leaf, appendix := makeTestLeaf(t, name, pemChain, pemKey)
+	leaf, signature := mustMakeEd25519ChecksumV1(t, name, make([]byte, 32), vk, sk)
 	s := status.New(codes.OK, "ok").Proto()
 	if dupCode {
 		s = status.New(codes.AlreadyExists, "duplicate").Proto()
@@ -300,7 +300,7 @@ func makeTrillianQueueLeafResponse(t *testing.T, name, pemChain, pemKey []byte, 
 			Leaf: &trillian.LogLeaf{
 				MerkleLeafHash:   nil, // not used by stfe
 				LeafValue:        leaf,
-				ExtraData:        appendix,
+				ExtraData:        signature,
 				LeafIndex:        0,   // not applicable (log is not pre-ordered)
 				LeafIdentityHash: nil, // not used by stfe
 			},
@@ -343,22 +343,18 @@ func makeTrillianGetConsistencyProofResponse(t *testing.T, path [][]byte) *trill
 
 // makeTrillianGetLeavesByRangeResponse creates a range of leaves [start,end]
 // such that the package is `name`_<index> and the checksum is all zeros (32
-// bytes).  The pemKey is a PEM-encoded ed25519 signing key, and pemChain its
-// certificate chain.  Set `valid` to false to make an invalid Appendix.
+// bytes).  An Ed25519 namespace is used based on vk and sk.
 //
 // Note: MerkleLeafHash and LeafIdentityHash are unset (not used by stfe).
-func makeTrillianGetLeavesByRangeResponse(t *testing.T, start, end int64, name, pemChain, pemKey []byte, valid bool) *trillian.GetLeavesByRangeResponse {
+func makeTrillianGetLeavesByRangeResponse(t *testing.T, start, end int64, name, vk, sk []byte) *trillian.GetLeavesByRangeResponse {
 	t.Helper()
 	leaves := make([]*trillian.LogLeaf, 0, end-start+1)
 	for i, n := start, end+1; i < n; i++ {
-		leaf, appendix := makeTestLeaf(t, append(name, []byte(fmt.Sprintf("_%d", i))...), pemChain, pemKey)
-		if !valid {
-			appendix = []byte{0, 1, 2, 3}
-		}
+		leaf, signature := mustMakeEd25519ChecksumV1(t, append(name, []byte(fmt.Sprintf("_%d", i))...), make([]byte, 32), vk, sk)
 		leaves = append(leaves, &trillian.LogLeaf{
 			MerkleLeafHash:   nil,
 			LeafValue:        leaf,
-			ExtraData:        appendix,
+			ExtraData:        signature,
 			LeafIndex:        i,
 			LeafIdentityHash: nil,
 		})
