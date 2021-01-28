@@ -3,18 +3,18 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"strings"
 	"time"
 
-	"crypto/x509"
-	"io/ioutil"
+	"crypto/ed25519"
+	"encoding/base64"
 	"net/http"
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/system-transparency/stfe"
-	"github.com/system-transparency/stfe/x509util"
+	"github.com/system-transparency/stfe/namespace"
 	"google.golang.org/grpc"
 )
 
@@ -24,10 +24,9 @@ var (
 	prefix       = flag.String("prefix", "st/v1", "a prefix that proceeds each endpoint path")
 	trillianID   = flag.Int64("trillian_id", 5991359069696313945, "log identifier in the Trillian database")
 	rpcDeadline  = flag.Duration("rpc_deadline", time.Second*10, "deadline for backend RPC requests")
-	anchorPath   = flag.String("anchor_path", "../x509util/testdata/anchors.pem", "path to a file containing PEM-encoded X.509 root certificates")
-	keyPath      = flag.String("key_path", "../x509util/testdata/log.key", "path to a PEM-encoded ed25519 signing key")
+	key          = flag.String("key", "8gzezwrU/2eTrO6tEYyLKsoqn5V54URvKIL9cTE7jUYUqXVX4neJvcBq/zpSAYPsZFG1woh0OGBzQbi9UP9MZw==", "base64-encoded Ed25519 signing key")
+	namespaces   = flag.String("namespaces", "AAEgHOQFUkKNWpjYAhNKTyWCzahlI7RDtf5123kHD2LACj0=,AAEgLqrWb9JwQUTk/SwTNDdMH8aRmy3mbmhwEepO5WSgb+A=", "comma-separated list of trusted namespaces in base64 (default: testdata.Ed25519{Vk,Vk2})")
 	maxRange     = flag.Int64("max_range", 2, "maximum number of entries that can be retrived in a single request")
-	maxChain     = flag.Int64("max_chain", 3, "maximum number of certificates in a chain, including the trust anchor")
 )
 
 func main() {
@@ -48,23 +47,37 @@ func main() {
 	glog.Info("Adding prometheus handler on path: /metrics")
 	http.Handle("/metrics", promhttp.Handler())
 
-	glog.Infof("Loading trust anchors from file: %s", *anchorPath)
-	anchors, err := loadCertificates(*anchorPath)
+	glog.Infof("Creating namespace pool")
+	var anchors []*namespace.Namespace
+	for _, b64 := range strings.Split(*namespaces, ",") {
+		b, err := base64.StdEncoding.DecodeString(b64)
+		if err != nil {
+			glog.Fatalf("invalid namespace: %s: %v", b64, err)
+		}
+		var namespace namespace.Namespace
+		if err := namespace.Unmarshal(b); err != nil {
+			glog.Fatalf("invalid namespace: %s: %v", b64, err)
+		}
+		anchors = append(anchors, &namespace)
+	}
+	pool, err := namespace.NewNamespacePool(anchors)
 	if err != nil {
-		glog.Fatalf("no trust anchors: %v", err)
+		glog.Fatalf("invalid namespace pool: %v", err)
 	}
 
-	glog.Infof("Loading Ed25519 signing key from file: %s", *keyPath)
-	pem, err := ioutil.ReadFile(*keyPath)
+	glog.Infof("Creating log signer and identifier")
+	sk, err := base64.StdEncoding.DecodeString(*key)
 	if err != nil {
-		glog.Fatalf("no signing key: %v", err)
+		glog.Fatalf("invalid signing key: %v", err)
 	}
-	signer, err := x509util.NewEd25519PrivateKey(pem)
+	signer := ed25519.PrivateKey(sk)
+	logId, err := namespace.NewNamespaceEd25519V1([]byte(ed25519.PrivateKey(sk).Public().(ed25519.PublicKey)))
 	if err != nil {
-		glog.Fatalf("no signing key: %v", err)
+		glog.Fatalf("failed creating log id from secret key: %v", err)
 	}
 
-	lp, err := stfe.NewLogParameters(*trillianID, *prefix, anchors, signer, *maxRange, *maxChain)
+	glog.Infof("Initializing log parameters")
+	lp, err := stfe.NewLogParameters(signer, logId, *trillianID, *prefix, pool, *maxRange)
 	if err != nil {
 		glog.Fatalf("failed setting up log parameters: %v", err)
 	}
@@ -84,20 +97,4 @@ func main() {
 	}
 
 	glog.Flush()
-}
-
-// loadCertificates loads a non-empty list of PEM-encoded certificates from file
-func loadCertificates(path string) ([]*x509.Certificate, error) {
-	pem, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed reading %s: %v", path, err)
-	}
-	anchors, err := x509util.NewCertificateList(pem)
-	if err != nil {
-		return nil, fmt.Errorf("failed parsing: %v", err)
-	}
-	if len(anchors) == 0 {
-		return nil, fmt.Errorf("no trust anchors")
-	}
-	return anchors, nil
 }

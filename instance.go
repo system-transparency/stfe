@@ -25,7 +25,6 @@ type LogParameters struct {
 	TreeId     int64                    // used internally by Trillian
 	Prefix     string                   // e.g., "test" for <base>/test
 	MaxRange   int64                    // max entries per get-entries request
-	MaxChain   int64                    // max submitter certificate chain length
 	Namespaces *namespace.NamespacePool // trust namespaces
 	Signer     crypto.Signer
 	HashType   crypto.Hash // hash function used by Trillian
@@ -48,7 +47,7 @@ func (i Instance) String() string {
 }
 
 func (lp LogParameters) String() string {
-	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) MaxRange(%d) MaxChain(%d) NumAnchors(%d)", lp.id(), lp.TreeId, lp.Prefix, lp.MaxRange, lp.MaxChain, len(lp.Namespaces.List()))
+	return fmt.Sprintf("LogId(%s) TreeId(%d) Prefix(%s) MaxRange(%d) Namespaces(%d)", lp.id(), lp.TreeId, lp.Prefix, lp.MaxRange, len(lp.Namespaces.List()))
 }
 
 func (e Endpoint) String() string {
