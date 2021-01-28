@@ -3,8 +3,8 @@ This document provides a sketch of System Transparency (ST) logging.  The basic
 idea is to insert hashes of system artifacts into a public, append-only, and
 tamper-evident transparency log, such that any enforcing client can be sure that
 they see the same system artifacts as everyone else.  A system artifact could
-be an operating system image, a Debian package, or generally just a checksum of
-something opaque.
+be an operating system image, a Debian package, or a browser update (to mention
+a few examples).
 
 An ST log can be implemented on-top of
 [Trillian](https://trillian.transparency.dev) using a custom STFE personality.
@@ -17,42 +17,38 @@ We take inspiration from from RFC 6962 and its follow-up specification [RFC
 
 ## Log parameters
 A log is defined by the following immutable parameters:
-- Log identifier: `SHA256(public key)`, see RFC 6962
-[§3.2](https://tools.ietf.org/html/rfc6962#section-3.2). TODO: use KID instead.
-- Public key: DER encoding of the key represented as `SubjectPublicKeyInfo`
-- Supported signature schemes: a list of signature schemes that the
-log recognizes.  Possible values are defined in RFC 8446,
-[§4.2.3](https://tools.ietf.org/html/rfc8446#section-4.2.3).  Submitters must
-use a signature algorithm that the log supports.
-- Signature scheme: the signature scheme that the log uses to sign tree heads
-and debug info statements.
+- Log identifier: serialized namespace of type `ed25519_v1` that defines the
+log's signing algorithm and public verification key.
+- Supported namespaces: a list of namespace types the log supports.  Submitters
+must use a supported namespace type when adding new entries.
 - Base URL: where can this log be reached?  E.g., example.com:1234/log
 
-Note that **there is no MMD**.  The idea is to merge added entries as soon as
-possible, and no client should trust that something is logged until an inclusion
-proof can be provided that references a trustworthy STH. 
+Note that **there is no Maximum Merge Delay (MMD)**, which is in contrast to RFC
+6962.  New entries are merged into the log as soon as possible, and no client
+should trust that something is logged until an inclusion proof can be provided
+that references a trustworthy STH. 
 
-Moreover, we use the same hash strategy as described in RFC 6962: SHA256 with
-`0x00` as leaf node prefix and `0x01` as interior node prefix.
+We use the same hash strategy as described in RFC 6962: SHA256 with `0x00` as
+leaf node prefix and `0x01` as interior node prefix.
 
 ## Minimum acceptance criteria
 A log should accept a submission if it is:
 - Well-formed, see below.
 - Digitally signed
-	- Proves who submitted an entry for logging
 	- Verification key must be registered in the log as a namespace
+	- Proves which namespace submitted an entry for logging
 
 ## Data structure definitions
-We encode everything that is digitally signed as in [RFC
-5246](https://tools.ietf.org/html/rfc5246).  Therefore, we use the same
-description language for our data structures.  A definition of the log's Merkle
-tree can be found in RFC 6962, see
-[§2](https://tools.ietf.org/html/rfc6962#section-2).
+Data structures are defined and serialized using the presentation language in
+[RFC 5246, §4](https://tools.ietf.org/html/rfc5246).  A definition of the log's
+Merkle tree can be found in [RFC 6962,
+§2](https://tools.ietf.org/html/rfc6962#section-2).
 
 ### Repurposing `TransItem` as `StItem`
-A general-purpose `TransItem` is defined by RFC 6962/bis.  Below we define our
-own `TransItem`, but name it `STItem` to emphasize that they are not the same.
-Some definitions are re-used and others are added.
+A general-purpose `TransItem` is defined in [RFC 6962/bis,
+§4.5](https://tools.ietf.org/html/draft-ietf-trans-rfc6962-bis-34#section-4.5).
+We define our own `TransItem`, but name it `STItem` to emphasize that they are
+not the same.  Some definitions are re-used while others are added.
 
 ```
 enum {
@@ -78,9 +74,10 @@ struct {
 ```
 
 ### Namespace
-The submitter's verification key is used to establish a _namespace_.  Added
-log entries must be signed by a registered namespace, such that anyone that
-observes the log can determine which artifact hashes belong to which namespaces.
+A _namespace_ is a versioned data structure that contains a public verification
+key (or fingerprint), as well as enough information to determine its format,
+signing, and verification operations.  Namespaces are used as identifiers, both
+for the log itself and the parties that submit artifact hashes.
 ```
 enum {
 	reserved(0),
@@ -96,15 +93,24 @@ struct {
 } Namespace;
 ```
 
-Credit: inspired by Keybase's [KID format](https://keybase.io/docs/api/1.0/kid).
+A log may reject submissions that correspond to an unknown namespace, or because
+a trusted namespace exceeded a configured rate limit.  As such, it is possible
+to use namespaces as an anti-spam feature.
+
+Namespaces also allow us to separate different ecosystems.  For example,
+software publisher _A_ can be sure that publicly logged artifact hashes are only
+considered valid if signed by their own namespace(s).
+
+(Credit: our namespace format is inspired by Keybase's
+key-id](https://keybase.io/docs/api/1.0/kid).)
 
 #### Ed25519V1
-At this time the only supported key type is Ed25519 as defined by [RFC
+At this time the only supported namespace type is based on Ed25519, see [RFC
 8032](https://tools.ietf.org/html/rfc8032).  The namespace field contains the
 full verification key.
 ```
 struct {
-	opaque namespace<32>; // public key
+	opaque namespace<32>; // public verification key
 } Ed25519V1;
 ```
 
@@ -129,9 +135,7 @@ struct {
 } RSASSAPKCS1_5V1;
 ```
 
-Another option is to just never bother with key fingerprint, i.e., use the
-complete (encoded) RSA key as the namespace.  Makes the leaf a lot larger
-though.
+This is just one of several options.  To be decided later on.
 
 ### Merkle tree leaf types
 In the future there might be several types of leaves.  Say, one for operating
@@ -157,8 +161,10 @@ update](https://wiki.mozilla.org/Security/Binary_Transparency).  It is assumed
 that the entities relying on the checksum type know how to find the artifact
 source (if not already at hand) and then reproduce the logged hash from it.
 
-Namespace is used to determine who this artifact hash belongs to.  Note that we
-do not connect namespaces to real-world identities.  It is just _a namespace_.
+Namespace is used to determine which ecosystem an artifact belongs to.  However,
+note that we do not connect namespaces to real-world identities: it is up to the
+respective ecosystems to communicate their own namespaces, e.g., by establishing
+namespaces based on trusted verification keys that already sign their artifacts.
 
 ### Signed Debug Info
 RFC 6962 uses Signed Certificate Timestamps (SCTs) as promises of public
@@ -170,19 +176,15 @@ If an unexpected delay is encountered, the submitter can present the issued SDI
 to the log operator (who can then investigate the underlying reason further).
 ```
 struct {
-	LogID log_id; // defined in RFC 6962, basically SHA256(pub key)
+	Namespace log_id;
 	opaque message<1..2^16-1> // debug string that is only meant for the log
 	opaque signature <1..2^16-1; // computed over a leaf-type StItem
 } SignedDebugInfoV1;
 ```
 
-The signature's encoding follows from the log's signature algorithm parameter,
-e.g., `ed25519(0x0807)` refers to [RFC
-8032](https://tools.ietf.org/html/rfc8032).  A complete list of signature
-schemes and their interpretations can be found in RFC 8446,
-[§4.2.3](https://tools.ietf.org/html/rfc8446#section-4.2.3).
+Signature formatting and verification operations follow from the log's
+namespace identifier.
 
-TODO: when log id is namespace this information is already communicated.
 TODO: remove SDI?
 
 ## Public endpoints
@@ -233,7 +235,7 @@ GET https://<base url>/st/v1/get-namespaces
 No input.
 
 Output:
-- an array of base-64 encoded namespaces that the log accept. TODO: format?
+- an array of base-64 encoded namespaces that the log accept.
 
 ### get-proof-by-hash
 ```
