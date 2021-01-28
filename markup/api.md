@@ -102,7 +102,7 @@ software publisher _A_ can be sure that publicly logged artifact hashes are only
 considered valid if signed by their own namespace(s).
 
 (Credit: our namespace format is inspired by Keybase's
-key-id](https://keybase.io/docs/api/1.0/kid).)
+[key-id](https://keybase.io/docs/api/1.0/kid).)
 
 #### Ed25519V1
 At this time the only supported namespace type is based on Ed25519, see [RFC
