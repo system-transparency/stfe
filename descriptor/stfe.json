@@ -1,18 +1,12 @@
 [
-    {
-        "name": "Test operator",
-        "email": "test@example.com",
-        "logs": [
-            {
-                "max_chain": 3,
-                "id": "B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM=",
-                "signature_schemes": [
-                    2055
-                ],
-                "base_url": "localhost:6965/st/v1",
-                "signature_scheme": 2055,
-                "public_key": "MCowBQYDK2VwAyEAqM4b/SHOCRId9xgiCPn8D8r6+Nrk9JTZZqW6vj7TGa0="
-            }
-        ]
-    }
+	{
+		"name": "Test operator",
+		"email":"test@example.com",
+		"logs": [
+			{
+				"id":"AAEgFKl1V+J3ib3Aav86UgGD7GRRtcKIdDhgc0G4vVD/TGc=",
+				"base_url":"localhost:6965/st/v1"
+			}
+		]
+	}
 ]

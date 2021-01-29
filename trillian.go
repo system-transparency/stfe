@@ -24,7 +24,7 @@ func checkQueueLeaf(rsp *trillian.QueueLeafResponse, err error) error {
 
 func checkGetLeavesByRange(req *GetEntriesRequest, rsp *trillian.GetLeavesByRangeResponse, err error) (int, error) {
 	if err != nil || rsp == nil || len(rsp.Leaves) == 0 || rsp.SignedLogRoot == nil || rsp.SignedLogRoot.LogRoot == nil {
-		return http.StatusInternalServerError, fmt.Errorf("%v", err)
+		return http.StatusInternalServerError, fmt.Errorf("%v", err) // TODO: break up into multiple returns?
 	}
 	if len(rsp.Leaves) > int(req.End-req.Start+1) {
 		return http.StatusInternalServerError, fmt.Errorf("too many leaves: %d for [%d,%d]", len(rsp.Leaves), req.Start, req.End)

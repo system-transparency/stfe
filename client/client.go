@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"crypto/ed25519"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
@@ -17,7 +15,7 @@ import (
 	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/system-transparency/stfe"
 	"github.com/system-transparency/stfe/descriptor"
-	"github.com/system-transparency/stfe/x509util"
+	"github.com/system-transparency/stfe/namespace"
 	"golang.org/x/net/context/ctxhttp"
 )
 
@@ -25,73 +23,40 @@ import (
 type Client struct {
 	Log        *descriptor.Log
 	Client     *http.Client
-	Chain      []*x509.Certificate
 	PrivateKey *ed25519.PrivateKey
+	Namespace  *namespace.Namespace
 	useHttp    bool
 }
 
-// NewClient returns a new log client
-func NewClient(log *descriptor.Log, client *http.Client, useHttp bool, chain []*x509.Certificate, privateKey *ed25519.PrivateKey) *Client {
-	return &Client{
+// NewClient returns a new log client.
+//
+// Note: private key can be ommied if no write APIs are used.
+func NewClient(log *descriptor.Log, client *http.Client, useHttp bool, privateKey *ed25519.PrivateKey) (*Client, error) {
+	c := &Client{
 		Log:        log,
-		Chain:      chain,
 		Client:     client,
 		PrivateKey: privateKey,
 		useHttp:    useHttp,
 	}
-}
-
-// NewClientFromPath loads necessary data from file before creating a new
-// client, namely, a pem-encoded certificate chain, a pem-encoded ed25519
-// private key, and a json-encoded list of log operators (see descriptor).
-// Chain and key paths may be left out by passing the empty string: "".
-func NewClientFromPath(logId, chainPath, keyPath, operatorsPath string, cli *http.Client, useHttp bool) (*Client, error) {
-	pem, err := ioutil.ReadFile(chainPath)
-	if err != nil && chainPath != "" {
-		return nil, fmt.Errorf("failed reading %s: %v", chainPath, err)
+	if privateKey != nil {
+		var err error
+		c.Namespace, err = namespace.NewNamespaceEd25519V1([]byte(privateKey.Public().(ed25519.PublicKey)))
+		if err != nil {
+			return nil, fmt.Errorf("failed creating namespace: %v", err)
+		}
 	}
-	c, err := x509util.NewCertificateList(pem)
-	if err != nil {
-		return nil, err
-	}
-
-	pem, err = ioutil.ReadFile(keyPath)
-	if err != nil && keyPath != "" {
-		return nil, fmt.Errorf("failed reading %s: %v", keyPath, err)
-	}
-	k, err := x509util.NewEd25519PrivateKey(pem)
-	if err != nil && keyPath != "" {
-		return nil, err
-	}
-
-	ops, err := descriptor.LoadOperators(operatorsPath)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := base64.StdEncoding.DecodeString(logId)
-	if err != nil {
-		return nil, fmt.Errorf("failed decoding log identifier: %v", err)
-	}
-
-	log, err := descriptor.FindLog(ops, id)
-	if err != nil {
-		return nil, err
-	}
-	return NewClient(log, cli, useHttp, c, &k), nil
+	return c, nil
 }
 
 // AddEntry creates, signs, and adds a new ChecksumV1 entry to the log
 func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StItem, error) {
-	leaf, err := stfe.NewChecksumV1(name, checksum).Marshal()
+	leaf, err := stfe.NewChecksumV1(name, checksum, c.Namespace).Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("failed marshaling StItem: %v", err)
 	}
 	data, err := json.Marshal(stfe.AddEntryRequest{
-		Item:            leaf,
-		Signature:       ed25519.Sign(*c.PrivateKey, leaf),
-		SignatureScheme: uint16(tls.Ed25519),
-		Chain:           c.chain(),
+		Item:      leaf,
+		Signature: ed25519.Sign(*c.PrivateKey, leaf),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed creating post data: %v", err)
@@ -114,16 +79,15 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
 	}
 
-	if k, err := c.Log.Key(); err != nil {
-		return nil, fmt.Errorf("bad public key: %v", err)
-	} else if err := VerifySignedDebugInfoV1(item, c.Log.Scheme, k, leaf); err != nil {
+	if ns, err := c.Log.Namespace(); err != nil {
+		return nil, fmt.Errorf("invalid log namespace: %v", err)
+	} else if err := ns.Verify(leaf, item.SignedDebugInfoV1.Signature); err != nil {
 		return nil, fmt.Errorf("bad SignedDebugInfoV1 signature: %v", err)
 	}
 	return item, nil
 }
 
-// GetSth fetches and verifies the most recent STH.  Safe to use without a
-// client chain and corresponding private key.
+// GetSth fetches and verifies the most recent STH.
 func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 	url := stfe.EndpointGetSth.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("GET", url, nil)
@@ -139,17 +103,21 @@ func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
 	if item.Format != stfe.StFormatSignedTreeHeadV1 {
 		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
 	}
+	th, err := item.SignedTreeHeadV1.TreeHead.Marshal()
+	if err != nil {
+		return nil, fmt.Errorf("failed marshaling tree head: %v", err)
+	}
 
-	if k, err := c.Log.Key(); err != nil {
+	if ns, err := c.Log.Namespace(); err != nil {
 		return nil, fmt.Errorf("bad public key: %v", err)
-	} else if err := VerifySignedTreeHeadV1(item, c.Log.Scheme, k); err != nil {
-		return nil, fmt.Errorf("bad SignedDebugInfoV1 signature: %v", err)
+	} else if err := ns.Verify(th, item.SignedTreeHeadV1.Signature); err != nil {
+		return nil, fmt.Errorf("bad SignedTreeHeadV1 signature: %v", err)
 	}
 	return item, nil
 }
 
 // GetConsistencyProof fetches and verifies a consistency proof between two
-// STHs.  Safe to use without a client chain and corresponding private key.
+// STHs.
 func (c *Client) GetConsistencyProof(ctx context.Context, first, second *stfe.StItem) (*stfe.StItem, error) {
 	url := stfe.EndpointGetConsistencyProof.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("GET", url, nil)
@@ -177,7 +145,7 @@ func (c *Client) GetConsistencyProof(ctx context.Context, first, second *stfe.St
 }
 
 // GetProofByHash fetches and verifies an inclusion proof for a leaf against an
-// STH.  Safe to use without a client chain and corresponding private key.
+// STH.
 func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, leaf []byte) (*stfe.StItem, error) {
 	leafHash := rfc6962.DefaultHasher.HashLeaf(leaf)
 	url := stfe.EndpointGetProofByHash.Path(c.protocol() + c.Log.BaseUrl)
@@ -208,7 +176,7 @@ func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, 
 // GetEntries fetches a range of entries from the log, verifying that they are
 // of type checksum_v1 and signed by a valid certificate chain in the appendix.
 // Fewer entries may be returned if too large range, in which case the end is
-// truncated. Safe to use without a client chain and corresponding private key.
+// truncated.
 //
 // Note that a certificate chain is considered valid if it is chained correctly.
 // In other words, the caller may want to check whether the anchor is trusted.
@@ -237,21 +205,16 @@ func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.Get
 		if item.Format != stfe.StFormatChecksumV1 {
 			return nil, fmt.Errorf("bad StFormat: %v (%v)", err, entry)
 		}
-		if chain, err := x509util.ParseDerList(entry.Chain); err != nil {
-			return nil, fmt.Errorf("bad certificate chain: %v (%v)", err, entry)
-		} else if err := x509util.VerifyChain(chain); err != nil {
-			return nil, fmt.Errorf("invalid certificate chain: %v (%v)", err, entry)
-		} else if err := VerifyChecksumV1(&item, chain[0].PublicKey, entry.Signature, tls.SignatureScheme(entry.SignatureScheme)); err != nil {
-			return nil, fmt.Errorf("invalid signature: %v (%v)", err, entry)
+		if err := item.ChecksumV1.Namespace.Verify(entry.Item, entry.Signature); err != nil { // TODO: only works if full vk in namespace
+			return nil, fmt.Errorf("bad signature: %v (%v)", err, entry)
 		}
 	}
 	return rsp, nil
 }
 
-// GetAnchors fetches the log's trust anchors.  Safe to use without a client
-// chain and corresponding private key.
-func (c *Client) GetAnchors(ctx context.Context) ([]*x509.Certificate, error) {
-	url := stfe.EndpointGetAnchors.Path(c.protocol() + c.Log.BaseUrl)
+// GetNamespaces fetches the log's trusted namespaces.
+func (c *Client) GetNamespaces(ctx context.Context) ([][]byte, error) {
+	url := stfe.EndpointGetAnchors.Path(c.protocol() + c.Log.BaseUrl) // TODO: update GetAnchors => GetNamespaces
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
@@ -260,15 +223,7 @@ func (c *Client) GetAnchors(ctx context.Context) ([]*x509.Certificate, error) {
 	if err := c.doRequest(ctx, req, &rsp); err != nil {
 		return nil, err
 	}
-	return x509util.ParseDerList(rsp)
-}
-
-func (c *Client) chain() [][]byte {
-	chain := make([][]byte, 0, len(c.Chain))
-	for _, cert := range c.Chain {
-		chain = append(chain, cert.Raw)
-	}
-	return chain
+	return rsp, nil
 }
 
 // doRequest sends an HTTP request and decodes the resulting json body into out
@@ -291,6 +246,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, out interface
 	return nil
 }
 
+//
 // doRequestWithStItemResponse sends an HTTP request and returns a decoded
 // StItem that the resulting HTTP response contained json:ed and marshaled
 func (c *Client) doRequestWithStItemResponse(ctx context.Context, req *http.Request) (*stfe.StItem, error) {

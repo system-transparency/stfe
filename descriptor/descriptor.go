@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"fmt"
 
-	"crypto"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
+
+	"github.com/system-transparency/stfe/namespace"
 )
 
 // Operator is an stfe log operator that runs zero or more logs
@@ -21,12 +20,9 @@ type Operator struct {
 
 // Log is a collection of immutable stfe log parameters
 type Log struct {
-	Id        []byte                `json:"id"`                // H(PublicKey)
-	PublicKey []byte                `json:"public_key"`        // DER-encoded SubjectPublicKeyInfo
-	Scheme    tls.SignatureScheme   `json:"signature_scheme"`  // Signature schemes used by the log (RFC 8446, §4.2.3)
-	Schemes   []tls.SignatureScheme `json:"signature_schemes"` // Signature schemes that submitters can use (RFC 8446, §4.2.3)
-	MaxChain  uint8                 `json:"max_chain"`         // maximum certificate chain length
-	BaseUrl   string                `json:"base_url"`          // E.g., example.com/st/v1
+	Id      []byte `json:"id"`       // Serialized namespace
+	BaseUrl string `json:"base_url"` // E.g., example.com/st/v1
+	// TODO: List of supported namespace types?
 }
 
 func FindLog(ops []Operator, logId []byte) (*Log, error) {
@@ -53,7 +49,10 @@ func LoadOperators(path string) ([]Operator, error) {
 	return ops, nil
 }
 
-// Key parses the log's public key
-func (l *Log) Key() (crypto.PublicKey, error) {
-	return x509.ParsePKIXPublicKey(l.PublicKey)
+func (l *Log) Namespace() (*namespace.Namespace, error) {
+	var n namespace.Namespace
+	if err := n.Unmarshal(l.Id); err != nil {
+		return nil, fmt.Errorf("invalid namespace: %v", err)
+	}
+	return &n, nil
 }

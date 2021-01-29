@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"crypto/sha256"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 )
 
 const (
-	operatorListJson = `[{"name":"Test operator","email":"test@example.com","logs":[{"id":"B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM=","public_key":"MCowBQYDK2VwAyEAqM4b/SHOCRId9xgiCPn8D8r6+Nrk9JTZZqW6vj7TGa0=","signature_scheme":2055,"signature_schemes":[2055],"max_chain":3,"base_url":"example.com/st/v1"}]}]`
+	operatorListJson = `[{"name":"Test operator","email":"test@example.com","logs":[{"id":"AAEgFKl1V+J3ib3Aav86UgGD7GRRtcKIdDhgc0G4vVD/TGc=","base_url":"example.com/st/v1"}]}]`
 )
 
 func TestMarshal(t *testing.T) {
@@ -52,7 +50,7 @@ func TestFindLog(t *testing.T) {
 		logId     []byte
 		wantError bool
 	}{
-		{makeOperatorList(), deb64("B9oCJk4XIOMXba8dBM5yUj+NLtqTE6xHwbvR9dYkHPM="), false},
+		{makeOperatorList(), deb64("AAEgFKl1V+J3ib3Aav86UgGD7GRRtcKIdDhgc0G4vVD/TGc="), false},
 		{makeOperatorList(), []byte{0, 1, 2, 3}, true},
 	} {
 		_, err := FindLog(table.ops, table.logId)
@@ -62,24 +60,39 @@ func TestFindLog(t *testing.T) {
 	}
 }
 
+func TestNamespace(t *testing.T) {
+	for _, table := range []struct {
+		description string
+		id []byte
+		wantErr bool
+	}{
+		{
+			description: "invalid: not a namespace",
+			id: []byte{0,1,2,3},
+			wantErr: true,
+		},
+		{
+			description: "valid",
+			id: deb64("AAEgFKl1V+J3ib3Aav86UgGD7GRRtcKIdDhgc0G4vVD/TGc="),
+		},
+	}{
+		l := &Log{ Id: table.id, BaseUrl: "example.com/st/v1" }
+		_, err := l.Namespace()
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("wanted error %v but got %v in test %q: %v", got, want, table.description, err)
+			return
+		}
+	}
+}
+
 func makeOperatorList() []Operator {
-	pub := deb64("MCowBQYDK2VwAyEAqM4b/SHOCRId9xgiCPn8D8r6+Nrk9JTZZqW6vj7TGa0=")
-	h := sha256.New()
-	h.Write(pub)
-	id := h.Sum(nil)
 	return []Operator{
 		Operator{
 			Name:  "Test operator",
 			Email: "test@example.com",
 			Logs: []*Log{
 				&Log{
-					Id:        id,
-					PublicKey: pub,
-					Scheme:    tls.Ed25519,
-					Schemes: []tls.SignatureScheme{
-						tls.Ed25519,
-					},
-					MaxChain: 3,
+					Id:        deb64("AAEgFKl1V+J3ib3Aav86UgGD7GRRtcKIdDhgc0G4vVD/TGc="),
 					BaseUrl:  "example.com/st/v1",
 				},
 			},
