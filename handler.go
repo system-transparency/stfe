@@ -9,7 +9,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
-	"github.com/google/trillian/types"
 )
 
 // Handler implements the http.Handler interface, and contains a reference
@@ -37,7 +36,7 @@ func (a Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 	reqcnt.Inc(a.instance.LogParameters.id(), string(a.endpoint))
 
-	ctx, cancel := context.WithDeadline(r.Context(), now.Add(a.instance.Deadline))
+	ctx, cancel := context.WithDeadline(r.Context(), now.Add(a.instance.LogParameters.Deadline))
 	defer cancel()
 
 	if r.Method != a.method {
@@ -57,6 +56,7 @@ func (a Handler) sendHTTPError(w http.ResponseWriter, statusCode int, err error)
 	http.Error(w, http.StatusText(statusCode), statusCode)
 }
 
+// addEntry accepts log entries from trusted submitters
 func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.V(3).Info("handling add-entry request")
 	req, err := i.LogParameters.newAddEntryRequest(r)
@@ -184,17 +184,9 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 // getSth provides the most recent STH
 func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
 	glog.V(3).Info("handling get-sth request")
-	trsp, err := i.Client.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{
-		LogId: i.LogParameters.TreeId,
-	})
-	var lr types.LogRootV1
-	if errInner := checkGetLatestSignedLogRoot(i.LogParameters, trsp, err, &lr); errInner != nil {
-		return http.StatusInternalServerError, fmt.Errorf("bad GetLatestSignedLogRootResponse: %v", errInner)
-	}
-
-	sth, err := i.LogParameters.genV1Sth(NewTreeHeadV1(&lr))
+	sth, err := i.SthSource.Latest(ctx)
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed creating signed tree head: %v", err)
+		return http.StatusInternalServerError, fmt.Errorf("Latest: %v", err)
 	}
 	rsp, err := sth.MarshalB64()
 	if err != nil {
@@ -202,6 +194,52 @@ func getSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Req
 	}
 	if err := writeJsonResponse(rsp, w); err != nil {
 		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
+}
+
+// getStableSth provides an STH that is stable for a fixed period of time
+func getStableSth(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
+	glog.V(3).Info("handling get-stable-sth request")
+	sth, err := i.SthSource.Stable(ctx)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("Latest: %v", err)
+	}
+	rsp, err := sth.MarshalB64()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	if err := writeJsonResponse(rsp, w); err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
+}
+
+// getCosi provides a cosigned STH
+func getCosi(ctx context.Context, i *Instance, w http.ResponseWriter, _ *http.Request) (int, error) {
+	costh, err := i.SthSource.Cosigned(ctx)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("Cosigned: %v", err)
+	}
+	rsp, err := costh.MarshalB64()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	if err := writeJsonResponse(rsp, w); err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
+}
+
+// addCosi accepts cosigned STHs from trusted witnesses
+func addCosi(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
+	glog.V(3).Info("handling add-cosignature request")
+	costh, err := i.LogParameters.newAddCosignatureRequest(r)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	if err := i.SthSource.AddCosignature(ctx, costh); err != nil {
+		return http.StatusBadRequest, err
 	}
 	return http.StatusOK, nil
 }

@@ -40,6 +40,41 @@ type GetConsistencyProofRequest struct {
 // is identical to the add-entry request that the log once accepted.
 type GetEntryResponse AddEntryRequest
 
+// AddCosignatureRequest encapsulates a cosignature request
+type AddCosignatureRequest struct {
+	Item []byte `json:"item"`
+}
+
+// newAddCosignatureRequest parses and verifies an STH cosignature request
+func (lp *LogParameters) newAddCosignatureRequest(r *http.Request) (*StItem, error) {
+	var req AddCosignatureRequest
+	if err := unpackJsonPost(r, &req); err != nil {
+		return nil, fmt.Errorf("unpackJsonPost: %v", err)
+	}
+
+	// Try decoding as CosignedTreeHeadV1
+	var item StItem
+	if err := item.Unmarshal(req.Item); err != nil {
+		return nil, fmt.Errorf("Unmarshal: %v", err)
+	}
+	if item.Format != StFormatCosignedTreeHeadV1 {
+		return nil, fmt.Errorf("invalid StItem format: %v", item.Format)
+	}
+
+	// Check that witness namespace is valid
+	sth := &StItem{Format: StFormatSignedTreeHeadV1, SignedTreeHeadV1: &item.CosignedTreeHeadV1.SignedTreeHeadV1}
+	if len(item.CosignedTreeHeadV1.SignatureV1) != 1 {
+		return nil, fmt.Errorf("invalid number of cosignatures")
+	} else if namespace, ok := lp.Witnesses.Find(&item.CosignedTreeHeadV1.SignatureV1[0].Namespace); !ok {
+		return nil, fmt.Errorf("unknown witness")
+	} else if msg, err := sth.Marshal(); err != nil {
+		return nil, fmt.Errorf("Marshal: %v", err)
+	} else if err := namespace.Verify(msg, item.CosignedTreeHeadV1.SignatureV1[0].Signature); err != nil {
+		return nil, fmt.Errorf("Verify: %v", err)
+	}
+	return &item, nil
+}
+
 // newAddEntryRequest parses and sanitizes the JSON-encoded add-entry
 // parameters from an incoming HTTP post.  The request is returned if it is
 // a checksumV1 entry that is signed by a valid namespace.
@@ -59,7 +94,7 @@ func (lp *LogParameters) newAddEntryRequest(r *http.Request) (*AddEntryRequest, 
 	}
 
 	// Check that namespace is valid for item
-	if namespace, ok := lp.Namespaces.Find(&item.ChecksumV1.Namespace); !ok {
+	if namespace, ok := lp.Submitters.Find(&item.ChecksumV1.Namespace); !ok {
 		return nil, fmt.Errorf("unknown namespace: %s", item.ChecksumV1.Namespace.String())
 	} else if err := namespace.Verify(entry.Item, entry.Signature); err != nil {
 		return nil, fmt.Errorf("invalid namespace: %v", err)
@@ -154,8 +189,8 @@ func (lp *LogParameters) newGetEntriesResponse(leaves []*trillian.LogLeaf) ([]*G
 
 // newGetAnchorsResponse assembles a get-anchors response
 func (lp *LogParameters) newGetAnchorsResponse() [][]byte {
-	namespaces := make([][]byte, 0, len(lp.Namespaces.List()))
-	for _, namespace := range lp.Namespaces.List() {
+	namespaces := make([][]byte, 0, len(lp.Submitters.List()))
+	for _, namespace := range lp.Submitters.List() {
 		raw, err := namespace.Marshal()
 		if err != nil {
 			fmt.Printf("TODO: fix me and entire func\n")

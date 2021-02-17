@@ -7,8 +7,47 @@ import (
 	"testing"
 
 	"net/http"
-	//	"github.com/google/trillian"
+
+	"github.com/system-transparency/stfe/namespace/testdata"
 )
+
+func TestNewAddCosignatureRequest(t *testing.T) {
+	lp := makeTestLogParameters(t, nil)
+	validSth := NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, testSignature)
+	for _, table := range []struct {
+		description string
+		breq        *bytes.Buffer
+		wantErr     bool
+	}{
+		// TODO: test cases for all errors + add wantBytes for valid cases
+		{
+			description: "invalid: unknown witness",
+			breq:        mustMakeAddCosiBuffer(t, testdata.Ed25519Sk2, testdata.Ed25519Vk2, validSth),
+			wantErr:     true,
+		},
+		{
+			description: "invalid: bad signature",
+			breq:        mustMakeAddCosiBuffer(t, testdata.Ed25519Sk, testdata.Ed25519Vk2, validSth),
+			wantErr:     true,
+		},
+		{
+			description: "valid",
+			breq:        mustMakeAddCosiBuffer(t, testdata.Ed25519Sk, testdata.Ed25519Vk, validSth),
+		},
+	} {
+		url := EndpointAddCosi.Path("http://example.com", lp.Prefix)
+		req, err := http.NewRequest("POST", url, table.breq)
+		if err != nil {
+			t.Fatalf("failed creating http request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		_, err = lp.newAddCosignatureRequest(req)
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got errror %v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+	}
+}
 
 // TODO: TestNewAddEntryRequest
 func TestNewAddEntryRequest(t *testing.T) {

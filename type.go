@@ -21,6 +21,7 @@ const (
 	StFormatConsistencyProofV1 StFormat = 3
 	StFormatInclusionProofV1   StFormat = 4
 	StFormatChecksumV1                  = 5
+	StFormatCosignedTreeHeadV1          = 6
 )
 
 // StItem references a versioned item based on a given format specifier
@@ -31,6 +32,7 @@ type StItem struct {
 	ConsistencyProofV1 *ConsistencyProofV1 `tls:"selector:Format,val:3"`
 	InclusionProofV1   *InclusionProofV1   `tls:"selector:Format,val:4"`
 	ChecksumV1         *ChecksumV1         `tls:"selector:Format,val:5"`
+	CosignedTreeHeadV1 *CosignedTreeHeadV1 `tls:"selector:Format,val:6"`
 }
 
 // SignedTreeHeadV1 is a signed tree head as defined by RFC 6962/bis, §4.10
@@ -79,6 +81,18 @@ type TreeHeadV1 struct {
 	Extension []byte `tls:"minlen:0,maxlen:65535"`
 }
 
+// CosignedTreeheadV1 is a cosigned STH
+type CosignedTreeHeadV1 struct {
+	SignedTreeHeadV1 SignedTreeHeadV1
+	SignatureV1      []SignatureV1 `tls:"minlen:0,maxlen:4294967295"`
+}
+
+// SignatureV1 is a detached signature that was produced by a namespace
+type SignatureV1 struct {
+	Namespace namespace.Namespace
+	Signature []byte `tls:"minlen:1,maxlen:65535"`
+}
+
 // NodeHash is a Merkle tree hash as defined by RFC 6962/bis, §4.9
 type NodeHash struct {
 	Data []byte `tls:"minlen:32,maxlen:255"`
@@ -103,6 +117,8 @@ func (f StFormat) String() string {
 		return "inclusion_proof_v1"
 	case StFormatChecksumV1:
 		return "checksum_v1"
+	case StFormatCosignedTreeHeadV1:
+		return "cosigned_tree_head_v1"
 	default:
 		return fmt.Sprintf("Unknown StFormat: %d", f)
 	}
@@ -120,6 +136,8 @@ func (i StItem) String() string {
 		return fmt.Sprintf("Format(%s): %s", i.Format, i.SignedDebugInfoV1)
 	case StFormatSignedTreeHeadV1:
 		return fmt.Sprintf("Format(%s): %s", i.Format, i.SignedTreeHeadV1)
+	case StFormatCosignedTreeHeadV1:
+		return fmt.Sprintf("Format(%s): %s", i.Format, i.CosignedTreeHeadV1)
 	default:
 		return fmt.Sprintf("unknown StItem: %s", i.Format)
 	}
@@ -147,6 +165,10 @@ func (i ChecksumV1) String() string {
 
 func (th TreeHeadV1) String() string {
 	return fmt.Sprintf("Timestamp(%s) TreeSize(%d) RootHash(%s)", time.Unix(int64(th.Timestamp/1000), 0), th.TreeSize, b64(th.RootHash.Data))
+}
+
+func (i CosignedTreeHeadV1) String() string {
+	return fmt.Sprintf("SignedTreeHead(%s) #Cosignatures(%d)", i.SignedTreeHeadV1.String(), len(i.SignatureV1))
 }
 
 // Marshal serializes an Stitem as defined by RFC 5246
@@ -261,6 +283,17 @@ func NewTreeHeadV1(lr *types.LogRootV1) *TreeHeadV1 {
 		uint64(lr.TreeSize),
 		NodeHash{lr.RootHash},
 		nil,
+	}
+}
+
+// NewCosignedTreeHeadV1 creates a new StItem of type cosigned_tree_head_v1
+func NewCosignedTreeHeadV1(sth *SignedTreeHeadV1, sigs []SignatureV1) *StItem {
+	return &StItem{
+		Format: StFormatCosignedTreeHeadV1,
+		CosignedTreeHeadV1: &CosignedTreeHeadV1{
+			SignedTreeHeadV1: *sth,
+			SignatureV1:      sigs,
+		},
 	}
 }
 

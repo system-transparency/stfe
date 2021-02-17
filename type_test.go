@@ -222,7 +222,7 @@ func TestEncDecStItem(t *testing.T) {
 			description: "too large checksum",
 			item:        NewChecksumV1(testPackage, make([]byte, checksumMax+1), mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
 			wantErr:     true,
-		}, // namespace (un)marshal is already tested in its own package (skip)
+		},
 		{
 			description: "ok checksum: min",
 			item:        NewChecksumV1(testPackage, make([]byte, checksumMin), mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
@@ -230,7 +230,19 @@ func TestEncDecStItem(t *testing.T) {
 		{
 			description: "ok checksum: max",
 			item:        NewChecksumV1(testPackage, make([]byte, checksumMax), mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk)),
-		},
+		}, // namespace (un)marshal is already tested in its own package (skip)
+		{
+			description: "ok cosigned sth",
+			item: NewCosignedTreeHeadV1(
+				NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, testSignature).SignedTreeHeadV1,
+				[]SignatureV1{
+					SignatureV1{
+						*mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk),
+						testSignature,
+					},
+				},
+			),
+		}, // TODO: the only thing that is not tested elsewhere for cosigned sth is bound on signature.  Unify signature into a type => some tests go away.
 	} {
 		b, err := table.item.MarshalB64()
 		if err != nil && !table.wantErr {
