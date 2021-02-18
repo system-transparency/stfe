@@ -14,6 +14,63 @@ import (
 	"github.com/system-transparency/stfe/namespace/testdata"
 )
 
+func TestNewActiveSthSource(t *testing.T) {
+	for _, table := range []struct {
+		description string
+		signer      crypto.Signer
+		trsp        *trillian.GetLatestSignedLogRootResponse
+		terr        error
+		wantErr     bool
+		wantCosi    *StItem // current cosigned sth
+		wantStable  *StItem // next stable sth that signatures are collected for
+	}{
+		{
+			description: "invalid trillian response",
+			signer:      cttestdata.NewSignerWithFixedSig(nil, testSignature),
+			terr:        fmt.Errorf("internal server error"),
+			wantErr:     true,
+		},
+		{
+			description: "valid",
+			signer:      cttestdata.NewSignerWithFixedSig(nil, testSignature),
+			trsp:        makeLatestSignedLogRootResponse(t, testTimestamp, testTreeSize, testNodeHash),
+			wantCosi:    NewCosignedTreeHeadV1(NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, testSignature).SignedTreeHeadV1, nil),
+			wantStable:  NewCosignedTreeHeadV1(NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, testSignature).SignedTreeHeadV1, nil),
+		},
+	} {
+		func() { // run deferred functions at the end of each iteration
+			th := newTestHandler(t, table.signer, nil)
+			defer th.mockCtrl.Finish()
+			th.client.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr)
+			source, err := NewActiveSthSource(th.client, th.instance.LogParameters)
+			if got, want := err != nil, table.wantErr; got != want {
+				t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
+			}
+			if err != nil {
+				return
+			}
+
+			if got, want := source.currSth, table.wantCosi; !reflect.DeepEqual(got, want) {
+				t.Errorf("got cosigned sth %v but wanted %v in test %q", got, want, table.description)
+			}
+			if got, want := source.nextSth, table.wantStable; !reflect.DeepEqual(got, want) {
+				t.Errorf("got stable sth %v but wanted %v in test %q", got, want, table.description)
+			}
+			cosignatureFrom := make(map[string]bool)
+			for _, wit := range table.wantStable.CosignedTreeHeadV1.SignatureV1 {
+				cosignatureFrom[wit.Namespace.String()] = true
+			}
+			if got, want := source.cosignatureFrom, cosignatureFrom; !reflect.DeepEqual(got, want) {
+				if got == nil {
+					t.Errorf("got uninitialized witness map %v but wanted %v in test %q", nil, want, table.description)
+				} else {
+					t.Errorf("got witness map %v but wanted %v in test %q", got, want, table.description)
+				}
+			}
+		}()
+	}
+}
+
 func TestLatest(t *testing.T) {
 	for _, table := range []struct {
 		description string
@@ -450,62 +507,5 @@ func TestRotate(t *testing.T) {
 		if gotLen := len(table.source.currSth.CosignedTreeHeadV1.SignatureV1); gotLen != wantLen {
 			t.Errorf("adding cosignatures to the stable sth modifies the fixated cosigned sth in test %q", table.description)
 		}
-	}
-}
-
-func TestNewActiveSthSource(t *testing.T) {
-	for _, table := range []struct {
-		description string
-		signer      crypto.Signer
-		trsp        *trillian.GetLatestSignedLogRootResponse
-		terr        error
-		wantErr     bool
-		wantCosi    *StItem // current cosigned sth
-		wantStable  *StItem // next stable sth that signatures are collected for
-	}{
-		{
-			description: "invalid trillian response",
-			signer:      cttestdata.NewSignerWithFixedSig(nil, testSignature),
-			terr:        fmt.Errorf("internal server error"),
-			wantErr:     true,
-		},
-		{
-			description: "valid",
-			signer:      cttestdata.NewSignerWithFixedSig(nil, testSignature),
-			trsp:        makeLatestSignedLogRootResponse(t, testTimestamp, testTreeSize, testNodeHash),
-			wantCosi:    NewCosignedTreeHeadV1(NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, testSignature).SignedTreeHeadV1, nil),
-			wantStable:  NewCosignedTreeHeadV1(NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp, testTreeSize, testNodeHash)), testLogId, testSignature).SignedTreeHeadV1, nil),
-		},
-	} {
-		func() { // run deferred functions at the end of each iteration
-			th := newTestHandler(t, table.signer, nil)
-			defer th.mockCtrl.Finish()
-			th.client.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr)
-			source, err := NewActiveSthSource(th.client, th.instance.LogParameters)
-			if got, want := err != nil, table.wantErr; got != want {
-				t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
-			}
-			if err != nil {
-				return
-			}
-
-			if got, want := source.currSth, table.wantCosi; !reflect.DeepEqual(got, want) {
-				t.Errorf("got cosigned sth %v but wanted %v in test %q", got, want, table.description)
-			}
-			if got, want := source.nextSth, table.wantStable; !reflect.DeepEqual(got, want) {
-				t.Errorf("got stable sth %v but wanted %v in test %q", got, want, table.description)
-			}
-			cosignatureFrom := make(map[string]bool)
-			for _, wit := range table.wantStable.CosignedTreeHeadV1.SignatureV1 {
-				cosignatureFrom[wit.Namespace.String()] = true
-			}
-			if got, want := source.cosignatureFrom, cosignatureFrom; !reflect.DeepEqual(got, want) {
-				if got == nil {
-					t.Errorf("got uninitialized witness map %v but wanted %v in test %q", nil, want, table.description)
-				} else {
-					t.Errorf("got witness map %v but wanted %v in test %q", got, want, table.description)
-				}
-			}
-		}()
 	}
 }

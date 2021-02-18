@@ -58,6 +58,23 @@ func NewActiveSthSource(cli trillian.TrillianLogClient, lp *LogParameters) (*Act
 	return &s, nil
 }
 
+func (s *ActiveSthSource) Run(ctx context.Context) {
+	schedule.Every(ctx, s.logParameters.Interval, func(ctx context.Context) {
+		// get the next stable sth
+		ictx, _ := context.WithTimeout(ctx, s.logParameters.Deadline)
+		sth, err := s.Latest(ictx)
+		if err != nil {
+			glog.Warningf("cannot rotate without new sth: Latest: %v", err)
+			return
+		}
+		// rotate
+		s.mutex.Lock()
+		defer s.mutex.Unlock()
+		s.rotate(sth)
+		// TODO: persist cosigned STH?
+	})
+}
+
 func (s *ActiveSthSource) Latest(ctx context.Context) (*StItem, error) {
 	trsp, err := s.client.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{
 		LogId: s.logParameters.TreeId,
@@ -103,23 +120,6 @@ func (s *ActiveSthSource) AddCosignature(_ context.Context, costh *StItem) error
 	s.cosignatureFrom[witness] = true
 	s.nextSth.CosignedTreeHeadV1.SignatureV1 = append(s.nextSth.CosignedTreeHeadV1.SignatureV1, costh.CosignedTreeHeadV1.SignatureV1[0])
 	return nil
-}
-
-func (s *ActiveSthSource) Run(ctx context.Context) {
-	schedule.Every(ctx, s.logParameters.Interval, func(ctx context.Context) {
-		// get the next stable sth
-		ictx, _ := context.WithTimeout(ctx, s.logParameters.Deadline)
-		sth, err := s.Latest(ictx)
-		if err != nil {
-			glog.Warningf("cannot rotate without new sth: Latest: %v", err)
-			return
-		}
-		// rotate
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
-		s.rotate(sth)
-		// TODO: persist cosigned STH?
-	})
 }
 
 // rotate rotates the log's cosigned and stable STH.  The caller must aquire the
