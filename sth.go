@@ -51,7 +51,7 @@ func NewActiveSthSource(cli trillian.TrillianLogClient, lp *LogParameters) (*Act
 	if err != nil {
 		return nil, fmt.Errorf("Latest: %v", err)
 	}
-	// TODO: load peristed cosigned STH?
+	// TODO: load persisted cosigned STH?
 	s.currSth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
 	s.nextSth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
 	s.cosignatureFrom = make(map[string]bool)
@@ -93,7 +93,7 @@ func (s *ActiveSthSource) Cosigned(_ context.Context) (*StItem, error) {
 func (s *ActiveSthSource) AddCosignature(_ context.Context, costh *StItem) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-    if !reflect.DeepEqual(s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1, costh.CosignedTreeHeadV1.SignedTreeHeadV1) {
+	if !reflect.DeepEqual(s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1, costh.CosignedTreeHeadV1.SignedTreeHeadV1) {
 		return fmt.Errorf("cosignature covers a different tree head")
 	}
 	witness := costh.CosignedTreeHeadV1.SignatureV1[0].Namespace.String()
