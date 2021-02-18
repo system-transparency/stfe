@@ -33,9 +33,9 @@ type SthSource interface {
 type ActiveSthSource struct {
 	client          trillian.TrillianLogClient
 	logParameters   *LogParameters
-	currSth         *StItem         // current cosigned_tree_head_v1 (already finalized)
-	nextSth         *StItem         // next cosigned_tree_head_v1 (under preparation)
-	cosignatureFrom map[string]bool // track who we got cosignatures from
+	currCosth       *StItem         // current cosigned_tree_head_v1 (already finalized)
+	nextCosth       *StItem         // next cosigned_tree_head_v1 (under preparation)
+	cosignatureFrom map[string]bool // track who we got cosignatures from in nextCosth
 	mutex           sync.RWMutex
 }
 
@@ -52,8 +52,8 @@ func NewActiveSthSource(cli trillian.TrillianLogClient, lp *LogParameters) (*Act
 		return nil, fmt.Errorf("Latest: %v", err)
 	}
 	// TODO: load persisted cosigned STH?
-	s.currSth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
-	s.nextSth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
+	s.currCosth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
+	s.nextCosth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
 	s.cosignatureFrom = make(map[string]bool)
 	return &s, nil
 }
@@ -89,28 +89,28 @@ func (s *ActiveSthSource) Latest(ctx context.Context) (*StItem, error) {
 func (s *ActiveSthSource) Stable(_ context.Context) (*StItem, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	if s.nextSth == nil {
+	if s.nextCosth == nil {
 		return nil, fmt.Errorf("no stable sth available")
 	}
 	return &StItem{
 		Format:           StFormatSignedTreeHeadV1,
-		SignedTreeHeadV1: &s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1,
+		SignedTreeHeadV1: &s.nextCosth.CosignedTreeHeadV1.SignedTreeHeadV1,
 	}, nil
 }
 
 func (s *ActiveSthSource) Cosigned(_ context.Context) (*StItem, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	if s.currSth == nil || len(s.currSth.CosignedTreeHeadV1.SignatureV1) == 0 {
+	if s.currCosth == nil || len(s.currCosth.CosignedTreeHeadV1.SignatureV1) == 0 {
 		return nil, fmt.Errorf("no cosigned sth available")
 	}
-	return s.currSth, nil
+	return s.currCosth, nil
 }
 
 func (s *ActiveSthSource) AddCosignature(_ context.Context, costh *StItem) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	if !reflect.DeepEqual(s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1, costh.CosignedTreeHeadV1.SignedTreeHeadV1) {
+	if !reflect.DeepEqual(s.nextCosth.CosignedTreeHeadV1.SignedTreeHeadV1, costh.CosignedTreeHeadV1.SignedTreeHeadV1) {
 		return fmt.Errorf("cosignature covers a different tree head")
 	}
 	witness := costh.CosignedTreeHeadV1.SignatureV1[0].Namespace.String()
@@ -118,7 +118,7 @@ func (s *ActiveSthSource) AddCosignature(_ context.Context, costh *StItem) error
 		return nil // duplicate
 	}
 	s.cosignatureFrom[witness] = true
-	s.nextSth.CosignedTreeHeadV1.SignatureV1 = append(s.nextSth.CosignedTreeHeadV1.SignatureV1, costh.CosignedTreeHeadV1.SignatureV1[0])
+	s.nextCosth.CosignedTreeHeadV1.SignatureV1 = append(s.nextCosth.CosignedTreeHeadV1.SignatureV1, costh.CosignedTreeHeadV1.SignatureV1[0])
 	return nil
 }
 
@@ -126,22 +126,22 @@ func (s *ActiveSthSource) AddCosignature(_ context.Context, costh *StItem) error
 // source's read-write lock if there are concurrent reads and/or writes.
 func (s *ActiveSthSource) rotate(fixedSth *StItem) {
 	// rotate stable -> cosigned
-	if reflect.DeepEqual(&s.currSth.CosignedTreeHeadV1.SignedTreeHeadV1, &s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1) {
-		for _, sigv1 := range s.currSth.CosignedTreeHeadV1.SignatureV1 {
+	if reflect.DeepEqual(&s.currCosth.CosignedTreeHeadV1.SignedTreeHeadV1, &s.nextCosth.CosignedTreeHeadV1.SignedTreeHeadV1) {
+		for _, sigv1 := range s.currCosth.CosignedTreeHeadV1.SignatureV1 {
 			witness := sigv1.Namespace.String()
 			if _, ok := s.cosignatureFrom[witness]; !ok {
 				s.cosignatureFrom[witness] = true
-				s.nextSth.CosignedTreeHeadV1.SignatureV1 = append(s.nextSth.CosignedTreeHeadV1.SignatureV1, sigv1)
+				s.nextCosth.CosignedTreeHeadV1.SignatureV1 = append(s.nextCosth.CosignedTreeHeadV1.SignatureV1, sigv1)
 			}
 		}
 	}
-	s.currSth.CosignedTreeHeadV1.SignedTreeHeadV1 = s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1
-	s.currSth.CosignedTreeHeadV1.SignatureV1 = make([]SignatureV1, len(s.nextSth.CosignedTreeHeadV1.SignatureV1))
-	copy(s.currSth.CosignedTreeHeadV1.SignatureV1, s.nextSth.CosignedTreeHeadV1.SignatureV1)
+	s.currCosth.CosignedTreeHeadV1.SignedTreeHeadV1 = s.nextCosth.CosignedTreeHeadV1.SignedTreeHeadV1
+	s.currCosth.CosignedTreeHeadV1.SignatureV1 = make([]SignatureV1, len(s.nextCosth.CosignedTreeHeadV1.SignatureV1))
+	copy(s.currCosth.CosignedTreeHeadV1.SignatureV1, s.nextCosth.CosignedTreeHeadV1.SignatureV1)
 
 	// rotate new stable -> stable
-	if !reflect.DeepEqual(&s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1, fixedSth.SignedTreeHeadV1) {
-		s.nextSth = NewCosignedTreeHeadV1(fixedSth.SignedTreeHeadV1, nil)
+	if !reflect.DeepEqual(&s.nextCosth.CosignedTreeHeadV1.SignedTreeHeadV1, fixedSth.SignedTreeHeadV1) {
+		s.nextCosth = NewCosignedTreeHeadV1(fixedSth.SignedTreeHeadV1, nil)
 		s.cosignatureFrom = make(map[string]bool)
 	}
 }

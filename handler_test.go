@@ -38,13 +38,13 @@ func newTestHandler(t *testing.T, signer crypto.Signer, sth *StItem) *testHandle
 		logParameters: lp,
 	}
 	if sth != nil {
-		source.currSth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, []SignatureV1{
+		source.currCosth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, []SignatureV1{
 			SignatureV1{
 				Namespace: *mustNewNamespaceEd25519V1(t, testdata.Ed25519Vk),
 				Signature: testSignature,
 			},
 		})
-		source.nextSth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
+		source.nextCosth = NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
 		source.cosignatureFrom = make(map[string]bool)
 	}
 	return &testHandler{

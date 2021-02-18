@@ -50,10 +50,10 @@ func TestNewActiveSthSource(t *testing.T) {
 				return
 			}
 
-			if got, want := source.currSth, table.wantCosi; !reflect.DeepEqual(got, want) {
+			if got, want := source.currCosth, table.wantCosi; !reflect.DeepEqual(got, want) {
 				t.Errorf("got cosigned sth %v but wanted %v in test %q", got, want, table.description)
 			}
-			if got, want := source.nextSth, table.wantStable; !reflect.DeepEqual(got, want) {
+			if got, want := source.nextCosth, table.wantStable; !reflect.DeepEqual(got, want) {
 				t.Errorf("got stable sth %v but wanted %v in test %q", got, want, table.description)
 			}
 			cosignatureFrom := make(map[string]bool)
@@ -133,7 +133,7 @@ func TestStable(t *testing.T) {
 		{
 			description: "valid",
 			source: &ActiveSthSource{
-				nextSth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)},
+				nextCosth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)},
 			wantRsp: sth,
 		},
 	} {
@@ -172,14 +172,14 @@ func TestCosigned(t *testing.T) {
 		{
 			description: "no cosigned sth: nil signatures",
 			source: &ActiveSthSource{
-				currSth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil),
+				currCosth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil),
 			},
 			wantErr: true,
 		},
 		{
 			description: "valid",
 			source: &ActiveSthSource{
-				currSth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, sigs),
+				currCosth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, sigs),
 			},
 			wantRsp: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, sigs),
 		},
@@ -211,7 +211,7 @@ func TestAddCosignature(t *testing.T) {
 		{
 			description: "invalid: cosignature must target the stable sth",
 			source: &ActiveSthSource{
-				nextSth:         NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil),
+				nextCosth:       NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil),
 				cosignatureFrom: make(map[string]bool),
 			},
 			req: NewCosignedTreeHeadV1(NewSignedTreeHeadV1(NewTreeHeadV1(makeTrillianLogRoot(t, testTimestamp+1000000, testTreeSize, testNodeHash)), testLogId, testSignature).SignedTreeHeadV1, []SignatureV1{
@@ -225,7 +225,7 @@ func TestAddCosignature(t *testing.T) {
 		{
 			description: "valid: adding duplicate into a pool of cosignatures",
 			source: &ActiveSthSource{
-				nextSth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, []SignatureV1{
+				nextCosth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, []SignatureV1{
 					SignatureV1{
 						Namespace: *wit1,
 						Signature: testSignature,
@@ -246,7 +246,7 @@ func TestAddCosignature(t *testing.T) {
 		{
 			description: "valid: adding into an empty pool of cosignatures",
 			source: &ActiveSthSource{
-				nextSth:         NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil),
+				nextCosth:       NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil),
 				cosignatureFrom: make(map[string]bool),
 			},
 			req: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, []SignatureV1{
@@ -260,7 +260,7 @@ func TestAddCosignature(t *testing.T) {
 		{
 			description: "valid: adding into a pool of cosignatures",
 			source: &ActiveSthSource{
-				nextSth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, []SignatureV1{
+				nextCosth: NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, []SignatureV1{
 					SignatureV1{
 						Namespace: *wit1,
 						Signature: testSignature,
@@ -295,7 +295,7 @@ func TestAddCosignature(t *testing.T) {
 				Signature: testSignature,
 			})
 		}
-		if got, want := table.source.nextSth, NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, sigs); !reflect.DeepEqual(got, want) {
+		if got, want := table.source.nextCosth, NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, sigs); !reflect.DeepEqual(got, want) {
 			t.Errorf("got %v but wanted %v in test %q", got, want, table.description)
 		}
 		// Check that the map tracking witness signatures is updated
@@ -329,8 +329,8 @@ func TestRotate(t *testing.T) {
 		{
 			description: "not repeated cosigned and not repeated stable",
 			source: &ActiveSthSource{
-				currSth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, nil),
-				nextSth: NewCosignedTreeHeadV1(sth2.SignedTreeHeadV1, []SignatureV1{
+				currCosth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, nil),
+				nextCosth: NewCosignedTreeHeadV1(sth2.SignedTreeHeadV1, []SignatureV1{
 					SignatureV1{
 						Namespace: *wit1,
 						Signature: testSignature,
@@ -353,8 +353,8 @@ func TestRotate(t *testing.T) {
 		{
 			description: "not repeated cosigned and repeated stable",
 			source: &ActiveSthSource{
-				currSth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, nil),
-				nextSth: NewCosignedTreeHeadV1(sth2.SignedTreeHeadV1, []SignatureV1{
+				currCosth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, nil),
+				nextCosth: NewCosignedTreeHeadV1(sth2.SignedTreeHeadV1, []SignatureV1{
 					SignatureV1{
 						Namespace: *wit1,
 						Signature: testSignature,
@@ -382,7 +382,7 @@ func TestRotate(t *testing.T) {
 		{
 			description: "repeated cosigned and not repeated stable",
 			source: &ActiveSthSource{
-				currSth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, []SignatureV1{
+				currCosth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, []SignatureV1{
 					SignatureV1{
 						Namespace: *wit1,
 						Signature: testSignature,
@@ -392,7 +392,7 @@ func TestRotate(t *testing.T) {
 						Signature: testSignature,
 					},
 				}),
-				nextSth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, []SignatureV1{
+				nextCosth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, []SignatureV1{
 					SignatureV1{
 						Namespace: *wit2,
 						Signature: testSignature,
@@ -428,7 +428,7 @@ func TestRotate(t *testing.T) {
 		{
 			description: "repeated cosigned and repeated stable",
 			source: &ActiveSthSource{
-				currSth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, []SignatureV1{
+				currCosth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, []SignatureV1{
 					SignatureV1{
 						Namespace: *wit1,
 						Signature: testSignature,
@@ -438,7 +438,7 @@ func TestRotate(t *testing.T) {
 						Signature: testSignature,
 					},
 				}),
-				nextSth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, []SignatureV1{
+				nextCosth: NewCosignedTreeHeadV1(sth1.SignedTreeHeadV1, []SignatureV1{
 					SignatureV1{
 						Namespace: *wit2,
 						Signature: testSignature,
@@ -486,11 +486,11 @@ func TestRotate(t *testing.T) {
 		},
 	} {
 		table.source.rotate(table.fixedSth)
-		if got, want := table.source.currSth, table.wantCurrSth; !reflect.DeepEqual(got, want) {
-			t.Errorf("got currSth %X but wanted %X in test %q", got, want, table.description)
+		if got, want := table.source.currCosth, table.wantCurrSth; !reflect.DeepEqual(got, want) {
+			t.Errorf("got currCosth %X but wanted %X in test %q", got, want, table.description)
 		}
-		if got, want := table.source.nextSth, table.wantNextSth; !reflect.DeepEqual(got, want) {
-			t.Errorf("got nextSth %X but wanted %X in test %q", got, want, table.description)
+		if got, want := table.source.nextCosth, table.wantNextSth; !reflect.DeepEqual(got, want) {
+			t.Errorf("got nextCosth %X but wanted %X in test %q", got, want, table.description)
 		}
 		if got, want := len(table.source.cosignatureFrom), len(table.wantWit); got != want {
 			t.Errorf("witness map got %d cosignatures but wanted %d in test %q", got, want, table.description)
@@ -502,9 +502,9 @@ func TestRotate(t *testing.T) {
 			}
 		}
 		// check that adding cosignatures to stable will not effect cosigned sth
-		wantLen := len(table.source.currSth.CosignedTreeHeadV1.SignatureV1)
-		table.source.nextSth.CosignedTreeHeadV1.SignatureV1 = append(table.source.nextSth.CosignedTreeHeadV1.SignatureV1, SignatureV1{Namespace: *wit1, Signature: testSignature})
-		if gotLen := len(table.source.currSth.CosignedTreeHeadV1.SignatureV1); gotLen != wantLen {
+		wantLen := len(table.source.currCosth.CosignedTreeHeadV1.SignatureV1)
+		table.source.nextCosth.CosignedTreeHeadV1.SignatureV1 = append(table.source.nextCosth.CosignedTreeHeadV1.SignatureV1, SignatureV1{Namespace: *wit1, Signature: testSignature})
+		if gotLen := len(table.source.currCosth.CosignedTreeHeadV1.SignatureV1); gotLen != wantLen {
 			t.Errorf("adding cosignatures to the stable sth modifies the fixated cosigned sth in test %q", table.description)
 		}
 	}
