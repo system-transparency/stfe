@@ -282,7 +282,7 @@ func NewTreeHeadV1(lr *types.LogRootV1) *TreeHeadV1 {
 		uint64(lr.TimestampNanos / 1000 / 1000),
 		uint64(lr.TreeSize),
 		NodeHash{lr.RootHash},
-		nil,
+		make([]byte, 0),
 	}
 }
 

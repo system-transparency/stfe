@@ -1,7 +1,6 @@
 package stfe
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -91,21 +90,10 @@ func (s *ActiveSthSource) Cosigned(_ context.Context) (*StItem, error) {
 	return s.currSth, nil
 }
 
-func (a *SignedTreeHeadV1) Equals(b *SignedTreeHeadV1) bool {
-	return bytes.Equal(a.LogId, b.LogId) &&
-		bytes.Equal(a.Signature, b.Signature) &&
-		a.TreeHead.Timestamp == b.TreeHead.Timestamp &&
-		a.TreeHead.TreeSize == b.TreeHead.TreeSize &&
-		bytes.Equal(a.TreeHead.RootHash.Data, b.TreeHead.RootHash.Data) &&
-		bytes.Equal(a.TreeHead.Extension, b.TreeHead.Extension)
-		// TODO: why reflect.DeepEqual(a, b) gives a different result? Fixme.
-}
-
 func (s *ActiveSthSource) AddCosignature(_ context.Context, costh *StItem) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	//if !reflect.DeepEqual(s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1, costh.CosignedTreeHeadV1.SignedTreeHeadV1) {
-	if !(&s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1).Equals(&costh.CosignedTreeHeadV1.SignedTreeHeadV1) {
+    if !reflect.DeepEqual(s.nextSth.CosignedTreeHeadV1.SignedTreeHeadV1, costh.CosignedTreeHeadV1.SignedTreeHeadV1) {
 		return fmt.Errorf("cosignature covers a different tree head")
 	}
 	witness := costh.CosignedTreeHeadV1.SignatureV1[0].Namespace.String()

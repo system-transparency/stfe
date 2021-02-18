@@ -118,8 +118,8 @@ func TestGenV1Sth(t *testing.T) {
 		if got, want := sth.TreeHead.RootHash.Data, th.RootHash.Data; !bytes.Equal(got, want) {
 			t.Errorf("got root hash %X, wanted %X in test %q", got, want, table.description)
 		}
-		if sth.TreeHead.Extension != nil {
-			t.Errorf("got extensions %X, wanted nil in test %q", sth.TreeHead.Extension, table.description)
+		if len(sth.TreeHead.Extension) != 0 {
+			t.Errorf("got extensions %X, wanted none in test %q", sth.TreeHead.Extension, table.description)
 		}
 	}
 }
