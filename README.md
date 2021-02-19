@@ -219,6 +219,11 @@ struct {
 	opaque checksum<1..64>; // hash of some artifact
 	Namespace namespace;
 } ChecksumV1;
+
+TODO: add signature here so, e.g., add-entry is a single StItem.  Effectively we
+will no longer have an appendix.
+
+TODO: define list of StItem:s somewhere.
 ```
 
 It is assumed that clients know how to find the real artifact source (if not
