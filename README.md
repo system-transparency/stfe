@@ -11,14 +11,17 @@ We take inspiration from the Certificate Transparency Front-End
 that implements [RFC 6962](https://tools.ietf.org/html/rfc6962) for
 [Trillian](https://transparency.dev).
 
-## Log parameters and overview
+## Log parameters
 An ST log is defined by the following parameters:
-- `log_identifier`: namespace of type `ed25519_v1` that defines the
-log's signing algorithm and public verification key.
-- `supported_namespaces`: a list of namespace types the log supports.
-Submitters must use a supported namespace type when adding new entries.
+- `log_identifier`: a `Namespace` of type `ed25519_v1` that defines the log's
+signing algorithm and public verification key.
+- `supported_namespaces`: a list of namespace types that the log supports.
+Entities must use a supported namespace type when posting signed data to the
+log.
 - `base_url`: prefix used by clients that contact the log, e.g.,
 example.com:1234/log.
+- `final_cosigned_tree_head`: an `StItem` of type `cosigned_tree_head_v*`.  Not
+set until the log is turned into read-only mode in preparation of a shutdown.
 
 ST logs use the same hash strategy as described in RFC 6962: SHA256 with `0x00`
 as leaf node prefix and `0x01` as interior node prefix.
@@ -31,9 +34,11 @@ public logging** as in CT.
 
 To produce trustworthy STHs a simple form of [witness
 cosigning](https://arxiv.org/pdf/1503.08768.pdf) is built into the log.
+Witnesses poll the log for the next stable STH, and verify that it is consistent
+before posting a cosignature that can then be served by the log.
 
-## Minimum acceptance criteria and scope
-A log should accept a submission if it is:
+## Acceptance criteria and scope
+A log should accept a leaf submission if it is:
 - Well-formed, see data structure definitions below.
 - Digitally signed by a registered namespace.
 
@@ -61,7 +66,7 @@ for the log itself and the parties that submit artifact hashes and cosignatures.
 enum {
 	reserved(0),
 	ed25519_v1(1),
-	(65535)
+	(2^16-1)
 } NamespaceFormat;
 
 struct {
@@ -82,7 +87,7 @@ serialized formats are defined by [RFC
 8032](https://tools.ietf.org/html/rfc8032).
 ```
 struct {
-	opaque namespace<32>; // public verification key
+	opaque namespace[32]; // public verification key
 } Ed25519V1;
 ```
 
@@ -99,8 +104,8 @@ enum {
 	cosigned_tree_head_v1(2),
 	consistency_proof_v1(3),
 	inclusion_proof_v1(4),
-	checksum_v1(5), // leaf type
-	(65535)
+	signed_checksum_v1(5), // leaf type
+	(2^16-1)
 } StFormat;
 
 struct {
@@ -110,32 +115,38 @@ struct {
 		case cosigned_tree_head_v1: CosignedTreeHeadV1;
 		case consistency_proof_v1: ConsistencyProofV1;
 		case inclusion_proof_v1: InclusionProofV1;
-		case checksum_v1: ChecksumV1;
+		case signed_checksum_v1: SignedChecksumV1;
 	} message;
 } StItem;
+
+struct {
+	StItem item<0..2^32-1>;
+} StItemList;
 ```
 
 #### `signed_tree_head_v1`
-For the most part we use the same signed tree head definition as in [RFC
-6962/bis,
-§4.9](https://tools.ietf.org/html/draft-ietf-trans-rfc6962-bis-34#section-4.10).
-There is one modification: our log identifier is a namespace rather than an
-[OID](https://tools.ietf.org/html/draft-ietf-trans-rfc6962-bis-34#section-4.4).
+We use the same tree head definition as in [RFC 6962/bis,
+§4.9](https://tools.ietf.org/html/draft-ietf-trans-rfc6962-bis-34#section-4.9).
+The resulting _signed_ tree head is packaged differently: a namespace is used as
+log identifier, and it is communicated in a `SignatureV1` structure.
 ```
-opaque NodeHash<32..2^8-1>;
+struct {
+	TreeHeadV1 tree_head;
+	SignatureV1 signature;
+} SignedTreeHeadV1;
 
 struct {
 	uint64 timestamp;
 	uint64 tree_size;
 	NodeHash root_hash;
-	Extension sth_extensions<0..2^16-1>;
+	Extension extensions<0..2^16-1>;
 } TreeHeadV1;
+opaque NodeHash<32..2^8-1>;
 
 struct {
-	Namespace log_id;
-	TreeHeadV1 tree_head;
+	Namespace namespace;
 	opaque signature<0..2^16-1>;
-} SignedTreeHeadV1;
+} SignatureV1;
 ```
 
 #### `cosigned_tree_head_v1`
@@ -164,13 +175,8 @@ namespace of type `ed25519_v1`.
 ```
 struct {
 	SignedTreeHeadV1 sth;
-	CosignatureV1 <0..4294967295>; // vector of cosignatures
+	SignatureV1 cosignatures<0..2^32-1>; // vector of cosignatures
 } CosignedTreeHeadV1;
-
-struct {
-	Namespace witness_id;
-	opaque signature<1..65535>;
-} CosignatureV1;
 ```
 
 #### `consistency_proof_v1`
@@ -183,7 +189,7 @@ and a consistency proof may be empty.
 
 ```
 struct {
-	Namespace log_id;
+	Namespace namespace; // log identifier
 	uint64 tree_size_1;
 	uint64 tree_size_2;
 	NodeHash consistency_path<0..2^16-1>;
@@ -199,31 +205,31 @@ There are two modifications: our log identifier is a namespace rather than an
 and an inclusion proof may be empty.
 ```
 struct {
-	Namespace log_id;
+	Namespace namespace; // log identifier
 	uint64 tree_size;
 	uint64 leaf_index;
 	NodeHash inclusion_path<0..2^16-1>;
 } InclusionProofV1;
 ```
 
-#### `checksum_v1`
-A checksum entry contains a package identifier such as `foobar-1.2.3` and an
-artifact hash.   It also contains a namespace that allows clients to distinguish
-artifact hashes from two different software publishers A and B.  For example,
-the `checksum_v1` can help [enforce public binary logging before accepting a new
-software update](https://wiki.mozilla.org/Security/Binary_Transparency).
+#### `signed_checksum_v1`
+A checksum entry contains a package identifier like `foobar-1.2.3` and an
+artifact hash.   It is then signed so that clients can distinguish artifact
+hashes from two different software publishers A and B.  For example, the
+`signed_checksum_v1` type can help [enforce public binary logging before
+accepting a new software
+update](https://wiki.mozilla.org/Security/Binary_Transparency).
 
 ```
 struct {
-	opaque package<1..2^8-1>; // package identifier
-	opaque checksum<1..64>; // hash of some artifact
-	Namespace namespace;
+	ChecksumDataV1 data;
+	SignatureV1 signature;
+} SignedChecksumV1;
+
+struct {
+	opaque identifier<1..128>;
+	opaque checksum<1..64>;
 } ChecksumV1;
-
-TODO: add signature here so, e.g., add-entry is a single StItem.  Effectively we
-will no longer have an appendix.
-
-TODO: define list of StItem:s somewhere.
 ```
 
 It is assumed that clients know how to find the real artifact source (if not
@@ -246,7 +252,7 @@ POST https://<base url>/st/v1/add-entry
 ```
 
 Input:
-- An `StItem` of type `checksum_v1`.
+- An `StItem` of type `signed_checksum_v1`.
 
 No output.
 
@@ -329,12 +335,9 @@ Input:
 - `end`: 0-based index of last entry to retrieve in decimal.
 
 Output:
-- An `StItem` list where each entry is of type `checksum_v1`.  The first
+- An `StItem` list where each entry is of type `signed_checksum_v1`.  The first
 `StItem` corresponds to the start index, the second one to `start+1`, etc.  The
 log may return fewer entries than requested.
-
-## Witness behavior
-TODO: docdoc expected witness behavior somewhere
 
 # Appendix A
 In the future other namespace types might be supported.  For example, we could
