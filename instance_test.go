@@ -171,7 +171,7 @@ func TestEndpointPath(t *testing.T) {
 		},
 		{
 			endpoint: EndpointGetLatestSth,
-			want:     "http://example.com/test/get-sth",
+			want:     "http://example.com/test/get-latest-sth",
 		},
 		{
 			endpoint: EndpointGetAnchors,
@@ -183,11 +183,11 @@ func TestEndpointPath(t *testing.T) {
 		},
 		{
 			endpoint: EndpointGetCosignedSth,
-			want:     "http://example.com/test/get-cosi",
+			want:     "http://example.com/test/get-cosigned-sth",
 		},
 		{
 			endpoint: EndpointAddCosignature,
-			want:     "http://example.com/test/add-cosi",
+			want:     "http://example.com/test/add-cosignature",
 		},
 	} {
 		if got, want := table.endpoint.Path(base, prefix), table.want; got != want {
