@@ -145,7 +145,7 @@ opaque NodeHash<32..2^8-1>;
 
 struct {
 	Namespace namespace;
-	opaque signature<0..2^16-1>;
+	opaque signature<1..2^16-1>;
 } SignatureV1;
 ```
 
@@ -174,7 +174,7 @@ namespace of type `ed25519_v1`.
 
 ```
 struct {
-	SignedTreeHeadV1 sth;
+	SignedTreeHeadV1 signed_tree_head;
 	SignatureV1 cosignatures<0..2^32-1>; // vector of cosignatures
 } CosignedTreeHeadV1;
 ```
@@ -189,7 +189,7 @@ and a consistency proof may be empty.
 
 ```
 struct {
-	Namespace namespace; // log identifier
+	Namespace log_id;
 	uint64 tree_size_1;
 	uint64 tree_size_2;
 	NodeHash consistency_path<0..2^16-1>;
@@ -205,7 +205,7 @@ There are two modifications: our log identifier is a namespace rather than an
 and an inclusion proof may be empty.
 ```
 struct {
-	Namespace namespace; // log identifier
+	Namespace log_id;
 	uint64 tree_size;
 	uint64 leaf_index;
 	NodeHash inclusion_path<0..2^16-1>;
@@ -222,7 +222,7 @@ update](https://wiki.mozilla.org/Security/Binary_Transparency).
 
 ```
 struct {
-	ChecksumDataV1 data;
+	ChecksumV1 data;
 	SignatureV1 signature;
 } SignedChecksumV1;
 
