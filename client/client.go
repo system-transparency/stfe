@@ -89,7 +89,7 @@ func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StI
 
 // GetSth fetches and verifies the most recent STH.
 func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
-	url := stfe.EndpointGetSth.Path(c.protocol() + c.Log.BaseUrl)
+	url := stfe.EndpointGetLatestSth.Path(c.protocol() + c.Log.BaseUrl)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)

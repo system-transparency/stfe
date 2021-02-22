@@ -38,14 +38,14 @@ type Endpoint string
 
 const (
 	EndpointAddEntry            = Endpoint("add-entry")
-	EndpointAddCosi             = Endpoint("add-cosi") // TODO: name?
+	EndpointAddCosignature      = Endpoint("add-cosignature")
 	EndpointGetEntries          = Endpoint("get-entries")
 	EndpointGetAnchors          = Endpoint("get-anchors")
 	EndpointGetProofByHash      = Endpoint("get-proof-by-hash")
 	EndpointGetConsistencyProof = Endpoint("get-consistency-proof")
-	EndpointGetSth              = Endpoint("get-sth")
-	EndpointGetStableSth        = Endpoint("get-stable-sth") // TODO: name?
-	EndpointGetCosi             = Endpoint("get-cosi")       // TODO: name?
+	EndpointGetLatestSth        = Endpoint("get-latest-sth")
+	EndpointGetStableSth        = Endpoint("get-stable-sth")
+	EndpointGetCosignedSth      = Endpoint("get-cosigned-sth")
 )
 
 func (i Instance) String() string {
@@ -100,14 +100,14 @@ func NewLogParameters(signer crypto.Signer, logId *namespace.Namespace, treeId i
 func (i *Instance) Handlers() []Handler {
 	return []Handler{
 		Handler{instance: i, handler: addEntry, endpoint: EndpointAddEntry, method: http.MethodPost},
-		Handler{instance: i, handler: addCosi, endpoint: EndpointAddCosi, method: http.MethodPost},
+		Handler{instance: i, handler: addCosi, endpoint: EndpointAddCosignature, method: http.MethodPost},
 		Handler{instance: i, handler: getEntries, endpoint: EndpointGetEntries, method: http.MethodGet},
 		Handler{instance: i, handler: getAnchors, endpoint: EndpointGetAnchors, method: http.MethodGet},
 		Handler{instance: i, handler: getProofByHash, endpoint: EndpointGetProofByHash, method: http.MethodGet},
 		Handler{instance: i, handler: getConsistencyProof, endpoint: EndpointGetConsistencyProof, method: http.MethodGet},
-		Handler{instance: i, handler: getSth, endpoint: EndpointGetSth, method: http.MethodGet},
+		Handler{instance: i, handler: getSth, endpoint: EndpointGetLatestSth, method: http.MethodGet},
 		Handler{instance: i, handler: getStableSth, endpoint: EndpointGetStableSth, method: http.MethodGet},
-		Handler{instance: i, handler: getCosi, endpoint: EndpointGetCosi, method: http.MethodGet},
+		Handler{instance: i, handler: getCosi, endpoint: EndpointGetCosignedSth, method: http.MethodGet},
 	}
 }
 

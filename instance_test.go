@@ -124,13 +124,13 @@ func TestHandlers(t *testing.T) {
 	endpoints := map[Endpoint]bool{
 		EndpointAddEntry:            false,
 		EndpointGetEntries:          false,
-		EndpointGetSth:              false,
+		EndpointGetLatestSth:        false,
 		EndpointGetProofByHash:      false,
 		EndpointGetConsistencyProof: false,
 		EndpointGetAnchors:          false,
 		EndpointGetStableSth:        false,
-		EndpointGetCosi:             false,
-		EndpointAddCosi:             false,
+		EndpointGetCosignedSth:      false,
+		EndpointAddCosignature:      false,
 	}
 	i := NewInstance(makeTestLogParameters(t, nil), nil, nil)
 	for _, handler := range i.Handlers() {
@@ -170,7 +170,7 @@ func TestEndpointPath(t *testing.T) {
 			want:     "http://example.com/test/get-consistency-proof",
 		},
 		{
-			endpoint: EndpointGetSth,
+			endpoint: EndpointGetLatestSth,
 			want:     "http://example.com/test/get-sth",
 		},
 		{
@@ -182,11 +182,11 @@ func TestEndpointPath(t *testing.T) {
 			want:     "http://example.com/test/get-stable-sth",
 		},
 		{
-			endpoint: EndpointGetCosi,
+			endpoint: EndpointGetCosignedSth,
 			want:     "http://example.com/test/get-cosi",
 		},
 		{
-			endpoint: EndpointAddCosi,
+			endpoint: EndpointAddCosignature,
 			want:     "http://example.com/test/add-cosi",
 		},
 	} {

@@ -35,7 +35,7 @@ func TestNewAddCosignatureRequest(t *testing.T) {
 			breq:        mustMakeAddCosiBuffer(t, testdata.Ed25519Sk, testdata.Ed25519Vk, validSth),
 		},
 	} {
-		url := EndpointAddCosi.Path("http://example.com", lp.Prefix)
+		url := EndpointAddCosignature.Path("http://example.com", lp.Prefix)
 		req, err := http.NewRequest("POST", url, table.breq)
 		if err != nil {
 			t.Fatalf("failed creating http request: %v", err)

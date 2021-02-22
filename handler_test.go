@@ -60,13 +60,13 @@ func newTestHandler(t *testing.T, signer crypto.Signer, sth *StItem) *testHandle
 
 func (th *testHandler) getHandlers(t *testing.T) map[Endpoint]Handler {
 	return map[Endpoint]Handler{
-		EndpointGetSth:              Handler{instance: th.instance, handler: getSth, endpoint: EndpointGetSth, method: http.MethodGet},
+		EndpointGetLatestSth:        Handler{instance: th.instance, handler: getSth, endpoint: EndpointGetLatestSth, method: http.MethodGet},
 		EndpointGetConsistencyProof: Handler{instance: th.instance, handler: getConsistencyProof, endpoint: EndpointGetConsistencyProof, method: http.MethodGet},
 		EndpointGetProofByHash:      Handler{instance: th.instance, handler: getProofByHash, endpoint: EndpointGetProofByHash, method: http.MethodGet},
 		EndpointGetAnchors:          Handler{instance: th.instance, handler: getAnchors, endpoint: EndpointGetAnchors, method: http.MethodGet},
 		EndpointGetEntries:          Handler{instance: th.instance, handler: getEntries, endpoint: EndpointGetEntries, method: http.MethodGet},
 		EndpointGetStableSth:        Handler{instance: th.instance, handler: getStableSth, endpoint: EndpointGetStableSth, method: http.MethodGet},
-		EndpointGetCosi:             Handler{instance: th.instance, handler: getCosi, endpoint: EndpointGetCosi, method: http.MethodGet},
+		EndpointGetCosignedSth:      Handler{instance: th.instance, handler: getCosi, endpoint: EndpointGetCosignedSth, method: http.MethodGet},
 	}
 }
 
@@ -80,8 +80,8 @@ func (th *testHandler) getHandler(t *testing.T, endpoint Endpoint) Handler {
 
 func (th *testHandler) postHandlers(t *testing.T) map[Endpoint]Handler {
 	return map[Endpoint]Handler{
-		EndpointAddEntry: Handler{instance: th.instance, handler: addEntry, endpoint: EndpointAddEntry, method: http.MethodPost},
-		EndpointAddCosi:  Handler{instance: th.instance, handler: addCosi, endpoint: EndpointAddCosi, method: http.MethodPost},
+		EndpointAddEntry:       Handler{instance: th.instance, handler: addEntry, endpoint: EndpointAddEntry, method: http.MethodPost},
+		EndpointAddCosignature: Handler{instance: th.instance, handler: addCosi, endpoint: EndpointAddCosignature, method: http.MethodPost},
 	}
 }
 
@@ -414,7 +414,7 @@ func TestGetSth(t *testing.T) {
 			th := newTestHandler(t, table.signer, nil)
 			defer th.mockCtrl.Finish()
 
-			url := EndpointGetSth.Path("http://example.com", th.instance.LogParameters.Prefix)
+			url := EndpointGetLatestSth.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -422,7 +422,7 @@ func TestGetSth(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			th.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
-			th.getHandler(t, EndpointGetSth).ServeHTTP(w, req)
+			th.getHandler(t, EndpointGetLatestSth).ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
 			}
@@ -733,13 +733,13 @@ func TestGetCosi(t *testing.T) {
 			defer th.mockCtrl.Finish()
 
 			// Setup and run client query
-			url := EndpointGetCosi.Path("http://example.com", th.instance.LogParameters.Prefix)
+			url := EndpointGetCosignedSth.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
 			}
 			w := httptest.NewRecorder()
-			th.getHandler(t, EndpointGetCosi).ServeHTTP(w, req)
+			th.getHandler(t, EndpointGetCosignedSth).ServeHTTP(w, req)
 
 			// Check response code
 			if w.Code != table.wantCode {
@@ -801,7 +801,7 @@ func TestAddCosi(t *testing.T) {
 			defer th.mockCtrl.Finish()
 
 			// Setup and run client query
-			url := EndpointAddCosi.Path("http://example.com", th.instance.LogParameters.Prefix)
+			url := EndpointAddCosignature.Path("http://example.com", th.instance.LogParameters.Prefix)
 			req, err := http.NewRequest("POST", url, table.breq)
 			if err != nil {
 				t.Fatalf("failed creating http request: %v", err)
@@ -809,7 +809,7 @@ func TestAddCosi(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
-			th.postHandler(t, EndpointAddCosi).ServeHTTP(w, req)
+			th.postHandler(t, EndpointAddCosignature).ServeHTTP(w, req)
 			if w.Code != table.wantCode {
 				t.Errorf("GET(%s)=%d, want http status code %d", url, w.Code, table.wantCode)
 			}
