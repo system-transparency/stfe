@@ -62,6 +62,19 @@ func (n *Namespace) Fingerprint() (*[NamespaceFingerprintSize]byte, error) {
 	}
 }
 
+// Verify checks that signature is valid over message for this namespace
+func (ns *Namespace) Verify(message, signature []byte) error {
+	switch ns.Format {
+	case NamespaceFormatEd25519V1:
+		if !ed25519.Verify(ed25519.PublicKey(ns.Ed25519V1.Namespace[:]), message, signature) {
+			return fmt.Errorf("ed25519 signature verification failed")
+		}
+	default:
+		return fmt.Errorf("namespace not supported: %v", ns.Format)
+	}
+	return nil
+}
+
 // NewNamespaceEd25519V1 returns an new Ed25519V1 namespace based on a
 // verification key.
 func NewNamespaceEd25519V1(vk []byte) (*Namespace, error) {
@@ -75,17 +88,4 @@ func NewNamespaceEd25519V1(vk []byte) (*Namespace, error) {
 		Format:    NamespaceFormatEd25519V1,
 		Ed25519V1: &ed25519v1,
 	}, nil
-}
-
-// Verify checks that signature is valid over message for this namespace
-func (ns *Namespace) Verify(message, signature []byte) error {
-	switch ns.Format {
-	case NamespaceFormatEd25519V1:
-		if !ed25519.Verify(ed25519.PublicKey(ns.Ed25519V1.Namespace[:]), message, signature) {
-			return fmt.Errorf("ed25519 signature verification failed")
-		}
-	default:
-		return fmt.Errorf("namespace not supported: %v", ns.Format)
-	}
-	return nil
 }

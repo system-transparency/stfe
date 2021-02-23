@@ -76,6 +76,18 @@ func TestFingerprint(t *testing.T) {
 	}
 }
 
+func TestVerify(t *testing.T) {
+	var tests []testCaseNamespace
+	tests = append(tests, test_cases_verify(t)...)
+	tests = append(tests, test_cases_verify_ed25519v1(t)...)
+	for _, table := range tests {
+		err := table.namespace.Verify(table.msg, table.sig)
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got error=%v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+	}
+}
+
 func TestNewNamespaceEd25519V1(t *testing.T) {
 	size := 32 // verification key size
 	for _, table := range []struct {
@@ -106,18 +118,6 @@ func TestNewNamespaceEd25519V1(t *testing.T) {
 		}
 		if got, want := n.Ed25519V1.Namespace[:], table.vk; !bytes.Equal(got, want) {
 			t.Errorf("got namespace %X but wanted %X in test %q", got, want, table.description)
-		}
-	}
-}
-
-func TestVerify(t *testing.T) {
-	var tests []testCaseNamespace
-	tests = append(tests, test_cases_verify(t)...)
-	tests = append(tests, test_cases_verify_ed25519v1(t)...)
-	for _, table := range tests {
-		err := table.namespace.Verify(table.msg, table.sig)
-		if got, want := err != nil, table.wantErr; got != want {
-			t.Errorf("got error=%v but wanted %v in test %q: %v", got, want, table.description, err)
 		}
 	}
 }
