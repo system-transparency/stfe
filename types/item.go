@@ -28,7 +28,10 @@ type StItem struct {
 	SignedChecksumV1   *SignedChecksumV1   `tls:"selector:Format,val:5"`
 }
 
-// TODO: StItemList
+// StItemList is an StItem List that is at most 2^32-1 bytes when serialized.
+type StItemList struct {
+	Items []StItem `tls:"minlen:0,maxlen:4294967295"`
+}
 
 type SignedTreeHeadV1 struct {
 	TreeHead  TreeHeadV1

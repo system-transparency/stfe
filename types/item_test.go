@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"encoding/binary"
 )
 
 // testCaseType is a common test case used for ST log types
@@ -19,6 +21,7 @@ type testCaseType struct {
 // marshalled.  If wantBytes is non-nil the marshalled result must also match.
 func TestMarshalUnmarshal(t *testing.T) {
 	var tests []testCaseType
+	tests = append(tests, test_cases_stitemlist(t)...)
 	tests = append(tests, test_cases_stitem(t)...)
 	tests = append(tests, test_cases_sthv1(t)...)
 	tests = append(tests, test_cases_costhv1(t)...)
@@ -44,6 +47,9 @@ func TestMarshalUnmarshal(t *testing.T) {
 		}
 
 		switch table.item.(type) {
+		case StItemList:
+			var item StItemList
+			err = Unmarshal(b, &item)
 		case StItem:
 			var item StItem
 			err = Unmarshal(b, &item)
@@ -150,6 +156,28 @@ func TestStItemString(t *testing.T) {
 }
 
 var (
+	// StItemList
+	testStItemList = StItemList{
+		Items: []StItem{
+			testStItemSignedChecksumV1,
+			testStItemInclusionProofV1,
+			testStItemCosignedTreeHeadV1,
+		},
+	}
+	testStItemListBytes = bytes.Join([][]byte{
+		func() []byte {
+			sum := uint32(len(testStItemSignedChecksumV1Bytes))
+			sum += uint32(len(testStItemInclusionProofV1Bytes))
+			sum += uint32(len(testStItemCosignedTreeHeadV1Bytes))
+			buf := make([]byte, 4)
+			binary.BigEndian.PutUint32(buf, sum)
+			return buf
+		}(), // length specifier list
+		testStItemSignedChecksumV1Bytes,   // first StItem
+		testStItemInclusionProofV1Bytes,   // second StItem
+		testStItemCosignedTreeHeadV1Bytes, // third StItem
+	}, nil)
+
 	// StItem
 	testStItemReserved = StItem{
 		Format: StFormatReserved,
@@ -307,6 +335,23 @@ var (
 		make([]byte, 64),   // signature
 	}, nil)
 )
+
+// test_cases_stitemlist returns test cases for the StItemList type
+func test_cases_stitemlist(t *testing.T) []testCaseType {
+	t.Helper()
+	return []testCaseType{
+		testCaseType{
+			description: "test_cases_stitemlist: valid: StItemList: empty",
+			item:        StItemList{},
+			wantBytes:   []byte{0x00, 0x00, 0x00, 0x00},
+		}, // skip max len check because it is huge
+		testCaseType{
+			description: "test_cases_stitemlist: valid: mixed content",
+			item:        testStItemList,
+			wantBytes:   testStItemListBytes,
+		}, // other invalid bounds are already tested in subtypes
+	}
+}
 
 // test_cases_stitem returns test cases for the different StItem types
 func test_cases_stitem(t *testing.T) []testCaseType {
