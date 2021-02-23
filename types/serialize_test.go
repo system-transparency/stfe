@@ -92,6 +92,9 @@ func TestMarshalUnmarshal(t *testing.T) {
 		case GetConsistencyProofV1:
 			var item GetConsistencyProofV1
 			err = Unmarshal(b, &item)
+		case GetEntriesV1:
+			var item GetEntriesV1
+			err = Unmarshal(b, &item)
 		default:
 			t.Errorf("unhandled type in test %q", table.description)
 		}
@@ -511,6 +514,17 @@ func test_cases_requests(t *testing.T) []testCaseSerialize {
 			wantBytes: bytes.Join([][]byte{
 				make([]byte, 8), // first
 				[]byte{0x00, 0x00, 0x00, 0x00, 0x1, 0x2, 0x3, 0x4}, // second
+			}, nil),
+		},
+		{
+			description: "valid: GetEntriesV1",
+			item: GetEntriesV1{
+				Start: 0,
+				End:   16909060,
+			},
+			wantBytes: bytes.Join([][]byte{
+				make([]byte, 8), // start
+				[]byte{0x00, 0x00, 0x00, 0x00, 0x1, 0x2, 0x3, 0x4}, // end
 			}, nil),
 		},
 	}

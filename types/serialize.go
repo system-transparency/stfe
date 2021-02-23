@@ -22,6 +22,12 @@ type GetConsistencyProofV1 struct {
 	Second uint64
 }
 
+// GetEntriesV1 is a serializable get-entries request
+type GetEntriesV1 struct {
+	Start uint64
+	End   uint64
+}
+
 // Marshal marshals a TLS-encodable structure
 func Marshal(item interface{}) ([]byte, error) {
 	serialized, err := tls.Marshal(item)
