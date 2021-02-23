@@ -28,7 +28,6 @@ type StItem struct {
 	SignedChecksumV1   *SignedChecksumV1   `tls:"selector:Format,val:5"`
 }
 
-// StItemList is an StItem List that is at most 2^32-1 bytes when serialized.
 type StItemList struct {
 	Items []StItem `tls:"minlen:0,maxlen:4294967295"`
 }
@@ -119,25 +118,4 @@ func (i StItem) String() string {
 	default:
 		return fmt.Sprintf("unknown StItem: %v", i.Format)
 	}
-}
-
-// Marshal marshals a TLS-encodable item
-func Marshal(item interface{}) ([]byte, error) {
-	serialized, err := tls.Marshal(item)
-	if err != nil {
-		return nil, fmt.Errorf("tls.Marshal: %v", err)
-	}
-	return serialized, nil
-}
-
-// Unmarshal unmarshals a TLS-encoded item
-func Unmarshal(serialized []byte, out interface{}) error {
-	extra, err := tls.Unmarshal(serialized, out)
-	if err != nil {
-		return fmt.Errorf("tls.Unmarshal: %v", err)
-	}
-	if len(extra) > 0 {
-		return fmt.Errorf("tls.Unmarshal: extra data: %X", extra)
-	}
-	return nil
 }

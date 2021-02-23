@@ -2,80 +2,21 @@ package types
 
 import (
 	"bytes"
-	"reflect"
 	"strings"
 	"testing"
 
 	"crypto/ed25519"
 )
 
-var (
-	// Namespace
-	testNamespaceReserved = Namespace{
-		Format: NamespaceFormatReserved,
-	}
-
-	testNamespace          = testNamespaceEd25519V1
-	testNamespaceBytes     = testNamespaceEd25519V1Bytes
-	testNamespaceEd25519V1 = Namespace{
-		Format:    NamespaceFormatEd25519V1,
-		Ed25519V1: &testEd25519V1,
-	}
-	testNamespaceEd25519V1Bytes = bytes.Join([][]byte{
-		[]byte{0x00, 0x01}, // format ed25519_v1
-		testEd25519V1Bytes, // Ed25519V1
-	}, nil)
-
-	// Subtypes used by Namespace
-	testEd25519V1 = Ed25519V1{
-		Namespace: [32]byte{},
-	}
-	testEd25519V1Bytes = bytes.Join([][]byte{
-		make([]byte, 32), // namespace, no length specifier because fixed size
-	}, nil)
-)
-
-func TestNewNamespaceEd25519V1(t *testing.T) {
-	size := 32 // verification key size
-	for _, table := range []struct {
-		description string
-		vk          []byte
-		wantErr     bool
-	}{
-		{
-			description: "invalid",
-			vk:          make([]byte, size+1),
-			wantErr:     true,
-		},
-		{
-			description: "valid",
-			vk:          make([]byte, size),
-		},
-	} {
-		n, err := NewNamespaceEd25519V1(table.vk)
-		if got, want := err != nil, table.wantErr; got != want {
-			t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
-		}
-		if err != nil {
-			continue
-		}
-		if got, want := n.Format, NamespaceFormatEd25519V1; got != want {
-			t.Errorf("got namespace format %v but wanted %v in test %q", got, want, table.description)
-			continue
-		}
-		if got, want := n.Ed25519V1.Namespace[:], table.vk; !bytes.Equal(got, want) {
-			t.Errorf("got namespace %X but wanted %X in test %q", got, want, table.description)
-		}
-	}
-}
-
+// TestNamespaceString checks that the String() function prints the right
+// format, and that the body is printed without a nil-pointer panic.
 func TestNamespaceString(t *testing.T) {
 	wantPrefix := map[NamespaceFormat]string{
 		NamespaceFormatReserved:    "Format(reserved)",
 		NamespaceFormatEd25519V1:   "Format(ed25519_v1): &{Namespace",
 		NamespaceFormat(1<<16 - 1): "unknown Namespace: unknown NamespaceFormat: 65535",
 	}
-	tests := append(test_cases_namespace(t), testCaseType{
+	tests := append(test_cases_namespace(t), testCaseSerialize{
 		description: "valid: unknown Namespace",
 		item: Namespace{
 			Format: NamespaceFormat(1<<16 - 1),
@@ -135,6 +76,40 @@ func TestFingerprint(t *testing.T) {
 	}
 }
 
+func TestNewNamespaceEd25519V1(t *testing.T) {
+	size := 32 // verification key size
+	for _, table := range []struct {
+		description string
+		vk          []byte
+		wantErr     bool
+	}{
+		{
+			description: "invalid",
+			vk:          make([]byte, size+1),
+			wantErr:     true,
+		},
+		{
+			description: "valid",
+			vk:          make([]byte, size),
+		},
+	} {
+		n, err := NewNamespaceEd25519V1(table.vk)
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+		if err != nil {
+			continue
+		}
+		if got, want := n.Format, NamespaceFormatEd25519V1; got != want {
+			t.Errorf("got namespace format %v but wanted %v in test %q", got, want, table.description)
+			continue
+		}
+		if got, want := n.Ed25519V1.Namespace[:], table.vk; !bytes.Equal(got, want) {
+			t.Errorf("got namespace %X but wanted %X in test %q", got, want, table.description)
+		}
+	}
+}
+
 func TestVerify(t *testing.T) {
 	var tests []testCaseNamespace
 	tests = append(tests, test_cases_verify(t)...)
@@ -144,119 +119,6 @@ func TestVerify(t *testing.T) {
 		if got, want := err != nil, table.wantErr; got != want {
 			t.Errorf("got error=%v but wanted %v in test %q: %v", got, want, table.description, err)
 		}
-	}
-}
-
-func TestNewNamespacePool(t *testing.T) {
-	ns1 := mustInitNamespaceEd25519V1(t, 0x00)
-	ns2 := mustInitNamespaceEd25519V1(t, 0xff)
-	nsr := &Namespace{Format: NamespaceFormatReserved}
-	for _, table := range []struct {
-		description string
-		namespaces  []*Namespace
-		wantErr     bool
-	}{
-		{
-			description: "invalid: duplicate namespace",
-			namespaces:  []*Namespace{ns1, ns1, ns2},
-			wantErr:     true,
-		},
-		{
-			description: "invalid: namespace without key",
-			namespaces:  []*Namespace{ns1, nsr, ns2},
-			wantErr:     true,
-		},
-		{
-			description: "valid: empty",
-			namespaces:  []*Namespace{},
-		},
-		{
-			description: "valid: one namespace",
-			namespaces:  []*Namespace{ns1},
-		},
-		{
-			description: "valid: two namespaces",
-			namespaces:  []*Namespace{ns1, ns2},
-		},
-	} {
-		_, err := NewNamespacePool(table.namespaces)
-		if got, want := err != nil, table.wantErr; got != want {
-			t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
-		}
-	}
-}
-
-func TestFind(t *testing.T) {
-	ns1 := mustInitNamespaceEd25519V1(t, 0x00)
-	ns2 := mustInitNamespaceEd25519V1(t, 0xff)
-
-	// Empty pool
-	pool, err := NewNamespacePool(nil)
-	if err != nil {
-		t.Fatalf("must create new namespace pool: %v", err)
-	}
-	if _, ok := pool.Find(ns1); ok {
-		t.Errorf("found namespace in empty pool")
-	}
-
-	// Pool with one namespace
-	pool, err = NewNamespacePool([]*Namespace{ns1})
-	if err != nil {
-		t.Fatalf("must create new namespace pool: %v", err)
-	}
-	if ns, ok := pool.Find(ns1); !ok {
-		t.Errorf("could not find namespace that is a member of the pool")
-	} else if !reflect.DeepEqual(ns, ns1) {
-		t.Errorf("found namespace but it is wrong")
-	}
-	if _, ok := pool.Find(ns2); ok {
-		t.Errorf("found namespace although it is not a member of the pool")
-	}
-}
-
-func TestList(t *testing.T) {
-	ns1 := mustInitNamespaceEd25519V1(t, 0x00)
-	ns2 := mustInitNamespaceEd25519V1(t, 0xff)
-	namespaces := []*Namespace{ns1, ns2}
-	pool, err := NewNamespacePool(namespaces)
-	if err != nil {
-		t.Fatalf("must create new namespace pool: %v", err)
-	}
-	if got, want := len(pool.List()), len(namespaces); got != want {
-		t.Errorf("got len %v but wanted %v", got, want)
-	}
-	pool.List()[0] = ns2
-	if got, want := pool.List()[0].Ed25519V1.Namespace[:], ns1.Ed25519V1.Namespace[:]; !bytes.Equal(got, want) {
-		t.Errorf("returned list is not a copy")
-	}
-}
-
-// test_cases_namespace returns test cases for the different Namespace types.
-// It is used by TestMarshalUnmarshal(), see test_item.go.
-func test_cases_namespace(t *testing.T) []testCaseType {
-	return []testCaseType{
-		{
-			description: "invalid: Namespace: reserved",
-			item:        testNamespaceReserved,
-			wantErr:     true,
-		},
-		{
-			description: "valid: Namespace: ed25519_v1",
-			item:        testNamespaceEd25519V1,
-			wantBytes:   testNamespaceEd25519V1Bytes,
-		},
-	}
-}
-
-// test_cases_ed25519v1 returns test cases for the Ed25519V1 structure
-// It is used by TestMarshalUnmarshal(), see test_item.go.
-func test_cases_ed25519v1(t *testing.T) []testCaseType {
-	return []testCaseType{
-		{
-			description: "valid: testNamespaceEd25519V1",
-			item:        testEd25519V1,
-			wantBytes:   testEd25519V1Bytes,
-		},
 	}
 }
 
