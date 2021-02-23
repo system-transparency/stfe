@@ -14,6 +14,8 @@ type NamespaceFormat tls.Enum
 const (
 	NamespaceFormatReserved  NamespaceFormat = 0
 	NamespaceFormatEd25519V1 NamespaceFormat = 1
+
+	NamespaceFingerprintSize = 32
 )
 
 // Namespace references a versioned namespace based on a given format specifier
@@ -47,6 +49,16 @@ func (n Namespace) String() string {
 		return fmt.Sprintf("Format(%s): %+v", n.Format, n.Ed25519V1)
 	default:
 		return fmt.Sprintf("unknown Namespace: %v", n.Format)
+	}
+}
+
+// Fingerprint returns a fixed-size namespace fingerprint that is unique.
+func (n *Namespace) Fingerprint() (*[NamespaceFingerprintSize]byte, error) {
+	switch n.Format {
+	case NamespaceFormatEd25519V1:
+		return &n.Ed25519V1.Namespace, nil
+	default:
+		return nil, fmt.Errorf("unsupported NamespaceFormat: %v", n.Format)
 	}
 }
 

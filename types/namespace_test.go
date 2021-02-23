@@ -97,6 +97,44 @@ func TestNamespaceString(t *testing.T) {
 	}
 }
 
+func TestFingerprint(t *testing.T) {
+	for _, table := range []struct {
+		description string
+		namespace   *Namespace
+		wantErr     bool
+		wantFpr     [NamespaceFingerprintSize]byte
+	}{
+		{
+			description: "invalid: no fingerprint for type",
+			namespace: &Namespace{
+				Format: NamespaceFormatReserved,
+			},
+			wantErr: true,
+		},
+		{
+			description: "valid: ed25519_v1",
+			namespace:   mustInitNamespaceEd25519V1(t, 0xaf),
+			wantFpr: func() (ret [NamespaceFingerprintSize]byte) {
+				for i, _ := range ret {
+					ret[i] = 0xaf
+				}
+				return
+			}(),
+		},
+	} {
+		fpr, err := table.namespace.Fingerprint()
+		if got, want := err != nil, table.wantErr; got != want {
+			t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
+		}
+		if err != nil {
+			continue
+		}
+		if got, want := *fpr, table.wantFpr; !bytes.Equal(got[:], want[:]) {
+			t.Errorf("got fpr %v but wanted %v in test %q", got, want, table.description)
+		}
+	}
+}
+
 func TestVerify(t *testing.T) {
 	var tests []testCaseNamespace
 	tests = append(tests, test_cases_verify(t)...)
