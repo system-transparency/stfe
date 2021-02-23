@@ -239,12 +239,11 @@ that it is up to the submitters to define hash functions, data formats, and
 such.
 
 ## Public endpoints
-Clients talk to the log using HTTP(S). Parameters for HTTP GET requests are
-URL-encoded with `Content-Type: application/x-www-form-urlencoded`. In
-contrast, HTTP POST requests post a single base64-encoded serialized `StItem`
-with `Content-Type: text/plain`.  The log returns HTTP Status `200 OK` to
-signal success, and the response (if any) is serialized and then base64-encoded
-with `Content-Type: text/plain`.
+Clients talk to the log using HTTP(S). Successfully processed requests are
+responded to with HTTP status code `200 OK`, and any returned data is
+serialized.  Endpoints without input parameters use HTTP GET requests.
+Endpoints that have input parameters HTTP POST a TLS-serialized data structure.
+The HTTP content type `application/octet-stream` is used when sending data.
 
 ### add-entry
 ```
@@ -303,36 +302,48 @@ recent cosigned STH.
 
 ### get-proof-by-hash
 ```
-GET https://<base url>/st/v1/get-proof-by-hash
+POST https://<base url>/st/v1/get-proof-by-hash
 ```
 
 Input:
-- `hash`: a base-64 encoded leaf hash using the log's hash function.
-- `tree_size`: the tree size that the proof should be based on in decimal.
+```
+struct {
+	opaque hash[32]; // leaf hash
+	uint64 tree_size; // tree size that the proof should be based on
+} GetProofByHashV1;
+```
 
 Output:
 - An `StItem` of type `inclusion_proof_v1`.
 
 ### get-consistency-proof
 ```
-GET https://<base url>/st/v1/get-consistency-proof
+POST https://<base url>/st/v1/get-consistency-proof
 ```
 
 Input:
-- first: the `tree_size` of the older tree in decimal.
-- second: the `tree_size` of the newer tree in decimal.
+```
+struct {
+	uint64 first; // first tree size that the proof should be based on
+	uint64 second; // second tree size that the proof should be based on
+} GetConsistencyProofV1;
+```
 
 Output:
 - An `StItem` of type `consistency_proof_v1`.
 
 ### get-entries
 ```
-GET https://<base url>/st/v1/get-entries
+POST https://<base url>/st/v1/get-entries
 ```
 
 Input:
-- `start`: 0-based index of first entry to retrieve in decimal.
-- `end`: 0-based index of last entry to retrieve in decimal.
+```
+struct {
+	uint64 start; // 0-based index of first entry to retrieve
+	uint64 end; // 0-based index of last entry to retrieve in decimal.
+} GetEntriesV1;
+```
 
 Output:
 - An `StItem` list where each entry is of type `signed_checksum_v1`.  The first
