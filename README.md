@@ -120,7 +120,7 @@ struct {
 } StItem;
 
 struct {
-	StItem item<0..2^32-1>;
+	StItem items<0..2^32-1>;
 } StItemList;
 ```
 
