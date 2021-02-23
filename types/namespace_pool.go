@@ -6,7 +6,7 @@ import (
 
 // NamespacePool is a pool of namespaces that contain complete verification keys
 type NamespacePool struct {
-	pool map[string]*Namespace
+	pool map[[NamespaceFingerprintSize]byte]*Namespace
 	list []*Namespace
 	// If we need to update this structure without a restart => add mutex.
 }
@@ -16,17 +16,21 @@ type NamespacePool struct {
 // complete verification key.  The latter is determined by namespaceWithKey().
 func NewNamespacePool(namespaces []*Namespace) (*NamespacePool, error) {
 	np := &NamespacePool{
-		pool: make(map[string]*Namespace),
+		pool: make(map[[NamespaceFingerprintSize]byte]*Namespace),
 		list: make([]*Namespace, 0),
 	}
 	for _, namespace := range namespaces {
 		if !namespaceWithKey(namespace.Format) {
 			return nil, fmt.Errorf("need verification key in namespace pool: %v", namespace.Format)
 		}
-		if _, ok := np.pool[namespace.String()]; ok {
+		fpr, err := namespace.Fingerprint()
+		if err != nil {
+			return nil, fmt.Errorf("need fingerprint in namespace pool: %v", err)
+		}
+		if _, ok := np.pool[*fpr]; ok {
 			return nil, fmt.Errorf("duplicate namespace: %v", namespace.String())
 		}
-		np.pool[namespace.String()] = namespace
+		np.pool[*fpr] = namespace
 		np.list = append(np.list, namespace)
 	}
 	return np, nil
@@ -34,7 +38,11 @@ func NewNamespacePool(namespaces []*Namespace) (*NamespacePool, error) {
 
 // Find checks if namespace is a member of the namespace pool.
 func (np *NamespacePool) Find(namespace *Namespace) (*Namespace, bool) {
-	if _, ok := np.pool[namespace.String()]; !ok {
+	fpr, err := namespace.Fingerprint()
+	if err != nil {
+		return nil, false
+	}
+	if _, ok := np.pool[*fpr]; !ok {
 		return nil, false
 	}
 	// If the passed namespace is a key fingerprint the actual key needs to be
