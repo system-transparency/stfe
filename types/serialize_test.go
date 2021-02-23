@@ -33,6 +33,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	tests = append(tests, test_cases_sigv1(t)...)
 	tests = append(tests, test_cases_namespace(t)...)
 	tests = append(tests, test_cases_ed25519v1(t)...)
+	tests = append(tests, test_cases_requests(t)...)
 	for _, table := range tests {
 		b, err := Marshal(table.item)
 		if got, want := err != nil, table.wantErr; got != want {
@@ -84,6 +85,12 @@ func TestMarshalUnmarshal(t *testing.T) {
 			err = Unmarshal(b, &item)
 		case Ed25519V1:
 			var item Ed25519V1
+			err = Unmarshal(b, &item)
+		case GetProofByHashV1:
+			var item GetProofByHashV1
+			err = Unmarshal(b, &item)
+		case GetConsistencyProofV1:
+			var item GetConsistencyProofV1
 			err = Unmarshal(b, &item)
 		default:
 			t.Errorf("unhandled type in test %q", table.description)
@@ -477,6 +484,34 @@ func test_cases_ed25519v1(t *testing.T) []testCaseSerialize {
 			description: "valid: testNamespaceEd25519V1",
 			item:        testEd25519V1,
 			wantBytes:   testEd25519V1Bytes,
+		},
+	}
+}
+
+// test_cases_requests returns test cases for proof request types
+func test_cases_requests(t *testing.T) []testCaseSerialize {
+	return []testCaseSerialize{
+		{
+			description: "valid: GetProofByHashV1",
+			item: GetProofByHashV1{
+				Hash:     [HashSizeV1]byte{},
+				TreeSize: 16909060,
+			},
+			wantBytes: bytes.Join([][]byte{
+				make([]byte, 32), // hash
+				[]byte{0x00, 0x00, 0x00, 0x00, 0x1, 0x2, 0x3, 0x4}, // tree size
+			}, nil),
+		},
+		{
+			description: "valid: GetConsistencyProofV1",
+			item: GetConsistencyProofV1{
+				First:  0,
+				Second: 16909060,
+			},
+			wantBytes: bytes.Join([][]byte{
+				make([]byte, 8), // first
+				[]byte{0x00, 0x00, 0x00, 0x00, 0x1, 0x2, 0x3, 0x4}, // second
+			}, nil),
 		},
 	}
 }

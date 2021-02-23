@@ -6,6 +6,22 @@ import (
 	"github.com/google/certificate-transparency-go/tls"
 )
 
+const (
+	HashSizeV1 = 32
+)
+
+// GetProofByHashV1 is a serializable get-proof-by-hash request
+type GetProofByHashV1 struct {
+	Hash     [HashSizeV1]byte
+	TreeSize uint64
+}
+
+// GetConsistencyProofV1 is a serializable get-consistency-proof request
+type GetConsistencyProofV1 struct {
+	First  uint64
+	Second uint64
+}
+
 // Marshal marshals a TLS-encodable structure
 func Marshal(item interface{}) ([]byte, error) {
 	serialized, err := tls.Marshal(item)
