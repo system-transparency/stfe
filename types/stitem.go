@@ -119,3 +119,74 @@ func (i StItem) String() string {
 		return fmt.Sprintf("unknown StItem: %v", i.Format)
 	}
 }
+
+func NewSignedTreeHeadV1(th *TreeHeadV1, sig *SignatureV1) *StItem {
+	return &StItem{
+		Format: StFormatSignedTreeHeadV1,
+		SignedTreeHeadV1: &SignedTreeHeadV1{
+			TreeHead:  *th,
+			Signature: *sig,
+		},
+	}
+}
+
+func NewCosignedTreeHeadV1(sth *SignedTreeHeadV1, cosig []SignatureV1) *StItem {
+	if cosig == nil {
+		cosig = make([]SignatureV1, 0)
+	}
+	return &StItem{
+		Format: StFormatCosignedTreeHeadV1,
+		CosignedTreeHeadV1: &CosignedTreeHeadV1{
+			SignedTreeHead: *sth,
+			Cosignatures:   cosig,
+		},
+	}
+}
+
+func NewConsistencyProofV1(id *Namespace, size1, size2 uint64, path []NodeHash) *StItem {
+	return &StItem{
+		Format: StFormatConsistencyProofV1,
+		ConsistencyProofV1: &ConsistencyProofV1{
+			LogId:           *id,
+			TreeSize1:       size1,
+			TreeSize2:       size2,
+			ConsistencyPath: path,
+		},
+	}
+}
+
+func NewInclusionProofV1(id *Namespace, size, index uint64, path []NodeHash) *StItem {
+	return &StItem{
+		Format: StFormatInclusionProofV1,
+		InclusionProofV1: &InclusionProofV1{
+			LogId:         *id,
+			TreeSize:      size,
+			LeafIndex:     index,
+			InclusionPath: path,
+		},
+	}
+}
+
+func NewSignedChecksumV1(data *ChecksumV1, sig *SignatureV1) *StItem {
+	return &StItem{
+		Format: StFormatSignedChecksumV1,
+		SignedChecksumV1: &SignedChecksumV1{
+			Data:      *data,
+			Signature: *sig,
+		},
+	}
+}
+
+func NewTreeHeadV1(timestamp, size uint64, hash, extension []byte) *TreeHeadV1 {
+	if extension == nil {
+		extension = make([]byte, 0)
+	}
+	return &TreeHeadV1{
+		Timestamp: timestamp,
+		TreeSize:  size,
+		RootHash: NodeHash{
+			Data: hash,
+		},
+		Extension: extension,
+	}
+}

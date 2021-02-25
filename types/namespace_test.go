@@ -146,8 +146,7 @@ func test_cases_verify(t *testing.T) []testCaseNamespace {
 // test_cases_verify_ed25519v1 returns ed25519_v1 Namespace.Verify() tests
 func test_cases_verify_ed25519v1(t *testing.T) []testCaseNamespace {
 	testEd25519Sk := [64]byte{230, 122, 195, 152, 194, 195, 147, 153, 80, 120, 153, 79, 102, 27, 52, 187, 136, 218, 150, 234, 107, 9, 167, 4, 92, 21, 11, 113, 42, 29, 129, 69, 75, 60, 249, 150, 229, 93, 75, 32, 103, 126, 244, 37, 53, 182, 68, 82, 249, 109, 49, 94, 10, 19, 146, 244, 58, 191, 169, 107, 78, 37, 45, 210}
-	testEd25519Vk := [32]byte{75, 60, 249, 150, 229, 93, 75, 32, 103, 126, 244, 37, 53, 182, 68, 82, 249, 109, 49, 94, 10, 19, 146, 244, 58, 191, 169, 107, 78,
-		37, 45, 210}
+	testEd25519Vk := [32]byte{75, 60, 249, 150, 229, 93, 75, 32, 103, 126, 244, 37, 53, 182, 68, 82, 249, 109, 49, 94, 10, 19, 146, 244, 58, 191, 169, 107, 78, 37, 45, 210}
 	return []testCaseNamespace{
 		{
 			description: "test_cases_verify_ed25519v1: invalid: sk signed message, but vk is not for sk",

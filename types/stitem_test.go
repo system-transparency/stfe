@@ -38,3 +38,27 @@ func TestStItemString(t *testing.T) {
 		}
 	}
 }
+
+// TODO: TestNewSignedTreeHeadV1
+func TestNewSignedTreeHeadV1(t *testing.T) {
+}
+
+// TODO: TestNewCosignedTreeHeadV1
+func TestNewCosignedTreeHeadV1(t *testing.T) {
+}
+
+// TODO: TestNewConsistencyProofV1
+func TestNewConsistencyProofV1(t *testing.T) {
+}
+
+// TODO: TestNewInclusionProofV1
+func TestNewInclusionProofV1(t *testing.T) {
+}
+
+// TODO: TestNewSignedChecksumV1
+func TestNewSignedChecksumV1(t *testing.T) {
+}
+
+// TODO: TestNewTreeHeadV1
+func TestNewTreeHeadV1(t *testing.T) {
+}

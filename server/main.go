@@ -20,7 +20,7 @@ import (
 	"github.com/google/trillian"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/system-transparency/stfe"
-	"github.com/system-transparency/stfe/namespace"
+	"github.com/system-transparency/stfe/types"
 	"google.golang.org/grpc"
 )
 
@@ -31,8 +31,8 @@ var (
 	trillianID   = flag.Int64("trillian_id", 5991359069696313945, "log identifier in the Trillian database")
 	deadline     = flag.Duration("deadline", time.Second*10, "deadline for backend requests")
 	key          = flag.String("key", "8gzezwrU/2eTrO6tEYyLKsoqn5V54URvKIL9cTE7jUYUqXVX4neJvcBq/zpSAYPsZFG1woh0OGBzQbi9UP9MZw==", "base64-encoded Ed25519 signing key")
-	submitters   = flag.String("submitters", "AAEgHOQFUkKNWpjYAhNKTyWCzahlI7RDtf5123kHD2LACj0=,AAEgLqrWb9JwQUTk/SwTNDdMH8aRmy3mbmhwEepO5WSgb+A=", "comma-separated list of trusted submitter namespaces in base64 (default: testdata.Ed25519{Vk,Vk2})")
-	witnesses    = flag.String("witnesses", "", "comma-separated list of trusted submitter namespaces in base64 (default: none")
+	submitters   = flag.String("submitters", "AAEgHOQFUkKNWpjYAhNKTyWCzahlI7RDtf5123kHD2LACj0=,AAEgLqrWb9JwQUTk/SwTNDdMH8aRmy3mbmhwEepO5WSgb+A=", "comma-separated list of trusted submitter namespaces in base64 (default: testdata.Ed25519{Vk,Vk2})") // TODO: update to valid submitter namespaces
+	witnesses    = flag.String("witnesses", "", "comma-separated list of trusted submitter namespaces in base64 (default: none")                                                                                                                        // TODO: update to valid witness namespaces
 	maxRange     = flag.Int64("max_range", 2, "maximum number of entries that can be retrived in a single request")
 	interval     = flag.Duration("interval", time.Second*30, "interval used to rotate the log's cosigned STH")
 )
@@ -113,7 +113,7 @@ func setupInstanceFromFlags() (*stfe.Instance, error) {
 		return nil, fmt.Errorf("sk: DecodeString: %v", err)
 	}
 	signer := ed25519.PrivateKey(sk)
-	logId, err := namespace.NewNamespaceEd25519V1([]byte(ed25519.PrivateKey(sk).Public().(ed25519.PublicKey)))
+	logId, err := types.NewNamespaceEd25519V1([]byte(ed25519.PrivateKey(sk).Public().(ed25519.PublicKey)))
 	if err != nil {
 		return nil, fmt.Errorf("NewNamespaceEd25519V1: %v", err)
 	}
@@ -128,7 +128,7 @@ func setupInstanceFromFlags() (*stfe.Instance, error) {
 		return nil, fmt.Errorf("NewActiveSthSource: %v", err)
 	}
 	// Setup log instance
-	i := stfe.NewInstance(lp, client, source)
+	i := &stfe.Instance{client, lp, source}
 	for _, handler := range i.Handlers() {
 		glog.V(3).Infof("adding handler: %s", handler.Path())
 		mux.Handle(handler.Path(), handler)
@@ -138,22 +138,22 @@ func setupInstanceFromFlags() (*stfe.Instance, error) {
 
 // newNamespacePoolFromString creates a new namespace pool from a
 // comma-separated list of serialized and base64-encoded namespaces.
-func newNamespacePoolFromString(str string) (*namespace.NamespacePool, error) {
-	var namespaces []*namespace.Namespace
+func newNamespacePoolFromString(str string) (*types.NamespacePool, error) {
+	var namespaces []*types.Namespace
 	if len(str) > 0 {
 		for _, b64 := range strings.Split(str, ",") {
 			b, err := base64.StdEncoding.DecodeString(b64)
 			if err != nil {
 				return nil, fmt.Errorf("DecodeString: %v", err)
 			}
-			var namespace namespace.Namespace
-			if err := namespace.Unmarshal(b); err != nil {
+			var namespace types.Namespace
+			if err := types.Unmarshal(b, &namespace); err != nil {
 				return nil, fmt.Errorf("Unmarshal: %v", err)
 			}
 			namespaces = append(namespaces, &namespace)
 		}
 	}
-	pool, err := namespace.NewNamespacePool(namespaces)
+	pool, err := types.NewNamespacePool(namespaces)
 	if err != nil {
 		return nil, fmt.Errorf("NewNamespacePool: %v", err)
 	}
