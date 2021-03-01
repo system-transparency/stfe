@@ -41,7 +41,7 @@ func TestNewActiveSthSource(t *testing.T) {
 		func() { // run deferred functions at the end of each iteration
 			ti := newTestInstance(t, table.signer)
 			defer ti.ctrl.Finish()
-			ti.client.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr)
+			ti.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			source, err := NewActiveSthSource(ti.client, ti.instance.LogParameters)
 			if got, want := err != nil, table.wantErr; got != want {
 				t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
@@ -102,7 +102,7 @@ func TestLatest(t *testing.T) {
 		func() { // run deferred functions at the end of each iteration
 			ti := newTestInstance(t, table.signer)
 			defer ti.ctrl.Finish()
-			ti.client.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr)
+			ti.client.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr) // no deadline matcher because context is set by the caller of Latest(), i.e., this test on the line below
 			sth, err := ti.instance.SthSource.Latest(context.Background())
 			if got, want := err != nil, table.wantErr; got != want {
 				t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)

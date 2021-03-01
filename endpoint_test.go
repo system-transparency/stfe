@@ -2,6 +2,7 @@ package stfe
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -53,7 +54,7 @@ func TestEndpointAddEntry(t *testing.T) {
 			}
 			req.Header.Set("Content-Type", "application/octet-stream")
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().QueueLeaf(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().QueueLeaf(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
 			}
 
 			w := httptest.NewRecorder()
@@ -138,7 +139,7 @@ func TestEndpointGetLatestSth(t *testing.T) {
 				t.Fatalf("must create http request: %v", err)
 			}
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
 			}
 
 			w := httptest.NewRecorder()
@@ -304,7 +305,7 @@ func TestEndpointGetProofByHash(t *testing.T) {
 			}
 			req.Header.Set("Content-Type", "application/octet-stream")
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetInclusionProofByHash(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().GetInclusionProofByHash(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
 			}
 
 			w := httptest.NewRecorder()
@@ -366,7 +367,7 @@ func TestEndpointGetConsistencyProof(t *testing.T) {
 			}
 			req.Header.Set("Content-Type", "application/octet-stream")
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetConsistencyProof(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().GetConsistencyProof(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
 			}
 
 			w := httptest.NewRecorder()
@@ -428,7 +429,7 @@ func TestEndpointGetEntriesV1(t *testing.T) {
 			}
 			req.Header.Set("Content-Type", "application/octet-stream")
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetLeavesByRange(gomock.Any(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().GetLeavesByRange(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
 			}
 
 			w := httptest.NewRecorder()
@@ -501,4 +502,28 @@ func TestEndpointPath(t *testing.T) {
 
 // TODO: TestWriteOctetResponse
 func TestWriteOctetResponse(t *testing.T) {
+}
+
+// deadlineMatcher implements gomock.Matcher, such that an error is raised if
+// there is no context.Context deadline set
+type deadlineMatcher struct{}
+
+// newDeadlineMatcher returns a new DeadlineMatcher
+func newDeadlineMatcher() gomock.Matcher {
+	return &deadlineMatcher{}
+}
+
+// Matches returns true if the passed interface is a context with a deadline
+func (dm *deadlineMatcher) Matches(i interface{}) bool {
+	ctx, ok := i.(context.Context)
+	if !ok {
+		return false
+	}
+	_, ok = ctx.Deadline()
+	return ok
+}
+
+// String is needed to implement gomock.Matcher
+func (dm *deadlineMatcher) String() string {
+	return fmt.Sprintf("deadlineMatcher{}")
 }
