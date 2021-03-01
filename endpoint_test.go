@@ -54,7 +54,7 @@ func TestEndpointAddEntry(t *testing.T) {
 			}
 			req.Header.Set("Content-Type", "application/octet-stream")
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().QueueLeaf(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().QueueLeaf(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 
 			w := httptest.NewRecorder()
@@ -139,7 +139,7 @@ func TestEndpointGetLatestSth(t *testing.T) {
 				t.Fatalf("must create http request: %v", err)
 			}
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 
 			w := httptest.NewRecorder()
@@ -305,7 +305,7 @@ func TestEndpointGetProofByHash(t *testing.T) {
 			}
 			req.Header.Set("Content-Type", "application/octet-stream")
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetInclusionProofByHash(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().GetInclusionProofByHash(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 
 			w := httptest.NewRecorder()
@@ -367,7 +367,7 @@ func TestEndpointGetConsistencyProof(t *testing.T) {
 			}
 			req.Header.Set("Content-Type", "application/octet-stream")
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetConsistencyProof(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().GetConsistencyProof(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 
 			w := httptest.NewRecorder()
@@ -429,7 +429,7 @@ func TestEndpointGetEntriesV1(t *testing.T) {
 			}
 			req.Header.Set("Content-Type", "application/octet-stream")
 			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetLeavesByRange(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr) // TODO: deadline matcher?
+				ti.client.EXPECT().GetLeavesByRange(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
 			}
 
 			w := httptest.NewRecorder()
