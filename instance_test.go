@@ -153,3 +153,7 @@ func TestPostHandlersRejectGet(t *testing.T) {
 		})
 	}
 }
+
+// TODO: TestHandlerPath
+func TestHandlerPath(t *testing.T) {
+}

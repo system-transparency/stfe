@@ -15,7 +15,8 @@ import (
 // based on the parameters in "github.com/system-transparency/stfe/testdata".
 // The log's namespace is initialized with testdata.LogEd25519Vk, the submmiter
 // namespace list is initialized with testdata.SubmmiterEd25519, and the witness
-// namespace list is initialized with testdata.WitnessEd25519Vk.
+// namespace list is initialized with testdata.WitnessEd25519Vk.  The log's
+// submitter and witness policies are set to reject unregistered namespace.
 func newLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {
 	t.Helper()
 	logId := testdata.NewNamespace(t, testdata.Ed25519VkLog)
@@ -25,7 +26,7 @@ func newLogParameters(t *testing.T, signer crypto.Signer) *LogParameters {
 	submitPool := testdata.NewNamespacePool(t, []*types.Namespace{
 		testdata.NewNamespace(t, testdata.Ed25519VkSubmitter),
 	})
-	lp, err := NewLogParameters(signer, logId, testdata.TreeId, testdata.Prefix, submitPool, witnessPool, testdata.MaxRange, testdata.Interval, testdata.Deadline)
+	lp, err := NewLogParameters(signer, logId, testdata.TreeId, testdata.Prefix, submitPool, witnessPool, testdata.MaxRange, testdata.Interval, testdata.Deadline, true, true)
 	if err != nil {
 		t.Fatalf("must create new log parameters: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestNewLogParameters(t *testing.T) {
 			logId:       testdata.NewNamespace(t, testdata.Ed25519VkLog),
 		},
 	} {
-		_, err := NewLogParameters(nil, table.logId, testdata.TreeId, testdata.Prefix, nil, nil, testdata.MaxRange, testdata.Interval, testdata.Deadline)
+		_, err := NewLogParameters(nil, table.logId, testdata.TreeId, testdata.Prefix, nil, nil, testdata.MaxRange, testdata.Interval, testdata.Deadline, true, true)
 		if got, want := err != nil, table.wantErr; got != want {
 			t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
 		}

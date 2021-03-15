@@ -45,7 +45,7 @@ func TestParseAddEntryV1Request(t *testing.T) {
 		{
 			description: "valid",
 			breq:        testdata.AddSignedChecksumBuffer(t, testdata.Ed25519SkSubmitter, testdata.Ed25519VkSubmitter),
-		},
+		}, // TODO: add test case that disables submitter policy (i.e., unregistered namespaces are accepted)
 	} {
 		url := EndpointAddEntry.Path("http://example.com", lp.Prefix)
 		req, err := http.NewRequest("POST", url, table.breq)
@@ -96,7 +96,7 @@ func TestParseAddCosignatureV1Request(t *testing.T) {
 		{
 			description: "valid",
 			breq:        testdata.AddCosignatureBuffer(t, testdata.DefaultSth(t, testdata.Ed25519VkLog), &testdata.Ed25519SkWitness, &testdata.Ed25519VkWitness),
-		},
+		}, // TODO: add test case that disables witness policy (i.e., unregistered namespaces are accepted)
 	} {
 		url := EndpointAddCosignature.Path("http://example.com", lp.Prefix)
 		req, err := http.NewRequest("POST", url, table.breq)

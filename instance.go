@@ -41,16 +41,21 @@ type Handler struct {
 	Handler  func(context.Context, *Instance, http.ResponseWriter, *http.Request) (int, error)
 }
 
+// Path returns a path that should be configured for this handler
+func (h Handler) Path() string {
+	return h.Endpoint.Path("", h.Instance.LogParameters.Prefix)
+}
+
 // ServeHTTP is part of the http.Handler interface
 func (a Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// export prometheus metrics
 	var now time.Time = time.Now()
 	var statusCode int
 	defer func() {
-		rspcnt.Inc(string(a.Instance.LogParameters.LogIdBytes), string(a.Endpoint), fmt.Sprintf("%d", statusCode))
-		latency.Observe(time.Now().Sub(now).Seconds(), string(a.Instance.LogParameters.LogIdBytes), string(a.Endpoint), fmt.Sprintf("%d", statusCode))
+		rspcnt.Inc(a.Instance.LogParameters.LogIdStr, string(a.Endpoint), fmt.Sprintf("%d", statusCode))
+		latency.Observe(time.Now().Sub(now).Seconds(), a.Instance.LogParameters.LogIdStr, string(a.Endpoint), fmt.Sprintf("%d", statusCode))
 	}()
-	reqcnt.Inc(string(a.Instance.LogParameters.LogIdBytes), string(a.Endpoint))
+	reqcnt.Inc(a.Instance.LogParameters.LogIdStr, string(a.Endpoint))
 
 	ctx, cancel := context.WithDeadline(r.Context(), now.Add(a.Instance.LogParameters.Deadline))
 	defer cancel()

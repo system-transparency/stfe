@@ -25,16 +25,18 @@ import (
 )
 
 var (
-	httpEndpoint = flag.String("http_endpoint", "localhost:6965", "host:port specification of where stfe serves clients")
-	rpcBackend   = flag.String("log_rpc_server", "localhost:6962", "host:port specification of where Trillian serves clients")
-	prefix       = flag.String("prefix", "st/v1", "a prefix that proceeds each endpoint path")
-	trillianID   = flag.Int64("trillian_id", 5991359069696313945, "log identifier in the Trillian database")
-	deadline     = flag.Duration("deadline", time.Second*10, "deadline for backend requests")
-	key          = flag.String("key", "8gzezwrU/2eTrO6tEYyLKsoqn5V54URvKIL9cTE7jUYUqXVX4neJvcBq/zpSAYPsZFG1woh0OGBzQbi9UP9MZw==", "base64-encoded Ed25519 signing key")
-	submitters   = flag.String("submitters", "AAEgHOQFUkKNWpjYAhNKTyWCzahlI7RDtf5123kHD2LACj0=,AAEgLqrWb9JwQUTk/SwTNDdMH8aRmy3mbmhwEepO5WSgb+A=", "comma-separated list of trusted submitter namespaces in base64 (default: testdata.Ed25519{Vk,Vk2})") // TODO: update to valid submitter namespaces
-	witnesses    = flag.String("witnesses", "", "comma-separated list of trusted submitter namespaces in base64 (default: none")                                                                                                                        // TODO: update to valid witness namespaces
-	maxRange     = flag.Int64("max_range", 2, "maximum number of entries that can be retrived in a single request")
-	interval     = flag.Duration("interval", time.Second*30, "interval used to rotate the log's cosigned STH")
+	httpEndpoint    = flag.String("http_endpoint", "localhost:6965", "host:port specification of where stfe serves clients")
+	rpcBackend      = flag.String("log_rpc_server", "localhost:6962", "host:port specification of where Trillian serves clients")
+	prefix          = flag.String("prefix", "st/v1", "a prefix that proceeds each endpoint path")
+	trillianID      = flag.Int64("trillian_id", 5991359069696313945, "log identifier in the Trillian database")
+	deadline        = flag.Duration("deadline", time.Second*10, "deadline for backend requests")
+	key             = flag.String("key", "8gzezwrU/2eTrO6tEYyLKsoqn5V54URvKIL9cTE7jUYUqXVX4neJvcBq/zpSAYPsZFG1woh0OGBzQbi9UP9MZw==", "base64-encoded Ed25519 signing key")
+	submitterPolicy = flag.Bool("submitter_policy", false, "whether there is any submitter namespace policy (default: none, accept unregistered submitter namespaces)")
+	witnessPolicy   = flag.Bool("witness_policy", false, "whether there is any witness namespace policy (default: none, accept unregistered witness namespaces)")
+	submitters      = flag.String("submitters", "", "comma-separated list of trusted submitter namespaces in base64 (default: none)")
+	witnesses       = flag.String("witnesses", "", "comma-separated list of trusted submitter namespaces in base64 (default: none)")
+	maxRange        = flag.Int64("max_range", 2, "maximum number of entries that can be retrived in a single request")
+	interval        = flag.Duration("interval", time.Second*30, "interval used to rotate the log's cosigned STH")
 )
 
 func main() {
@@ -118,7 +120,7 @@ func setupInstanceFromFlags() (*stfe.Instance, error) {
 		return nil, fmt.Errorf("NewNamespaceEd25519V1: %v", err)
 	}
 	// Setup log parameters
-	lp, err := stfe.NewLogParameters(signer, logId, *trillianID, *prefix, submitters, witnesses, *maxRange, *interval, *deadline)
+	lp, err := stfe.NewLogParameters(signer, logId, *trillianID, *prefix, submitters, witnesses, *maxRange, *interval, *deadline, *submitterPolicy, *witnessPolicy)
 	if err != nil {
 		return nil, fmt.Errorf("NewLogParameters: %v", err)
 	}

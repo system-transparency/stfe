@@ -19,9 +19,15 @@ func (lp *LogParameters) parseAddEntryV1Request(r *http.Request) (*types.StItem,
 	}
 
 	// Check that submitter namespace is valid
-	if namespace, ok := lp.Submitters.Find(&item.SignedChecksumV1.Signature.Namespace); !ok {
-		return nil, fmt.Errorf("unknown namespace: %v", item.SignedChecksumV1.Signature.Namespace)
-	} else if msg, err := types.Marshal(item.SignedChecksumV1.Data); err != nil {
+	namespace := &item.SignedChecksumV1.Signature.Namespace
+	if lp.SubmitterPolicy {
+		var ok bool
+		if namespace, ok = lp.Submitters.Find(namespace); !ok {
+			return nil, fmt.Errorf("unknown submitter namespace: %v", namespace)
+		}
+	}
+	// Check that namespace signed add-entry request
+	if msg, err := types.Marshal(item.SignedChecksumV1.Data); err != nil {
 		return nil, fmt.Errorf("Marshal: %v", err) // should never happen
 	} else if err := namespace.Verify(msg, item.SignedChecksumV1.Signature.Signature); err != nil {
 		return nil, fmt.Errorf("Verify: %v", err)
@@ -37,13 +43,20 @@ func (lp *LogParameters) parseAddCosignatureV1Request(r *http.Request) (*types.S
 	if item.Format != types.StFormatCosignedTreeHeadV1 {
 		return nil, fmt.Errorf("invalid StItem format: %v", item.Format)
 	}
-
-	// Check that witness namespace is valid
 	if got, want := len(item.CosignedTreeHeadV1.Cosignatures), 1; got != want {
 		return nil, fmt.Errorf("invalid number of cosignatures: %d", got)
-	} else if namespace, ok := lp.Witnesses.Find(&item.CosignedTreeHeadV1.Cosignatures[0].Namespace); !ok {
-		return nil, fmt.Errorf("unknown witness: %v", item.CosignedTreeHeadV1.Cosignatures[0].Namespace)
-	} else if msg, err := types.Marshal(*types.NewSignedTreeHeadV1(&item.CosignedTreeHeadV1.SignedTreeHead.TreeHead, &item.CosignedTreeHeadV1.SignedTreeHead.Signature).SignedTreeHeadV1); err != nil {
+	}
+
+	// Check that witness namespace is valid
+	namespace := &item.CosignedTreeHeadV1.Cosignatures[0].Namespace
+	if lp.WitnessPolicy {
+		var ok bool
+		if namespace, ok = lp.Witnesses.Find(namespace); !ok {
+			return nil, fmt.Errorf("unknown witness namespace: %v", namespace)
+		}
+	}
+	// Check that namespace signed add-cosignature request
+	if msg, err := types.Marshal(*types.NewSignedTreeHeadV1(&item.CosignedTreeHeadV1.SignedTreeHead.TreeHead, &item.CosignedTreeHeadV1.SignedTreeHead.Signature).SignedTreeHeadV1); err != nil {
 		return nil, fmt.Errorf("Marshal: %v", err) // should never happen
 	} else if err := namespace.Verify(msg, item.CosignedTreeHeadV1.Cosignatures[0].Signature); err != nil {
 		return nil, fmt.Errorf("Verify: %v", err)
