@@ -8,5 +8,6 @@ require (
 	github.com/google/certificate-transparency-go v1.1.1
 	github.com/google/trillian v1.3.13
 	github.com/prometheus/client_golang v1.9.0 // indirect
+	golang.org/x/net v0.0.0-20200625001655-4c5254603344 // indirect
 	google.golang.org/grpc v1.35.0
 )

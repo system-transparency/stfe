@@ -30,7 +30,7 @@ var (
 	prefix          = flag.String("prefix", "st/v1", "a prefix that proceeds each endpoint path")
 	trillianID      = flag.Int64("trillian_id", 5991359069696313945, "log identifier in the Trillian database")
 	deadline        = flag.Duration("deadline", time.Second*10, "deadline for backend requests")
-	key             = flag.String("key", "8gzezwrU/2eTrO6tEYyLKsoqn5V54URvKIL9cTE7jUYUqXVX4neJvcBq/zpSAYPsZFG1woh0OGBzQbi9UP9MZw==", "base64-encoded Ed25519 signing key")
+	key             = flag.String("key", "d3qiIZ/BBPLwZ3rlPEC/Eo2GWvhseUrgs+pX+/BwXSEsY0retj4wa3S2fjsOCJCTVHab7ipEiMdqtW1uJ6Jvmg==", "base64-encoded Ed25519 signing key")
 	submitterPolicy = flag.Bool("submitter_policy", false, "whether there is any submitter namespace policy (default: none, accept unregistered submitter namespaces)")
 	witnessPolicy   = flag.Bool("witness_policy", false, "whether there is any witness namespace policy (default: none, accept unregistered witness namespaces)")
 	submitters      = flag.String("submitters", "", "comma-separated list of trusted submitter namespaces in base64 (default: none)")

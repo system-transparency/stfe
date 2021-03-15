@@ -3,273 +3,175 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"flag"
 	"fmt"
+	"reflect"
 
 	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"io/ioutil"
 	"net/http"
 
 	"github.com/golang/glog"
 	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/system-transparency/stfe"
-	"github.com/system-transparency/stfe/descriptor"
-	"github.com/system-transparency/stfe/namespace"
+	"github.com/system-transparency/stfe/types"
 	"golang.org/x/net/context/ctxhttp"
 )
 
-// Client is an HTTP(S) client that talks to an ST log
+var (
+	logId      = flag.String("log_id", "AAEsY0retj4wa3S2fjsOCJCTVHab7ipEiMdqtW1uJ6Jvmg==", "base64-encoded log identifier")
+	logUrl     = flag.String("log_url", "http://localhost:6965/st/v1", "log url")
+	ed25519_sk = flag.String("ed25519_sk", "d8i6nud7PS1vdO0sIk9H+W0nyxbM63Y3/mSeUPRafWaFh8iH8QXvL7NaAYn2RZPrnEey+FdpmTYXE47OFO70eg==", "base64-encoded ed25519 signing key")
+)
+
 type Client struct {
-	Log        *descriptor.Log
-	Client     *http.Client
-	PrivateKey *ed25519.PrivateKey
-	Namespace  *namespace.Namespace
-	useHttp    bool
+	HttpClient *http.Client
+	Signer     crypto.Signer    // client's private identity
+	Namespace  *types.Namespace // client's public identity
+	Log        *Descriptor      // log's public identity
 }
 
-// NewClient returns a new log client.
-//
-// Note: private key can be ommied if no write APIs are used.
-func NewClient(log *descriptor.Log, client *http.Client, useHttp bool, privateKey *ed25519.PrivateKey) (*Client, error) {
-	c := &Client{
-		Log:        log,
-		Client:     client,
-		PrivateKey: privateKey,
-		useHttp:    useHttp,
+type Descriptor struct {
+	Namespace *types.Namespace // log identifier is a namespace
+	Url       string           // log url, e.g., http://example.com/st/v1
+}
+
+func NewClientFromFlags() (*Client, error) {
+	var err error
+	c := Client{
+		HttpClient: &http.Client{},
 	}
-	if privateKey != nil {
-		var err error
-		c.Namespace, err = namespace.NewNamespaceEd25519V1([]byte(privateKey.Public().(ed25519.PublicKey)))
+	if len(*ed25519_sk) != 0 {
+		sk, err := base64.StdEncoding.DecodeString(*ed25519_sk)
 		if err != nil {
-			return nil, fmt.Errorf("failed creating namespace: %v", err)
+			return nil, fmt.Errorf("ed25519_sk: DecodeString: %v", err)
+		}
+		c.Signer = ed25519.PrivateKey(sk)
+		c.Namespace, err = types.NewNamespaceEd25519V1([]byte(ed25519.PrivateKey(sk).Public().(ed25519.PublicKey)))
+		if err != nil {
+			return nil, fmt.Errorf("ed25519_vk: NewNamespaceEd25519V1: %v", err)
 		}
 	}
-	return c, nil
+	if c.Log, err = NewDescriptorFromFlags(); err != nil {
+		return nil, fmt.Errorf("NewDescriptorFromFlags: %v", err)
+	}
+	return &c, nil
 }
 
-// AddEntry creates, signs, and adds a new ChecksumV1 entry to the log
-func (c *Client) AddEntry(ctx context.Context, name, checksum []byte) (*stfe.StItem, error) {
-	leaf, err := stfe.NewChecksumV1(name, checksum, c.Namespace).Marshal()
+func NewDescriptorFromFlags() (*Descriptor, error) {
+	b, err := base64.StdEncoding.DecodeString(*logId)
 	if err != nil {
-		return nil, fmt.Errorf("failed marshaling StItem: %v", err)
+		return nil, fmt.Errorf("LogId: DecodeString: %v", err)
 	}
-	data, err := json.Marshal(stfe.AddEntryRequest{
-		Item:      leaf,
-		Signature: ed25519.Sign(*c.PrivateKey, leaf),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed creating post data: %v", err)
+	var namespace types.Namespace
+	if err := types.Unmarshal(b, &namespace); err != nil {
+		return nil, fmt.Errorf("LogId: Unmarshal: %v", err)
 	}
-	glog.V(3).Infof("created post data: %s", string(data))
+	return &Descriptor{
+		Namespace: &namespace,
+		Url:       *logUrl,
+	}, nil
+}
 
-	url := stfe.EndpointAddEntry.Path(c.protocol() + c.Log.BaseUrl)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+// AddEntry signs and submits a checksum_v1 entry to the log.  Outputs the
+// resulting leaf-hash on success, which can be used to verify inclusion.
+func (c *Client) AddEntry(ctx context.Context, data *types.ChecksumV1) ([]byte, error) {
+	msg, err := types.Marshal(*data)
+	if err != nil {
+		return nil, fmt.Errorf("failed marshaling ChecksumV1: %v", err)
+	}
+	sig, err := c.Signer.Sign(rand.Reader, msg, crypto.Hash(0))
+	if err != nil {
+		return nil, fmt.Errorf("failed signing ChecksumV1: %v", err)
+	}
+	leaf, err := types.Marshal(*types.NewSignedChecksumV1(data, &types.SignatureV1{
+		Namespace: *c.Namespace,
+		Signature: sig,
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("failed marshaling SignedChecksumV1: %v", err)
+	}
+	glog.V(9).Infof("signed: %v", data)
+
+	url := stfe.EndpointAddEntry.Path(c.Log.Url)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(leaf))
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
-	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
+	req.Header.Set("Content-Type", "application/octet-stream")
+	glog.V(3).Infof("created http request: %s %s", req.Method, req.URL)
 
-	item, err := c.doRequestWithStItemResponse(ctx, req)
-	if err != nil {
-		return nil, err
+	if rsp, err := c.doRequest(ctx, req); err != nil {
+		return nil, fmt.Errorf("doRequest: %v", err)
+	} else if len(rsp) != 0 {
+		return nil, fmt.Errorf("extra data: %v", err)
 	}
-	if item.Format != stfe.StFormatSignedDebugInfoV1 {
-		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
-	}
-
-	if ns, err := c.Log.Namespace(); err != nil {
-		return nil, fmt.Errorf("invalid log namespace: %v", err)
-	} else if err := ns.Verify(leaf, item.SignedDebugInfoV1.Signature); err != nil {
-		return nil, fmt.Errorf("bad SignedDebugInfoV1 signature: %v", err)
-	}
-	return item, nil
+	glog.V(3).Infof("add-entry succeded")
+	return rfc6962.DefaultHasher.HashLeaf(leaf), nil
 }
 
-// GetSth fetches and verifies the most recent STH.
-func (c *Client) GetSth(ctx context.Context) (*stfe.StItem, error) {
-	url := stfe.EndpointGetLatestSth.Path(c.protocol() + c.Log.BaseUrl)
+func (c *Client) GetLatestSth(ctx context.Context) (*types.StItem, error) {
+	url := stfe.EndpointGetLatestSth.Path(c.Log.Url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
 	}
-	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
+	glog.V(3).Infof("created http request: %s %s", req.Method, req.URL)
 
 	item, err := c.doRequestWithStItemResponse(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	if item.Format != stfe.StFormatSignedTreeHeadV1 {
-		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
+	if got, want := item.Format, types.StFormatSignedTreeHeadV1; got != want {
+		return nil, fmt.Errorf("unexpected StItem format: %v", got)
 	}
-	th, err := item.SignedTreeHeadV1.TreeHead.Marshal()
+	if got, want := &item.SignedTreeHeadV1.Signature.Namespace, c.Log.Namespace; !reflect.DeepEqual(got, want) {
+		return nil, fmt.Errorf("unexpected log id: %v", want)
+	}
+
+	th, err := types.Marshal(item.SignedTreeHeadV1.TreeHead)
 	if err != nil {
 		return nil, fmt.Errorf("failed marshaling tree head: %v", err)
 	}
-
-	if ns, err := c.Log.Namespace(); err != nil {
-		return nil, fmt.Errorf("bad public key: %v", err)
-	} else if err := ns.Verify(th, item.SignedTreeHeadV1.Signature); err != nil {
-		return nil, fmt.Errorf("bad SignedTreeHeadV1 signature: %v", err)
+	if err := c.Log.Namespace.Verify(th, item.SignedTreeHeadV1.Signature.Signature); err != nil {
+		return nil, fmt.Errorf("signature verification failed: %v", err)
 	}
+	glog.V(3).Infof("verified sth")
 	return item, nil
 }
 
-// GetConsistencyProof fetches and verifies a consistency proof between two
-// STHs.
-func (c *Client) GetConsistencyProof(ctx context.Context, first, second *stfe.StItem) (*stfe.StItem, error) {
-	url := stfe.EndpointGetConsistencyProof.Path(c.protocol() + c.Log.BaseUrl)
-	req, err := http.NewRequest("GET", url, nil)
+// doRequest sends an HTTP request and outputs the raw body
+func (c *Client) doRequest(ctx context.Context, req *http.Request) ([]byte, error) {
+	rsp, err := ctxhttp.Do(ctx, c.HttpClient, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating http request: %v", err)
+		return nil, fmt.Errorf("no response: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
-	q := req.URL.Query()
-	q.Add("first", fmt.Sprintf("%d", first.SignedTreeHeadV1.TreeHead.TreeSize))
-	q.Add("second", fmt.Sprintf("%d", second.SignedTreeHeadV1.TreeHead.TreeSize))
-	req.URL.RawQuery = q.Encode()
-	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
-
-	item, err := c.doRequestWithStItemResponse(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	if item.Format != stfe.StFormatConsistencyProofV1 {
-		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
-	}
-	if err := VerifyConsistencyProofV1(item, first, second); err != nil {
-		return nil, fmt.Errorf("bad consistency proof: %v", err)
-	}
-	return item, nil
-}
-
-// GetProofByHash fetches and verifies an inclusion proof for a leaf against an
-// STH.
-func (c *Client) GetProofByHash(ctx context.Context, treeSize uint64, rootHash, leaf []byte) (*stfe.StItem, error) {
-	leafHash := rfc6962.DefaultHasher.HashLeaf(leaf)
-	url := stfe.EndpointGetProofByHash.Path(c.protocol() + c.Log.BaseUrl)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed creating http request: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	q := req.URL.Query()
-	q.Add("hash", base64.StdEncoding.EncodeToString(leafHash))
-	q.Add("tree_size", fmt.Sprintf("%d", treeSize))
-	req.URL.RawQuery = q.Encode()
-	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
-
-	item, err := c.doRequestWithStItemResponse(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	if item.Format != stfe.StFormatInclusionProofV1 {
-		return nil, fmt.Errorf("bad StItem format: %v", item.Format)
-	}
-	if err := VerifyInclusionProofV1(item, rootHash, leafHash); err != nil {
-		return nil, fmt.Errorf("bad inclusion proof: %v", err)
-	}
-	return item, nil
-}
-
-// GetEntries fetches a range of entries from the log, verifying that they are
-// of type checksum_v1 and signed by a valid certificate chain in the appendix.
-// Fewer entries may be returned if too large range, in which case the end is
-// truncated.
-//
-// Note that a certificate chain is considered valid if it is chained correctly.
-// In other words, the caller may want to check whether the anchor is trusted.
-func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*stfe.GetEntryResponse, error) {
-	url := stfe.EndpointGetEntries.Path(c.protocol() + c.Log.BaseUrl)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed creating http request: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	q := req.URL.Query()
-	q.Add("start", fmt.Sprintf("%d", start))
-	q.Add("end", fmt.Sprintf("%d", end))
-	req.URL.RawQuery = q.Encode()
-	glog.V(2).Infof("created http request: %s %s", req.Method, req.URL)
-
-	var rsp []*stfe.GetEntryResponse
-	if err := c.doRequest(ctx, req, &rsp); err != nil {
-		return nil, err
-	}
-	for _, entry := range rsp {
-		var item stfe.StItem
-		if err := item.Unmarshal(entry.Item); err != nil {
-			return nil, fmt.Errorf("unmarshal failed: %v (%v)", err, entry)
-		}
-		if item.Format != stfe.StFormatChecksumV1 {
-			return nil, fmt.Errorf("bad StFormat: %v (%v)", err, entry)
-		}
-		if err := item.ChecksumV1.Namespace.Verify(entry.Item, entry.Signature); err != nil { // TODO: only works if full vk in namespace
-			return nil, fmt.Errorf("bad signature: %v (%v)", err, entry)
-		}
-	}
-	return rsp, nil
-}
-
-// GetNamespaces fetches the log's trusted namespaces.
-func (c *Client) GetNamespaces(ctx context.Context) ([][]byte, error) {
-	url := stfe.EndpointGetAnchors.Path(c.protocol() + c.Log.BaseUrl) // TODO: update GetAnchors => GetNamespaces
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed creating http request: %v", err)
-	}
-	var rsp [][]byte
-	if err := c.doRequest(ctx, req, &rsp); err != nil {
-		return nil, err
-	}
-	return rsp, nil
-}
-
-// doRequest sends an HTTP request and decodes the resulting json body into out
-func (c *Client) doRequest(ctx context.Context, req *http.Request, out interface{}) error {
-	rsp, err := ctxhttp.Do(ctx, c.Client, req)
-	if err != nil {
-		return fmt.Errorf("http request failed: %v", err)
+	defer rsp.Body.Close()
+	if got, want := rsp.StatusCode, http.StatusOK; got != want {
+		return nil, fmt.Errorf("bad http status: %v", got)
 	}
 	body, err := ioutil.ReadAll(rsp.Body)
-	rsp.Body.Close()
 	if err != nil {
-		return fmt.Errorf("http body read failed: %v", err)
+		return nil, fmt.Errorf("cannot read body: %v", err)
 	}
-	if rsp.StatusCode != http.StatusOK {
-		return fmt.Errorf("http status code not ok: %v", rsp.StatusCode)
-	}
-	if err := json.Unmarshal(body, out); err != nil {
-		return fmt.Errorf("failed decoding json body: %v", err)
-	}
-	return nil
+	return body, nil
 }
 
 //
 // doRequestWithStItemResponse sends an HTTP request and returns a decoded
 // StItem that the resulting HTTP response contained json:ed and marshaled
-func (c *Client) doRequestWithStItemResponse(ctx context.Context, req *http.Request) (*stfe.StItem, error) {
-	var itemStr string
-	if err := c.doRequest(ctx, req, &itemStr); err != nil {
+func (c *Client) doRequestWithStItemResponse(ctx context.Context, req *http.Request) (*types.StItem, error) {
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
 		return nil, err
 	}
-	b, err := base64.StdEncoding.DecodeString(itemStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed decoding base64 body: %v", err)
-	}
-	var item stfe.StItem
-	if err := item.Unmarshal(b); err != nil {
+	var item types.StItem
+	if err := types.Unmarshal(body, &item); err != nil {
 		return nil, fmt.Errorf("failed decoding StItem: %v", err)
 	}
-	glog.V(3).Infof("got StItem: %s", item)
+	glog.V(9).Infof("got StItem: %v", item)
 	return &item, nil
-}
-
-// protocol returns a protocol string that preceeds the log's base url
-func (c *Client) protocol() string {
-	if c.useHttp {
-		return "http://"
-	}
-	return "https://"
 }
