@@ -102,7 +102,7 @@ func (s *ActiveSthSource) Stable(_ context.Context) (*types.StItem, error) {
 func (s *ActiveSthSource) Cosigned(_ context.Context) (*types.StItem, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	if s.currCosth == nil || len(s.currCosth.CosignedTreeHeadV1.Cosignatures) == 0 {
+	if s.currCosth == nil {
 		return nil, fmt.Errorf("no cosigned sth available")
 	}
 	return s.currCosth, nil

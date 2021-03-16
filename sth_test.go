@@ -163,13 +163,6 @@ func TestCosigned(t *testing.T) {
 			wantErr:     true,
 		},
 		{
-			description: "invalid: no cosigned sth: nil signatures",
-			source: &ActiveSthSource{
-				currCosth: testdata.DefaultCosth(t, testdata.Ed25519VkLog, nil),
-			},
-			wantErr: true,
-		},
-		{
 			description: "valid",
 			source: &ActiveSthSource{
 				currCosth: testdata.DefaultCosth(t, testdata.Ed25519VkLog, [][32]byte{testdata.Ed25519VkWitness}),
