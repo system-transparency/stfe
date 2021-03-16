@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"crypto/rand"
-
 	"github.com/system-transparency/stfe/types"
 )
 
@@ -58,7 +56,7 @@ func (lp *LogParameters) SignTreeHeadV1(th *types.TreeHeadV1) (*types.StItem, er
 	if err != nil {
 		return nil, fmt.Errorf("Marshal failed for TreeHeadV1: %v", err)
 	}
-	sig, err := lp.Signer.Sign(rand.Reader, serialized, crypto.Hash(0))
+	sig, err := lp.Signer.Sign(nil, serialized, crypto.Hash(0))
 	if err != nil {
 		return nil, fmt.Errorf("Sign failed: %v", err)
 	}
