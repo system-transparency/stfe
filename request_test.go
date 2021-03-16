@@ -2,10 +2,10 @@ package stfe
 
 import (
 	"bytes"
-	"fmt"
+	//"fmt"
 	"reflect"
 	"testing"
-	"testing/iotest"
+	//"testing/iotest"
 
 	"net/http"
 
@@ -266,18 +266,18 @@ func TestUnpackOctetPost(t *testing.T) {
 		out         interface{}
 		wantErr     bool
 	}{
-		{
-			description: "invalid: cannot read request body",
-			req: func() *http.Request {
-				req, err := http.NewRequest(http.MethodPost, "", iotest.ErrReader(fmt.Errorf("bad reader")))
-				if err != nil {
-					t.Fatalf("must make new http request: %v", err)
-				}
-				return req
-			}(),
-			out:     &types.StItem{},
-			wantErr: true,
-		},
+		//{
+		//	description: "invalid: cannot read request body",
+		//	req: func() *http.Request {
+		//		req, err := http.NewRequest(http.MethodPost, "", iotest.ErrReader(fmt.Errorf("bad reader")))
+		//		if err != nil {
+		//			t.Fatalf("must make new http request: %v", err)
+		//		}
+		//		return req
+		//	}(),
+		//	out:     &types.StItem{},
+		//	wantErr: true,
+		//}, // testcase requires Go 1.16
 		{
 			description: "invalid: cannot unmarshal",
 			req: func() *http.Request {
