@@ -4,13 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"flag"
 	"fmt"
-	"reflect"
 
-	"crypto/ed25519"
-	"crypto/rand"
-	"encoding/base64"
 	"io/ioutil"
 	"net/http"
 
@@ -21,12 +16,13 @@ import (
 	"golang.org/x/net/context/ctxhttp"
 )
 
-var (
-	logId      = flag.String("log_id", "AAEsY0retj4wa3S2fjsOCJCTVHab7ipEiMdqtW1uJ6Jvmg==", "base64-encoded log identifier")
-	logUrl     = flag.String("log_url", "http://localhost:6965/st/v1", "log url")
-	ed25519_sk = flag.String("ed25519_sk", "d8i6nud7PS1vdO0sIk9H+W0nyxbM63Y3/mSeUPRafWaFh8iH8QXvL7NaAYn2RZPrnEey+FdpmTYXE47OFO70eg==", "base64-encoded ed25519 signing key")
-)
+// Descriptor is a log descriptor
+type Descriptor struct {
+	Namespace *types.Namespace // log identifier is a namespace
+	Url       string           // log url, e.g., http://example.com/st/v1
+}
 
+// Client is a log client
 type Client struct {
 	HttpClient *http.Client
 	Signer     crypto.Signer    // client's private identity
@@ -34,56 +30,116 @@ type Client struct {
 	Log        *Descriptor      // log's public identity
 }
 
-type Descriptor struct {
-	Namespace *types.Namespace // log identifier is a namespace
-	Url       string           // log url, e.g., http://example.com/st/v1
-}
-
-func NewClientFromFlags() (*Client, error) {
-	var err error
-	c := Client{
-		HttpClient: &http.Client{},
-	}
-	if len(*ed25519_sk) != 0 {
-		sk, err := base64.StdEncoding.DecodeString(*ed25519_sk)
-		if err != nil {
-			return nil, fmt.Errorf("ed25519_sk: DecodeString: %v", err)
-		}
-		c.Signer = ed25519.PrivateKey(sk)
-		c.Namespace, err = types.NewNamespaceEd25519V1([]byte(ed25519.PrivateKey(sk).Public().(ed25519.PublicKey)))
-		if err != nil {
-			return nil, fmt.Errorf("ed25519_vk: NewNamespaceEd25519V1: %v", err)
-		}
-	}
-	if c.Log, err = NewDescriptorFromFlags(); err != nil {
-		return nil, fmt.Errorf("NewDescriptorFromFlags: %v", err)
-	}
-	return &c, nil
-}
-
-func NewDescriptorFromFlags() (*Descriptor, error) {
-	b, err := base64.StdEncoding.DecodeString(*logId)
+// GetLatestSth fetches and verifies the signature of the most recent STH.
+// Outputs the resulting STH.
+func (c *Client) GetLatestSth(ctx context.Context) (*types.StItem, error) {
+	url := stfe.EndpointGetLatestSth.Path(c.Log.Url)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("LogId: DecodeString: %v", err)
+		return nil, fmt.Errorf("failed creating http request: %v", err)
 	}
-	var namespace types.Namespace
-	if err := types.Unmarshal(b, &namespace); err != nil {
-		return nil, fmt.Errorf("LogId: Unmarshal: %v", err)
+	glog.V(3).Infof("created http request: %s %s", req.Method, req.URL)
+
+	item, err := c.doRequestWithStItemResponse(ctx, req)
+	if err != nil {
+		return nil, err
 	}
-	return &Descriptor{
-		Namespace: &namespace,
-		Url:       *logUrl,
-	}, nil
+	if got, want := item.Format, types.StFormatSignedTreeHeadV1; got != want {
+		return nil, fmt.Errorf("unexpected StItem format: %v", got)
+	}
+	if err := VerifySignedTreeHeadV1(c.Log.Namespace, item); err != nil {
+		return nil, fmt.Errorf("signature verification failed: %v", err)
+	}
+	glog.V(3).Infof("verified sth")
+	return item, nil
+}
+
+// GetProofByHash fetches and verifies an inclusion proof for a leaf hash
+// against an STH.  Outputs the resulting proof.
+func (c *Client) GetProofByHash(ctx context.Context, leafHash []byte, sth *types.StItem) (*types.StItem, error) {
+	if err := VerifySignedTreeHeadV1(c.Log.Namespace, sth); err != nil {
+		return nil, fmt.Errorf("invalid sth: %v", err)
+	}
+	glog.V(3).Infof("verified sth")
+	params := types.GetProofByHashV1{
+		TreeSize: sth.SignedTreeHeadV1.TreeHead.TreeSize,
+	}
+	copy(params.Hash[:], leafHash)
+	buf, err := types.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("req: Marshal: %v", err)
+	}
+
+	url := stfe.EndpointGetProofByHash.Path(c.Log.Url)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(buf))
+	if err != nil {
+		return nil, fmt.Errorf("failed creating http request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	glog.V(3).Infof("created http request: %s %s", req.Method, req.URL)
+
+	item, err := c.doRequestWithStItemResponse(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("doRequestWithStItemResponse: %v", err)
+	}
+	if got, want := item.Format, types.StFormatInclusionProofV1; got != want {
+		return nil, fmt.Errorf("unexpected StItem format: %v", item.Format)
+	}
+	if err := VerifyInclusionProofV1(item, sth, params.Hash[:]); err != nil {
+		return nil, fmt.Errorf("invalid inclusion proof: %v", err)
+	}
+	glog.V(3).Infof("verified inclusion proof")
+	return item, nil
+}
+
+// GetConsistencyProof fetches and verifies a consistency proof betweeen two
+// STHs.  Outputs the resulting proof.
+func (c *Client) GetConsistencyProof(ctx context.Context, sth1, sth2 *types.StItem) (*types.StItem, error) {
+	if err := VerifySignedTreeHeadV1(c.Log.Namespace, sth1); err != nil {
+		return nil, fmt.Errorf("invalid first sth: %v", err)
+	}
+	if err := VerifySignedTreeHeadV1(c.Log.Namespace, sth2); err != nil {
+		return nil, fmt.Errorf("invalid second sth: %v", err)
+	}
+	glog.V(3).Infof("verified sths")
+	buf, err := types.Marshal(types.GetConsistencyProofV1{
+		First:  sth1.SignedTreeHeadV1.TreeHead.TreeSize,
+		Second: sth2.SignedTreeHeadV1.TreeHead.TreeSize,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("req: Marshal: %v", err)
+	}
+
+	url := stfe.EndpointGetConsistencyProof.Path(c.Log.Url)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(buf))
+	if err != nil {
+		return nil, fmt.Errorf("failed creating http request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	glog.V(3).Infof("created http request: %s %s", req.Method, req.URL)
+
+	item, err := c.doRequestWithStItemResponse(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("doRequestWithStItemResponse: %v", err)
+	}
+	if got, want := item.Format, types.StFormatConsistencyProofV1; got != want {
+		return nil, fmt.Errorf("unexpected StItem format: %v", item.Format)
+	}
+	if err := VerifyConsistencyProofV1(item, sth1, sth2); err != nil {
+		return nil, fmt.Errorf("invalid inclusion proof: %v", err)
+	}
+	glog.V(3).Infof("verified inclusion proof")
+	return item, nil
 }
 
 // AddEntry signs and submits a checksum_v1 entry to the log.  Outputs the
-// resulting leaf-hash on success, which can be used to verify inclusion.
+// resulting leaf-hash on success.
 func (c *Client) AddEntry(ctx context.Context, data *types.ChecksumV1) ([]byte, error) {
 	msg, err := types.Marshal(*data)
 	if err != nil {
 		return nil, fmt.Errorf("failed marshaling ChecksumV1: %v", err)
 	}
-	sig, err := c.Signer.Sign(rand.Reader, msg, crypto.Hash(0))
+	sig, err := c.Signer.Sign(nil, msg, crypto.Hash(0))
 	if err != nil {
 		return nil, fmt.Errorf("failed signing ChecksumV1: %v", err)
 	}
@@ -94,7 +150,7 @@ func (c *Client) AddEntry(ctx context.Context, data *types.ChecksumV1) ([]byte, 
 	if err != nil {
 		return nil, fmt.Errorf("failed marshaling SignedChecksumV1: %v", err)
 	}
-	glog.V(9).Infof("signed: %v", data)
+	glog.V(3).Infof("signed checksum entry for identifier %q", string(data.Identifier))
 
 	url := stfe.EndpointAddEntry.Path(c.Log.Url)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(leaf))
@@ -113,34 +169,42 @@ func (c *Client) AddEntry(ctx context.Context, data *types.ChecksumV1) ([]byte, 
 	return rfc6962.DefaultHasher.HashLeaf(leaf), nil
 }
 
-func (c *Client) GetLatestSth(ctx context.Context) (*types.StItem, error) {
-	url := stfe.EndpointGetLatestSth.Path(c.Log.Url)
-	req, err := http.NewRequest("GET", url, nil)
+// GetEntries fetches a range of entries from the log, verifying that they are
+// of type signed_checksum_v1 but nothing more than that.  Outputs the resulting
+// range that may be truncated by the log if [start,end] is too large.
+func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*types.StItem, error) {
+	buf, err := types.Marshal(types.GetEntriesV1{
+		Start: start,
+		End:   end,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Marshal: %v", err)
+	}
+	url := stfe.EndpointGetEntries.Path(c.Log.Url)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(buf))
 	if err != nil {
 		return nil, fmt.Errorf("failed creating http request: %v", err)
 	}
+	req.Header.Set("Content-Type", "application/octet-stream")
 	glog.V(3).Infof("created http request: %s %s", req.Method, req.URL)
+	glog.V(3).Infof("request data: start(%d), end(%d)", start, end)
 
-	item, err := c.doRequestWithStItemResponse(ctx, req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("doRequest: %v", err)
 	}
-	if got, want := item.Format, types.StFormatSignedTreeHeadV1; got != want {
-		return nil, fmt.Errorf("unexpected StItem format: %v", got)
+	var list types.StItemList
+	if err := types.Unmarshal(body, &list); err != nil {
+		return nil, fmt.Errorf("Unmarshal: %v", err)
 	}
-	if got, want := &item.SignedTreeHeadV1.Signature.Namespace, c.Log.Namespace; !reflect.DeepEqual(got, want) {
-		return nil, fmt.Errorf("unexpected log id: %v", want)
+	ret := make([]*types.StItem, 0, len(list.Items))
+	for _, item := range list.Items {
+		if got, want := item.Format, types.StFormatSignedChecksumV1; got != want {
+			return nil, fmt.Errorf("unexpected StItem format: %v", got)
+		}
+		ret = append(ret, &item)
 	}
-
-	th, err := types.Marshal(item.SignedTreeHeadV1.TreeHead)
-	if err != nil {
-		return nil, fmt.Errorf("failed marshaling tree head: %v", err)
-	}
-	if err := c.Log.Namespace.Verify(th, item.SignedTreeHeadV1.Signature.Signature); err != nil {
-		return nil, fmt.Errorf("signature verification failed: %v", err)
-	}
-	glog.V(3).Infof("verified sth")
-	return item, nil
+	return ret, nil
 }
 
 // doRequest sends an HTTP request and outputs the raw body

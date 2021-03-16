@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	identifier = flag.String("identifier", "foobar-1.2.3", "checksum identifier")
-	checksum   = flag.String("checksum", "50e7967bce266a506f8f614bb5096beba580d205046b918f47d23b2ec626d75e", "base64-encoded checksum")
+	identifier = flag.String("identifier", "", "checksum identifier")
+	checksum   = flag.String("checksum", "", "base64-encoded checksum")
 )
 
 func main() {
