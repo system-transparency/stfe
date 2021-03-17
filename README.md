@@ -20,10 +20,9 @@ never be two signed checksum entries with identical identifiers and namespaces
 but different checksums.
 
 The scope of STFE should not be confused with properties such as _prevention_ or
-even _recovery_ after detection.  We are in the business of making things
-transparent and _that is it_.
+even _recovery_ after detection.
 
-## What does it take to make an artifact public?
+## Gossip-audit model
 We glanced over the term _public trace_ a bit to quickly before.  Simply adding
 something into a transparency log serves a limited purpose unless (i) clients
 _fail-close_ if an artifact does not appear in a log, and (ii) everyone observes
@@ -40,8 +39,8 @@ parties signed-off the log's cryptographic state, you can be pretty sure that
 you see the same log (and thus the same artifacts) as everyone else.  Moreover,
 if you already rely on witness cosigning for security, all you need from your
 software publisher is an artifact, a public verification key, a cosigned
-STH, and an inclusion proof that is based on it.  Let me clarify why that is
-excellent: client-side verification becomes completely non-interactive!
+STH, and an inclusion proof that is based on it.  That is excellent because
+client-side verification becomes completely non-interactive!
 
 ## What has been done?
 STFE is in a proof-of-concept stage.  We have a
