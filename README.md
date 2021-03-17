@@ -37,7 +37,7 @@ There is a basic client (warning: _basic_) that can be used to interact with the
 log, e.g., to add-entries and verify inclusion proofs against an STH.  We have
 yet to add client-side support for STFE's witness cosigning APIs.  Witness
 cosigning is part of the log's _gossip-audit model_, which must be well-defined
-to keep the log honest.[^1]
+to keep the log honest.<sup>[1](#footnote-1)</sup>
 
 In the near future we will setup a public STFE prototype with zero promises of
 uptime, stability, etc.  In the meantime you may get your hands dirty by running
@@ -54,7 +54,7 @@ It is easier to achieve if there are multiple independent log operators.
 2. Client-side tooling should verify that the signed checksums appeared in the
 log.  This requires inclusion proof verification.  STFE forces it by never
 issuing so-called _promises to log_ as in [Certificate
-Transparency](https://tools.ietf.org/html/rfc6962).[^2]
+Transparency](https://tools.ietf.org/html/rfc6962).<sup>[2](#footnote-2)</sup>
 3. Client-side tooling should verify that the log is append-only.  This requires
 consistency proof verification.
 4. Client-side tooling should be convinced that they see the same append-only
@@ -64,7 +64,7 @@ The final factor is often overlooked.  While transparency logs are verifiable in
 theory due to inclusion and consistency proofs, _it is paramount that the
 different parties interacting with the log see the same entries and
 cryptographic proofs_.  Therefore, we built a proactive gossip-audit model
-directly into STFE: _witness cosigning_.[^3]  The idea is that many independent
+directly into STFE: _witness cosigning_.<sup>[3](#footnote-3)</sup>  The idea is that many independent
 witnesses _cosign_ the log's STH if and only if they see a consistent
 append-only log.  If enough reputable parties signed-off the log's cryptographic
 state, you can be pretty sure that you see the same log (and thus the same
@@ -75,17 +75,23 @@ from, say, a software publisher, is an artifact, a public verification key, a
 cosigned STH, and an inclusion proof that is based on it.  That is excellent
 because client-side verification becomes completely non-interactive!
 
-[^1]: The academic literature documents this challenge quite well with regards
-to Certificate Transparency.  See, for example, the work of
+##
+<a name="footnote-1">1</a>:
+The academic literature documents this challenge quite well with regards to
+Certificate Transparency.  See, for example, the work of
 [Chuat _et al._](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7346853),
 [Nordberg _et al._](https://tools.ietf.org/html/draft-ietf-trans-gossip-05), and
 [Dahlberg et al.](https://sciendo.com/article/10.2478/popets-2021-0024).
-[^2]: So-called SCTs are signed promises that the log will merge a submitted
-entry within a Maximum Merge Delay (MMD), e.g., 24 hours.  It is a significant
-system complexity because either the client needs to verify that these promises
-were honored after the MMD passed, or the client needs to trust that the logs
-are honest.
-[^3]: Witness cosigning was initially proposed by [Syta _et al._](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7546521).  The
-approach of [Meiklejohn _et al._](https://arxiv.org/pdf/2011.04551.pdf) is
-closer to ours but the details differ.  For example, witnesses poll STFE for
+
+<a name="footnote-2">2</a>:
+So-called SCTs are signed promises that the log will merge a submitted entry
+within a Maximum Merge Delay (MMD), e.g., 24 hours.  It is a significant system
+complexity because either the client needs to verify that these promises were
+honored after the MMD passed, or the client needs to trust that the logs are
+honest.
+
+<a name="footnote-3">3</a>:
+Witness cosigning was initially proposed by [Syta _et al._](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7546521).
+The approach of [Meiklejohn _et al._](https://arxiv.org/pdf/2011.04551.pdf)
+is closer to ours but the details differ.  For example, witnesses poll STFE for
 STHs rather than waiting for a single broadcast.
