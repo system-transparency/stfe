@@ -1,11 +1,12 @@
 # System Transparency Front-End (STFE)
-STFE is a Trillian personality that allows you to transparency log signed
-artifact checksums.  A client consuming artifacts may enforce that such logging
-takes place by mandating that there is a public trace of each artifact before
-even considering to trust it.  We refer to such a trace as a signed checksum
-entry: it is composed of
+STFE is a Trillian personality that allows you to log signed artifact checksums.
+A client consuming artifacts (such as a browser update, a Debian package, a document,
+or more generally anything opaque) may enforce that such logging takes place by
+mandating that there is a public trace of each artifact before even considering
+to trust it.  We refer to such a trace as a signed checksum entry: it is
+composed of
 	an arbitrary identifier like `stfe_client v0.0.1`,
-	an artifact checksum,
+	a checksum,
 	a signature, and
 	a namespace that is derived from the public verification key.
 Tracking checksums as opposed to full-on artifacts makes it less costly to
