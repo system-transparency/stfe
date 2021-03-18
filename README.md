@@ -7,15 +7,15 @@ document.  A log leaf contains:
 - A _checksum_ that covers something opaque, e.g., an executable binary.
 - An _identifier_ that is tied to what the checksum represents, e.g., name,
 version, and platform.
-- A _namespace_ that is tied to the submitters verification key, e.g., think of
-it as a hashed public key.
 - A _signature_ that covers `checksum` and `identifier` using the submitter's
 secret signing key.
+- A _namespace_ that is tied to the submitters verification key, e.g., think of
+it as a hashed public key.
 
 The log verifies that the entry is signed for the specified namespace but
 nothing more than that.  A client that wishes to enforce transparency logging
 could require that, say, a valid Debian package is only used if its checksum
-appears in three logs with a correct identifier and namespace. Such a use-case
+appears in the log with a correct namespace and identifier. Such a use-case
 scenario enables us to:
 1. **Facilitate detection of compromised signing keys**, e.g., a software
 publisher can inspect the log to see if there are any unexpected checksums in
@@ -51,9 +51,9 @@ following factors in mind as the ecosystem bootstraps and develops:
 1. Client-side tooling should ultimately fail-close if a signed checksum is not
 transparency logged.  This requires a reliable and available log ecosystem.
 This is easier to achieve if there are multiple independent log operators.
-2. Client-side tooling should verify that the signed checksums appears in one
-or more logs.  This requires inclusion proof verification.  STFE forces this by never
-issuing so-called _promises to log_ as in [Certificate
+2. Client-side tooling should verify that the signed checksums appears in a log.
+This requires inclusion proof verification.  STFE forces this by never issuing
+so-called _promises to log_ as in [Certificate
 Transparency](https://tools.ietf.org/html/rfc6962).<sup>[2](#footnote-2)</sup>
 3. Client-side tooling should verify that the log is append-only.  This requires
 consistency proof verification.
