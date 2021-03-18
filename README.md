@@ -9,7 +9,7 @@ document.  A log leaf contains:
 version, and platform.
 - A _signature_ that covers `checksum` and `identifier` using the submitter's
 secret signing key.
-- A _namespace_ that is tied to the submitters verification key, e.g., think of
+- A _namespace_ that is tied to the submitter's verification key, e.g., think of
 it as a hashed public key.
 
 The log verifies that the entry is signed for the specified namespace but
@@ -21,10 +21,10 @@ scenario enables us to:
 publisher can inspect the log to see if there are any unexpected checksums in
 their own signing namespace(s).
 2. **Ensure that everyone observe the same checksums**, e.g., there should never
-be two log entries with identical identifiers and namespaces but with different
-checksums.
+be two log entries with identical namespaces and identifiers but checksums that
+differ.
 
-## What has been done?
+## Current status
 STFE is at the proof-of-concept stage.  We have a
 [sketch](https://github.com/system-transparency/stfe/blob/main/doc/sketch.md) of
 the log's API, which basically defines data structures, data formats, and
@@ -44,7 +44,10 @@ uptime, stability, etc.  In the meantime you may get your hands dirty by running
 STFE locally.  Rough documentation is available
 [here](https://github.com/system-transparency/stfe/blob/main/server/README.md).
 
-## What was considered?
+## Design considerations
+The following is a non-exhaustive list of design considerations that we had in
+mind while developing STFE.
+
 ### Gossip-audit model
 Simply adding something into a transparency log is a great start that has merit
 on its own.  But, to make the most of a transparency log we should keep the
@@ -55,43 +58,40 @@ so-called _promises to log_ as in [Certificate
 Transparency](https://tools.ietf.org/html/rfc6962).<sup>[2](#footnote-2)</sup>
 2. Clients should verify that the log is append-only.  This requires consistency
 proof verification.
-3. Clients should convince themselves that they see the same append-only log as
-everyone else.  This requires a well-defined gossip-audit model.
+3. Clients should verify they see the _same_ append-only log as everyone else.
+This requires a well-defined gossip-audit model.
 
-That last point is often overlooked.  While transparency logs are verifiable in
+The third point is often overlooked.  While transparency logs are verifiable in
 theory due to inclusion and consistency proofs, _it is paramount that the
 different parties interacting with the log see the same entries and
 cryptographic proofs_.  Therefore, we built a proactive gossip-audit model
 directly into STFE: _witness cosigning_.<sup>[3](#footnote-3)</sup>
 The idea is that many independent witnesses _cosign_ the log's STH if and only
 if they see a consistent append-only log.  If enough reputable parties run
-witnesses that signed-off the same STH, you can by corollary be pretty sure that
-you see the same log (and thus the same checksums) as everyone else.
+witnesses that signed-off the same STH, you can be pretty sure that you see the
+same log (and thus the same checksums) as everyone else.
 
-Moreover, if you already rely on witness cosigning for security, all you need
-from, say, a software publisher, is an artifact, a public verification key, a
-cosigned STH, and an inclusion proof up to that STH.  To clarify why that is
-excellent: client-side verification becomes completely non-interactive!
+Moreover, if you rely on witness cosigning for security, all you need from, say,
+a software publisher, is an artifact, a public verification key, a cosigned STH,
+and an inclusion proof up to that STH.  To clarify why that is excellent:
+client-side verification becomes completely non-interactive!
 
 ### Ecosystem robustness
-Our long-term aspiration is that clients should _fail-close_ if a checksum is
+Our long-term aspiration is that clients should _fail-closed_ if a checksum is
 not transparency logged.  This requires a _robust log ecosystem_.  As more
 parties get involved by operating compatible logs and witnesses, the overall
 reliability and availability improves for everyone.  An important factor to
 consider is therefore the _minimal common denominator_ to transparency log
-checksums.
-
-STFE uses a leaf type that contains just enough information to establish a
-context for clients and monitors:
-1. What entity should the checksum be attributed to (follows from signature and
-namespace).
-2. What does the checksum refer to so that the data can be located (identifier).
+checksums.  As far as we can tell the log's leaf entry must at minimum indicate:
+1. What public key should the checksum be attributed to.
+2. What opaque data does the checksum _refer to_ such that the log entry can be
+analyzed by monitors.
 
 Additional metadata needs can be included in the data that the checksum covers,
-and the data itself can be stored in a public unauthenticated archive.  It would
-be more difficult to build compatible logs if everyone wanted their own leaf
-type.  Similarly, log APIs and data formats should ideally suit all.  We are
-still thinking about that.
+and the data itself can be stored in a public unauthenticated archive.
+
+Log APIs and data formats should also follow the principle of minimal common
+denominator.  We are still in the process of analyzing this further.
 
 ### Spam mitigations
 Important factors: leaf is small, leaf is signed.
