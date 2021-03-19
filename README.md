@@ -53,13 +53,13 @@ Simply adding something into a transparency log is a great start that has merit
 on its own.  But, to make the most of a transparency log we should keep the
 following factors in mind as the ecosystem bootstraps and develops:
 1. Clients should verify that the signed checksums appear in a log.  This
-requires inclusion proof verification.  STFE forces this by never issuing
-so-called _promises to log_ as in [Certificate
+requires inclusion proof verification.  STFE forces inclusion proof verification
+by not issuing _promises to log_ as in [Certificate
 Transparency](https://tools.ietf.org/html/rfc6962).<sup>[2](#footnote-2)</sup>
 2. Clients should verify that the log is append-only.  This requires consistency
 proof verification.
-3. Clients should verify they see the _same_ append-only log as everyone else.
-This requires a well-defined gossip-audit model.
+3. Clients should verify that they see the _same_ append-only log as everyone
+else.  This requires a well-defined gossip-audit model.
 
 The third point is often overlooked.  While transparency logs are verifiable in
 theory due to inclusion and consistency proofs, _it is paramount that the
