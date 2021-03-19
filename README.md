@@ -88,13 +88,30 @@ checksums.  As far as we can tell the log's leaf entry must at minimum indicate:
 analyzed by monitors.
 
 Additional metadata needs can be included in the data that the checksum covers,
-and the data itself can be stored in a public unauthenticated archive.
+and the data itself can be stored in a public unauthenticated archive.  Log APIs
+and data formats should also follow the principle of minimal common denominator.
+We are still in the process of analyzing this further.
 
-Log APIs and data formats should also follow the principle of minimal common
-denominator.  We are still in the process of analyzing this further.
+### Spam and log poisoning
+Trillian personalities usually have an _admission criteria_ that determines who
+can include what in the log.  Without an admission criteria, the log is subject
+to both spam (large volumes of data) and poisoning (harmful data).
 
-### Spam mitigations
-Important factors: leaf is small, leaf is signed.
+The advantage of a small leaf is that spamming the log to such an extend that it
+becomes a significant storage and bandwidth burden becomes harder.  It also
+makes the log's policy easier, e.g., a max data limit is not necessary.
+
+Because every leaf is signed it is possible to apply rate limits per namespace.
+As a toy example one could require that a namespace is registered before use,
+and that the registration component enforces a single namespace per top-level
+domain.  To spam the log you would need an excessive number of domain names.
+
+A more subtle advantage of not logging the actual data is that it becomes more
+difficult to poison the log with something harmful.  Transparency logs are
+really cryptographic, append-only, and tamper-evident data structures: nothing
+can be removed or modified until the log shuts down.  Therefore, as few bytes as
+possible should be arbitrary in the log's leaf.  A reasonable goal could be to
+not take on a larger risk than Certificate Transparency.
 
 ##
 <a name="footnote-1">1</a>:
