@@ -5,6 +5,7 @@ log_url=http://tlog-poc.system-transparency.org:4780/st/v1
 
 ns="$1"; shift
 tmpdir=$(mktemp -dt stfe.XXXXXXXX)
+cp $0 $tmpdir/
 cd $tmpdir
 
 commonargs="--log_id $ns --log_url $log_url" # --logtostderr -v 3
@@ -44,6 +45,6 @@ echo "fetching the log's first entry..."
 get-entries $commonargs --start 0 --end 0
 echo ""
 
-rm *.output
+rm *.output $0
 cd
 rmdir $tmpdir
