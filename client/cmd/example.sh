@@ -1,33 +1,45 @@
 #!/bin/bash
+set -eu
+
+log_url=http://tlog-poc.system-transparency.org:4780/st/v1
+
+ns="$1"; shift
+tmpdir=$(mktemp -dt stfe.XXXXXXXX)
+cd $tmpdir
+
+commonargs="--log_id $ns --log_url $log_url" # --logtostderr -v 3
+pause="sleep 1"
 
 echo "fetching sth..."
-go run get-sth/main.go --logtostderr -v 3 | tee sth1.output
-echo "" && sleep 1
+get-sth $commonargs | tee sth1.output
+echo "" && $pause
 
 echo "adding an entry..."
-go run add-entry/main.go --logtostderr -v 3 \
+add-entry $commonargs \
 	--identifier "example.sh v0.0.1-$(cat /dev/urandom | base64 | head -c 10)" \
-	--checksum $(sha256sum example.sh) | tee add-entry.output
-echo "" && sleep 1
+	--checksum $(sha256sum "$0") | tee add-entry.output
+echo "" && $pause
 
 echo "fetching another sth..."
-go run get-sth/main.go --logtostderr -v 3 | tee sth2.output
-echo "" && sleep 1
+get-sth $commonargs | tee sth2.output
+echo "" && $pause
 
 echo "verifying inclusion..."
-go run get-proof-by-hash/main.go --logtostderr -v 3 \
+get-proof-by-hash $commonargs \
 	--leaf_hash $(cat add-entry.output | awk '{print $3}') \
 	--sth $(cat sth2.output | awk '{print $2}')
-echo "" && sleep 1
+echo "" && $pause
 
 echo "verifying consistency..."
-go run get-consistency-proof/main.go --logtostderr -v 3 \
+get-consistency-proof $commonargs \
 	--first $(cat sth1.output | awk '{print $2}') \
 	--second $(cat sth2.output | awk '{print $2}')
-echo "" && sleep 1
+echo "" && $pause
 
 echo "fetching the log's first entry..."
-go run get-entries/main.go --logtostderr -v 3 --start 0 --end 0
+get-entries $commonargs --start 0 --end 0
 echo ""
 
 rm *.output
+cd
+rmdir $tmpdir
