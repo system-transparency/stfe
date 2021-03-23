@@ -6,16 +6,16 @@ the submitter.  For example, it could be a Firefox update, a Debian package, or
 a document.  A log leaf contains:
 - A _checksum_ that represents a data item of opaque type.
 - An _identifier_ that is tied to what the checksum represents.
-- A _signature_ that covers `checksum` and `identifier` using the submitter's
-secret signing key.
+- A _signature_ over `checksum` and `identifier` using the submitter's secret
+signing key.
 - A _namespace_ that is tied to the submitter's verification key, e.g., think of
 it as a hashed public key.
 
-The log verifies that the entry is signed for the specified namespace but
-nothing more than that.  A client that wishes to enforce transparency logging
-could require that, say, a valid Debian package is only used if its checksum
-appears in the log with a correct namespace and identifier. Such a use-case
-scenario enables us to:
+The log only verifies that an entry's checksum and identifier are
+cryptographically signed based on the specified namespace.  A client that wishes
+to enforce transparency logging could require that, say, a valid Debian package
+is only used if its checksum appears in the log with a correct namespace and
+identifier.  This allows us to:
 1. **Facilitate detection of compromised signing keys**, e.g., a software
 publisher can inspect the log to see if there are any unexpected checksums in
 their own signing namespace(s).
