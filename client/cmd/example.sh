@@ -2,13 +2,12 @@
 set -eu
 
 log_url=http://tlog-poc.system-transparency.org:4780/st/v1
-
-ns="$1"; shift
+log_id=AAG+ZW+UesWdMFytUGkp28csBcziomSB3U2vvkAW55MVZQ==
 tmpdir=$(mktemp -dt stfe.XXXXXXXX)
 cp $0 $tmpdir/
 cd $tmpdir
 
-commonargs="--log_id $ns --log_url $log_url" # --logtostderr -v 3
+commonargs="--log_id $log_id --log_url $log_url" # --logtostderr -v 3
 pause="sleep 1"
 
 echo "arguments used:"
