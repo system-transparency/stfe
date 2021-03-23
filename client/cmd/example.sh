@@ -10,6 +10,10 @@ cd $tmpdir
 commonargs="--log_id $ns --log_url $log_url" # --logtostderr -v 3
 pause="sleep 1"
 
+echo "arguments used:"
+echo $commonargs
+echo ""
+
 echo "fetching sth..."
 get-sth $commonargs | tee sth1.output
 echo "" && $pause
