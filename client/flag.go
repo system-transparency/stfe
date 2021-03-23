@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	logId      = flag.String("log_id", "AAEsY0retj4wa3S2fjsOCJCTVHab7ipEiMdqtW1uJ6Jvmg==", "base64-encoded log identifier")
-	logUrl     = flag.String("log_url", "http://localhost:6965/st/v1", "log url")
+	logId      = flag.String("log_id", "AAG+ZW+UesWdMFytUGkp28csBcziomSB3U2vvkAW55MVZQ==", "base64-encoded log identifier")
+	logUrl     = flag.String("log_url", "http://tlog-poc.system-transparency.org:4780/st/v1", "log url")
 	ed25519_sk = flag.String("ed25519_sk", "d8i6nud7PS1vdO0sIk9H+W0nyxbM63Y3/mSeUPRafWaFh8iH8QXvL7NaAYn2RZPrnEey+FdpmTYXE47OFO70eg==", "base64-encoded ed25519 signing key")
 )
 
