@@ -198,7 +198,8 @@ func (c *Client) GetEntries(ctx context.Context, start, end uint64) ([]*types.St
 		return nil, fmt.Errorf("Unmarshal: %v", err)
 	}
 	ret := make([]*types.StItem, 0, len(list.Items))
-	for _, item := range list.Items {
+	for i, _ := range list.Items {
+		item := list.Items[i]
 		if got, want := item.Format, types.StFormatSignedChecksumV1; got != want {
 			return nil, fmt.Errorf("unexpected StItem format: %v", got)
 		}
