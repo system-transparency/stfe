@@ -28,150 +28,122 @@ int stfe_deadcode_dummy__ = 0;
     }                                                            \
   } while (0)
 
-ed25519_v1_t *
-ed25519_v1_new(void)
+hash_t *
+hash_new(void)
 {
-  ed25519_v1_t *val = trunnel_calloc(1, sizeof(ed25519_v1_t));
+  hash_t *val = trunnel_calloc(1, sizeof(hash_t));
   if (NULL == val)
     return NULL;
-  val->format = T_ED25519_V1;
   return val;
 }
 
 /** Release all storage held inside 'obj', but do not free 'obj'.
  */
 static void
-ed25519_v1_clear(ed25519_v1_t *obj)
+hash_clear(hash_t *obj)
 {
   (void) obj;
 }
 
 void
-ed25519_v1_free(ed25519_v1_t *obj)
+hash_free(hash_t *obj)
 {
   if (obj == NULL)
     return;
-  ed25519_v1_clear(obj);
-  trunnel_memwipe(obj, sizeof(ed25519_v1_t));
+  hash_clear(obj);
+  trunnel_memwipe(obj, sizeof(hash_t));
   trunnel_free_(obj);
 }
 
-uint64_t
-ed25519_v1_get_format(const ed25519_v1_t *inp)
-{
-  return inp->format;
-}
-int
-ed25519_v1_set_format(ed25519_v1_t *inp, uint64_t val)
-{
-  if (! ((val == T_ED25519_V1))) {
-     TRUNNEL_SET_ERROR_CODE(inp);
-     return -1;
-  }
-  inp->format = val;
-  return 0;
-}
 size_t
-ed25519_v1_getlen_pubkey(const ed25519_v1_t *inp)
+hash_getlen_hash(const hash_t *inp)
 {
   (void)inp;  return 32;
 }
 
 uint8_t
-ed25519_v1_get_pubkey(ed25519_v1_t *inp, size_t idx)
+hash_get_hash(hash_t *inp, size_t idx)
 {
   trunnel_assert(idx < 32);
-  return inp->pubkey[idx];
+  return inp->hash[idx];
 }
 
 uint8_t
-ed25519_v1_getconst_pubkey(const ed25519_v1_t *inp, size_t idx)
+hash_getconst_hash(const hash_t *inp, size_t idx)
 {
-  return ed25519_v1_get_pubkey((ed25519_v1_t*)inp, idx);
+  return hash_get_hash((hash_t*)inp, idx);
 }
 int
-ed25519_v1_set_pubkey(ed25519_v1_t *inp, size_t idx, uint8_t elt)
+hash_set_hash(hash_t *inp, size_t idx, uint8_t elt)
 {
   trunnel_assert(idx < 32);
-  inp->pubkey[idx] = elt;
+  inp->hash[idx] = elt;
   return 0;
 }
 
 uint8_t *
-ed25519_v1_getarray_pubkey(ed25519_v1_t *inp)
+hash_getarray_hash(hash_t *inp)
 {
-  return inp->pubkey;
+  return inp->hash;
 }
 const uint8_t  *
-ed25519_v1_getconstarray_pubkey(const ed25519_v1_t *inp)
+hash_getconstarray_hash(const hash_t *inp)
 {
-  return (const uint8_t  *)ed25519_v1_getarray_pubkey((ed25519_v1_t*)inp);
+  return (const uint8_t  *)hash_getarray_hash((hash_t*)inp);
 }
 const char *
-ed25519_v1_check(const ed25519_v1_t *obj)
+hash_check(const hash_t *obj)
 {
   if (obj == NULL)
     return "Object was NULL";
   if (obj->trunnel_error_code_)
     return "A set function failed on this object";
-  if (! (obj->format == T_ED25519_V1))
-    return "Integer out of bounds";
   return NULL;
 }
 
 ssize_t
-ed25519_v1_encoded_len(const ed25519_v1_t *obj)
+hash_encoded_len(const hash_t *obj)
 {
   ssize_t result = 0;
 
-  if (NULL != ed25519_v1_check(obj))
+  if (NULL != hash_check(obj))
      return -1;
 
 
-  /* Length of u64 format IN [T_ED25519_V1] */
-  result += 8;
-
-  /* Length of u8 pubkey[32] */
+  /* Length of u8 hash[32] */
   result += 32;
   return result;
 }
 int
-ed25519_v1_clear_errors(ed25519_v1_t *obj)
+hash_clear_errors(hash_t *obj)
 {
   int r = obj->trunnel_error_code_;
   obj->trunnel_error_code_ = 0;
   return r;
 }
 ssize_t
-ed25519_v1_encode(uint8_t *output, const size_t avail, const ed25519_v1_t *obj)
+hash_encode(uint8_t *output, const size_t avail, const hash_t *obj)
 {
   ssize_t result = 0;
   size_t written = 0;
   uint8_t *ptr = output;
   const char *msg;
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
-  const ssize_t encoded_len = ed25519_v1_encoded_len(obj);
+  const ssize_t encoded_len = hash_encoded_len(obj);
 #endif
 
-  if (NULL != (msg = ed25519_v1_check(obj)))
+  if (NULL != (msg = hash_check(obj)))
     goto check_failed;
 
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
   trunnel_assert(encoded_len >= 0);
 #endif
 
-  /* Encode u64 format IN [T_ED25519_V1] */
-  trunnel_assert(written <= avail);
-  if (avail - written < 8)
-    goto truncated;
-  trunnel_set_uint64(ptr, trunnel_htonll(obj->format));
-  written += 8; ptr += 8;
-
-  /* Encode u8 pubkey[32] */
+  /* Encode u8 hash[32] */
   trunnel_assert(written <= avail);
   if (avail - written < 32)
     goto truncated;
-  memcpy(ptr, obj->pubkey, 32);
+  memcpy(ptr, obj->hash, 32);
   written += 32; ptr += 32;
 
 
@@ -198,47 +170,37 @@ ed25519_v1_encode(uint8_t *output, const size_t avail, const ed25519_v1_t *obj)
   return result;
 }
 
-/** As ed25519_v1_parse(), but do not allocate the output object.
+/** As hash_parse(), but do not allocate the output object.
  */
 static ssize_t
-ed25519_v1_parse_into(ed25519_v1_t *obj, const uint8_t *input, const size_t len_in)
+hash_parse_into(hash_t *obj, const uint8_t *input, const size_t len_in)
 {
   const uint8_t *ptr = input;
   size_t remaining = len_in;
   ssize_t result = 0;
   (void)result;
 
-  /* Parse u64 format IN [T_ED25519_V1] */
-  CHECK_REMAINING(8, truncated);
-  obj->format = trunnel_ntohll(trunnel_get_uint64(ptr));
-  remaining -= 8; ptr += 8;
-  if (! (obj->format == T_ED25519_V1))
-    goto fail;
-
-  /* Parse u8 pubkey[32] */
+  /* Parse u8 hash[32] */
   CHECK_REMAINING(32, truncated);
-  memcpy(obj->pubkey, ptr, 32);
+  memcpy(obj->hash, ptr, 32);
   remaining -= 32; ptr += 32;
   trunnel_assert(ptr + remaining == input + len_in);
   return len_in - remaining;
 
  truncated:
   return -2;
- fail:
-  result = -1;
-  return result;
 }
 
 ssize_t
-ed25519_v1_parse(ed25519_v1_t **output, const uint8_t *input, const size_t len_in)
+hash_parse(hash_t **output, const uint8_t *input, const size_t len_in)
 {
   ssize_t result;
-  *output = ed25519_v1_new();
+  *output = hash_new();
   if (NULL == *output)
     return -1;
-  result = ed25519_v1_parse_into(*output, input, len_in);
+  result = hash_parse_into(*output, input, len_in);
   if (result < 0) {
-    ed25519_v1_free(*output);
+    hash_free(*output);
     *output = NULL;
   }
   return result;
@@ -805,300 +767,169 @@ req_get_proof_by_hash_v1_parse(req_get_proof_by_hash_v1_t **output, const uint8_
   }
   return result;
 }
-signed_tree_head_v1_t *
-signed_tree_head_v1_new(void)
+sigident_ed25519_t *
+sigident_ed25519_new(void)
 {
-  signed_tree_head_v1_t *val = trunnel_calloc(1, sizeof(signed_tree_head_v1_t));
+  sigident_ed25519_t *val = trunnel_calloc(1, sizeof(sigident_ed25519_t));
   if (NULL == val)
     return NULL;
-  val->format = T_SIGNED_TREE_HEAD_V1;
   return val;
 }
 
 /** Release all storage held inside 'obj', but do not free 'obj'.
  */
 static void
-signed_tree_head_v1_clear(signed_tree_head_v1_t *obj)
+sigident_ed25519_clear(sigident_ed25519_t *obj)
 {
   (void) obj;
-  TRUNNEL_DYNARRAY_WIPE(&obj->sigident);
-  TRUNNEL_DYNARRAY_CLEAR(&obj->sigident);
 }
 
 void
-signed_tree_head_v1_free(signed_tree_head_v1_t *obj)
+sigident_ed25519_free(sigident_ed25519_t *obj)
 {
   if (obj == NULL)
     return;
-  signed_tree_head_v1_clear(obj);
-  trunnel_memwipe(obj, sizeof(signed_tree_head_v1_t));
+  sigident_ed25519_clear(obj);
+  trunnel_memwipe(obj, sizeof(sigident_ed25519_t));
   trunnel_free_(obj);
 }
 
-uint64_t
-signed_tree_head_v1_get_format(const signed_tree_head_v1_t *inp)
+size_t
+sigident_ed25519_getlen_signature(const sigident_ed25519_t *inp)
 {
-  return inp->format;
+  (void)inp;  return 64;
+}
+
+uint8_t
+sigident_ed25519_get_signature(sigident_ed25519_t *inp, size_t idx)
+{
+  trunnel_assert(idx < 64);
+  return inp->signature[idx];
+}
+
+uint8_t
+sigident_ed25519_getconst_signature(const sigident_ed25519_t *inp, size_t idx)
+{
+  return sigident_ed25519_get_signature((sigident_ed25519_t*)inp, idx);
 }
 int
-signed_tree_head_v1_set_format(signed_tree_head_v1_t *inp, uint64_t val)
+sigident_ed25519_set_signature(sigident_ed25519_t *inp, size_t idx, uint8_t elt)
 {
-  if (! ((val == T_SIGNED_TREE_HEAD_V1))) {
-     TRUNNEL_SET_ERROR_CODE(inp);
-     return -1;
-  }
-  inp->format = val;
+  trunnel_assert(idx < 64);
+  inp->signature[idx] = elt;
   return 0;
 }
-uint64_t
-signed_tree_head_v1_get_timestamp(const signed_tree_head_v1_t *inp)
+
+uint8_t *
+sigident_ed25519_getarray_signature(sigident_ed25519_t *inp)
 {
-  return inp->timestamp;
+  return inp->signature;
 }
-int
-signed_tree_head_v1_set_timestamp(signed_tree_head_v1_t *inp, uint64_t val)
+const uint8_t  *
+sigident_ed25519_getconstarray_signature(const sigident_ed25519_t *inp)
 {
-  inp->timestamp = val;
-  return 0;
-}
-uint64_t
-signed_tree_head_v1_get_tree_size(const signed_tree_head_v1_t *inp)
-{
-  return inp->tree_size;
-}
-int
-signed_tree_head_v1_set_tree_size(signed_tree_head_v1_t *inp, uint64_t val)
-{
-  inp->tree_size = val;
-  return 0;
+  return (const uint8_t  *)sigident_ed25519_getarray_signature((sigident_ed25519_t*)inp);
 }
 size_t
-signed_tree_head_v1_getlen_root_hash(const signed_tree_head_v1_t *inp)
+sigident_ed25519_getlen_identifier(const sigident_ed25519_t *inp)
 {
   (void)inp;  return 32;
 }
 
 uint8_t
-signed_tree_head_v1_get_root_hash(signed_tree_head_v1_t *inp, size_t idx)
+sigident_ed25519_get_identifier(sigident_ed25519_t *inp, size_t idx)
 {
   trunnel_assert(idx < 32);
-  return inp->root_hash[idx];
+  return inp->identifier[idx];
 }
 
 uint8_t
-signed_tree_head_v1_getconst_root_hash(const signed_tree_head_v1_t *inp, size_t idx)
+sigident_ed25519_getconst_identifier(const sigident_ed25519_t *inp, size_t idx)
 {
-  return signed_tree_head_v1_get_root_hash((signed_tree_head_v1_t*)inp, idx);
+  return sigident_ed25519_get_identifier((sigident_ed25519_t*)inp, idx);
 }
 int
-signed_tree_head_v1_set_root_hash(signed_tree_head_v1_t *inp, size_t idx, uint8_t elt)
+sigident_ed25519_set_identifier(sigident_ed25519_t *inp, size_t idx, uint8_t elt)
 {
   trunnel_assert(idx < 32);
-  inp->root_hash[idx] = elt;
+  inp->identifier[idx] = elt;
   return 0;
 }
 
 uint8_t *
-signed_tree_head_v1_getarray_root_hash(signed_tree_head_v1_t *inp)
+sigident_ed25519_getarray_identifier(sigident_ed25519_t *inp)
 {
-  return inp->root_hash;
+  return inp->identifier;
 }
 const uint8_t  *
-signed_tree_head_v1_getconstarray_root_hash(const signed_tree_head_v1_t *inp)
+sigident_ed25519_getconstarray_identifier(const sigident_ed25519_t *inp)
 {
-  return (const uint8_t  *)signed_tree_head_v1_getarray_root_hash((signed_tree_head_v1_t*)inp);
-}
-uint64_t
-signed_tree_head_v1_get_length(const signed_tree_head_v1_t *inp)
-{
-  return inp->length;
-}
-int
-signed_tree_head_v1_set_length(signed_tree_head_v1_t *inp, uint64_t val)
-{
-  inp->length = val;
-  return 0;
-}
-size_t
-signed_tree_head_v1_getlen_sigident(const signed_tree_head_v1_t *inp)
-{
-  return TRUNNEL_DYNARRAY_LEN(&inp->sigident);
-}
-
-uint8_t
-signed_tree_head_v1_get_sigident(signed_tree_head_v1_t *inp, size_t idx)
-{
-  return TRUNNEL_DYNARRAY_GET(&inp->sigident, idx);
-}
-
-uint8_t
-signed_tree_head_v1_getconst_sigident(const signed_tree_head_v1_t *inp, size_t idx)
-{
-  return signed_tree_head_v1_get_sigident((signed_tree_head_v1_t*)inp, idx);
-}
-int
-signed_tree_head_v1_set_sigident(signed_tree_head_v1_t *inp, size_t idx, uint8_t elt)
-{
-  TRUNNEL_DYNARRAY_SET(&inp->sigident, idx, elt);
-  return 0;
-}
-int
-signed_tree_head_v1_add_sigident(signed_tree_head_v1_t *inp, uint8_t elt)
-{
-#if SIZE_MAX >= UINT64_MAX
-  if (inp->sigident.n_ == UINT64_MAX)
-    goto trunnel_alloc_failed;
-#endif
-  TRUNNEL_DYNARRAY_ADD(uint8_t, &inp->sigident, elt, {});
-  return 0;
- trunnel_alloc_failed:
-  TRUNNEL_SET_ERROR_CODE(inp);
-  return -1;
-}
-
-uint8_t *
-signed_tree_head_v1_getarray_sigident(signed_tree_head_v1_t *inp)
-{
-  return inp->sigident.elts_;
-}
-const uint8_t  *
-signed_tree_head_v1_getconstarray_sigident(const signed_tree_head_v1_t *inp)
-{
-  return (const uint8_t  *)signed_tree_head_v1_getarray_sigident((signed_tree_head_v1_t*)inp);
-}
-int
-signed_tree_head_v1_setlen_sigident(signed_tree_head_v1_t *inp, size_t newlen)
-{
-  uint8_t *newptr;
-#if UINT64_MAX < SIZE_MAX
-  if (newlen > UINT64_MAX)
-    goto trunnel_alloc_failed;
-#endif
-  newptr = trunnel_dynarray_setlen(&inp->sigident.allocated_,
-                 &inp->sigident.n_, inp->sigident.elts_, newlen,
-                 sizeof(inp->sigident.elts_[0]), (trunnel_free_fn_t) NULL,
-                 &inp->trunnel_error_code_);
-  if (newlen != 0 && newptr == NULL)
-    goto trunnel_alloc_failed;
-  inp->sigident.elts_ = newptr;
-  return 0;
- trunnel_alloc_failed:
-  TRUNNEL_SET_ERROR_CODE(inp);
-  return -1;
+  return (const uint8_t  *)sigident_ed25519_getarray_identifier((sigident_ed25519_t*)inp);
 }
 const char *
-signed_tree_head_v1_check(const signed_tree_head_v1_t *obj)
+sigident_ed25519_check(const sigident_ed25519_t *obj)
 {
   if (obj == NULL)
     return "Object was NULL";
   if (obj->trunnel_error_code_)
     return "A set function failed on this object";
-  if (! (obj->format == T_SIGNED_TREE_HEAD_V1))
-    return "Integer out of bounds";
-  if (TRUNNEL_DYNARRAY_LEN(&obj->sigident) != obj->length)
-    return "Length mismatch for sigident";
   return NULL;
 }
 
 ssize_t
-signed_tree_head_v1_encoded_len(const signed_tree_head_v1_t *obj)
+sigident_ed25519_encoded_len(const sigident_ed25519_t *obj)
 {
   ssize_t result = 0;
 
-  if (NULL != signed_tree_head_v1_check(obj))
+  if (NULL != sigident_ed25519_check(obj))
      return -1;
 
 
-  /* Length of u64 format IN [T_SIGNED_TREE_HEAD_V1] */
-  result += 8;
+  /* Length of u8 signature[64] */
+  result += 64;
 
-  /* Length of u64 timestamp */
-  result += 8;
-
-  /* Length of u64 tree_size */
-  result += 8;
-
-  /* Length of u8 root_hash[32] */
+  /* Length of u8 identifier[32] */
   result += 32;
-
-  /* Length of u64 length */
-  result += 8;
-
-  /* Length of u8 sigident[length] */
-  result += TRUNNEL_DYNARRAY_LEN(&obj->sigident);
   return result;
 }
 int
-signed_tree_head_v1_clear_errors(signed_tree_head_v1_t *obj)
+sigident_ed25519_clear_errors(sigident_ed25519_t *obj)
 {
   int r = obj->trunnel_error_code_;
   obj->trunnel_error_code_ = 0;
   return r;
 }
 ssize_t
-signed_tree_head_v1_encode(uint8_t *output, const size_t avail, const signed_tree_head_v1_t *obj)
+sigident_ed25519_encode(uint8_t *output, const size_t avail, const sigident_ed25519_t *obj)
 {
   ssize_t result = 0;
   size_t written = 0;
   uint8_t *ptr = output;
   const char *msg;
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
-  const ssize_t encoded_len = signed_tree_head_v1_encoded_len(obj);
+  const ssize_t encoded_len = sigident_ed25519_encoded_len(obj);
 #endif
 
-  if (NULL != (msg = signed_tree_head_v1_check(obj)))
+  if (NULL != (msg = sigident_ed25519_check(obj)))
     goto check_failed;
 
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
   trunnel_assert(encoded_len >= 0);
 #endif
 
-  /* Encode u64 format IN [T_SIGNED_TREE_HEAD_V1] */
+  /* Encode u8 signature[64] */
   trunnel_assert(written <= avail);
-  if (avail - written < 8)
+  if (avail - written < 64)
     goto truncated;
-  trunnel_set_uint64(ptr, trunnel_htonll(obj->format));
-  written += 8; ptr += 8;
+  memcpy(ptr, obj->signature, 64);
+  written += 64; ptr += 64;
 
-  /* Encode u64 timestamp */
-  trunnel_assert(written <= avail);
-  if (avail - written < 8)
-    goto truncated;
-  trunnel_set_uint64(ptr, trunnel_htonll(obj->timestamp));
-  written += 8; ptr += 8;
-
-  /* Encode u64 tree_size */
-  trunnel_assert(written <= avail);
-  if (avail - written < 8)
-    goto truncated;
-  trunnel_set_uint64(ptr, trunnel_htonll(obj->tree_size));
-  written += 8; ptr += 8;
-
-  /* Encode u8 root_hash[32] */
+  /* Encode u8 identifier[32] */
   trunnel_assert(written <= avail);
   if (avail - written < 32)
     goto truncated;
-  memcpy(ptr, obj->root_hash, 32);
+  memcpy(ptr, obj->identifier, 32);
   written += 32; ptr += 32;
-
-  /* Encode u64 length */
-  trunnel_assert(written <= avail);
-  if (avail - written < 8)
-    goto truncated;
-  trunnel_set_uint64(ptr, trunnel_htonll(obj->length));
-  written += 8; ptr += 8;
-
-  /* Encode u8 sigident[length] */
-  {
-    size_t elt_len = TRUNNEL_DYNARRAY_LEN(&obj->sigident);
-    trunnel_assert(obj->length == elt_len);
-    trunnel_assert(written <= avail);
-    if (avail - written < elt_len)
-      goto truncated;
-    if (elt_len)
-      memcpy(ptr, obj->sigident.elts_, elt_len);
-    written += elt_len; ptr += elt_len;
-  }
 
 
   trunnel_assert(ptr == output + written);
@@ -1124,51 +955,435 @@ signed_tree_head_v1_encode(uint8_t *output, const size_t avail, const signed_tre
   return result;
 }
 
-/** As signed_tree_head_v1_parse(), but do not allocate the output
+/** As sigident_ed25519_parse(), but do not allocate the output
  * object.
  */
 static ssize_t
-signed_tree_head_v1_parse_into(signed_tree_head_v1_t *obj, const uint8_t *input, const size_t len_in)
+sigident_ed25519_parse_into(sigident_ed25519_t *obj, const uint8_t *input, const size_t len_in)
 {
   const uint8_t *ptr = input;
   size_t remaining = len_in;
   ssize_t result = 0;
   (void)result;
 
-  /* Parse u64 format IN [T_SIGNED_TREE_HEAD_V1] */
-  CHECK_REMAINING(8, truncated);
-  obj->format = trunnel_ntohll(trunnel_get_uint64(ptr));
-  remaining -= 8; ptr += 8;
-  if (! (obj->format == T_SIGNED_TREE_HEAD_V1))
-    goto fail;
+  /* Parse u8 signature[64] */
+  CHECK_REMAINING(64, truncated);
+  memcpy(obj->signature, ptr, 64);
+  remaining -= 64; ptr += 64;
 
-  /* Parse u64 timestamp */
-  CHECK_REMAINING(8, truncated);
-  obj->timestamp = trunnel_ntohll(trunnel_get_uint64(ptr));
-  remaining -= 8; ptr += 8;
-
-  /* Parse u64 tree_size */
-  CHECK_REMAINING(8, truncated);
-  obj->tree_size = trunnel_ntohll(trunnel_get_uint64(ptr));
-  remaining -= 8; ptr += 8;
-
-  /* Parse u8 root_hash[32] */
+  /* Parse u8 identifier[32] */
   CHECK_REMAINING(32, truncated);
-  memcpy(obj->root_hash, ptr, 32);
+  memcpy(obj->identifier, ptr, 32);
+  remaining -= 32; ptr += 32;
+  trunnel_assert(ptr + remaining == input + len_in);
+  return len_in - remaining;
+
+ truncated:
+  return -2;
+}
+
+ssize_t
+sigident_ed25519_parse(sigident_ed25519_t **output, const uint8_t *input, const size_t len_in)
+{
+  ssize_t result;
+  *output = sigident_ed25519_new();
+  if (NULL == *output)
+    return -1;
+  result = sigident_ed25519_parse_into(*output, input, len_in);
+  if (result < 0) {
+    sigident_ed25519_free(*output);
+    *output = NULL;
+  }
+  return result;
+}
+signed_checksum32_ed25519_t *
+signed_checksum32_ed25519_new(void)
+{
+  signed_checksum32_ed25519_t *val = trunnel_calloc(1, sizeof(signed_checksum32_ed25519_t));
+  if (NULL == val)
+    return NULL;
+  val->length = 1;
+  return val;
+}
+
+/** Release all storage held inside 'obj', but do not free 'obj'.
+ */
+static void
+signed_checksum32_ed25519_clear(signed_checksum32_ed25519_t *obj)
+{
+  (void) obj;
+  TRUNNEL_DYNARRAY_WIPE(&obj->identifier);
+  TRUNNEL_DYNARRAY_CLEAR(&obj->identifier);
+}
+
+void
+signed_checksum32_ed25519_free(signed_checksum32_ed25519_t *obj)
+{
+  if (obj == NULL)
+    return;
+  signed_checksum32_ed25519_clear(obj);
+  trunnel_memwipe(obj, sizeof(signed_checksum32_ed25519_t));
+  trunnel_free_(obj);
+}
+
+size_t
+signed_checksum32_ed25519_getlen_checksum(const signed_checksum32_ed25519_t *inp)
+{
+  (void)inp;  return 32;
+}
+
+uint8_t
+signed_checksum32_ed25519_get_checksum(signed_checksum32_ed25519_t *inp, size_t idx)
+{
+  trunnel_assert(idx < 32);
+  return inp->checksum[idx];
+}
+
+uint8_t
+signed_checksum32_ed25519_getconst_checksum(const signed_checksum32_ed25519_t *inp, size_t idx)
+{
+  return signed_checksum32_ed25519_get_checksum((signed_checksum32_ed25519_t*)inp, idx);
+}
+int
+signed_checksum32_ed25519_set_checksum(signed_checksum32_ed25519_t *inp, size_t idx, uint8_t elt)
+{
+  trunnel_assert(idx < 32);
+  inp->checksum[idx] = elt;
+  return 0;
+}
+
+uint8_t *
+signed_checksum32_ed25519_getarray_checksum(signed_checksum32_ed25519_t *inp)
+{
+  return inp->checksum;
+}
+const uint8_t  *
+signed_checksum32_ed25519_getconstarray_checksum(const signed_checksum32_ed25519_t *inp)
+{
+  return (const uint8_t  *)signed_checksum32_ed25519_getarray_checksum((signed_checksum32_ed25519_t*)inp);
+}
+uint64_t
+signed_checksum32_ed25519_get_length(const signed_checksum32_ed25519_t *inp)
+{
+  return inp->length;
+}
+int
+signed_checksum32_ed25519_set_length(signed_checksum32_ed25519_t *inp, uint64_t val)
+{
+  if (! (((val >= 1 && val <= 128)))) {
+     TRUNNEL_SET_ERROR_CODE(inp);
+     return -1;
+  }
+  inp->length = val;
+  return 0;
+}
+size_t
+signed_checksum32_ed25519_getlen_identifier(const signed_checksum32_ed25519_t *inp)
+{
+  return TRUNNEL_DYNARRAY_LEN(&inp->identifier);
+}
+
+uint8_t
+signed_checksum32_ed25519_get_identifier(signed_checksum32_ed25519_t *inp, size_t idx)
+{
+  return TRUNNEL_DYNARRAY_GET(&inp->identifier, idx);
+}
+
+uint8_t
+signed_checksum32_ed25519_getconst_identifier(const signed_checksum32_ed25519_t *inp, size_t idx)
+{
+  return signed_checksum32_ed25519_get_identifier((signed_checksum32_ed25519_t*)inp, idx);
+}
+int
+signed_checksum32_ed25519_set_identifier(signed_checksum32_ed25519_t *inp, size_t idx, uint8_t elt)
+{
+  TRUNNEL_DYNARRAY_SET(&inp->identifier, idx, elt);
+  return 0;
+}
+int
+signed_checksum32_ed25519_add_identifier(signed_checksum32_ed25519_t *inp, uint8_t elt)
+{
+#if SIZE_MAX >= UINT64_MAX
+  if (inp->identifier.n_ == UINT64_MAX)
+    goto trunnel_alloc_failed;
+#endif
+  TRUNNEL_DYNARRAY_ADD(uint8_t, &inp->identifier, elt, {});
+  return 0;
+ trunnel_alloc_failed:
+  TRUNNEL_SET_ERROR_CODE(inp);
+  return -1;
+}
+
+uint8_t *
+signed_checksum32_ed25519_getarray_identifier(signed_checksum32_ed25519_t *inp)
+{
+  return inp->identifier.elts_;
+}
+const uint8_t  *
+signed_checksum32_ed25519_getconstarray_identifier(const signed_checksum32_ed25519_t *inp)
+{
+  return (const uint8_t  *)signed_checksum32_ed25519_getarray_identifier((signed_checksum32_ed25519_t*)inp);
+}
+int
+signed_checksum32_ed25519_setlen_identifier(signed_checksum32_ed25519_t *inp, size_t newlen)
+{
+  uint8_t *newptr;
+#if UINT64_MAX < SIZE_MAX
+  if (newlen > UINT64_MAX)
+    goto trunnel_alloc_failed;
+#endif
+  newptr = trunnel_dynarray_setlen(&inp->identifier.allocated_,
+                 &inp->identifier.n_, inp->identifier.elts_, newlen,
+                 sizeof(inp->identifier.elts_[0]), (trunnel_free_fn_t) NULL,
+                 &inp->trunnel_error_code_);
+  if (newlen != 0 && newptr == NULL)
+    goto trunnel_alloc_failed;
+  inp->identifier.elts_ = newptr;
+  return 0;
+ trunnel_alloc_failed:
+  TRUNNEL_SET_ERROR_CODE(inp);
+  return -1;
+}
+size_t
+signed_checksum32_ed25519_getlen_signature(const signed_checksum32_ed25519_t *inp)
+{
+  (void)inp;  return 64;
+}
+
+uint8_t
+signed_checksum32_ed25519_get_signature(signed_checksum32_ed25519_t *inp, size_t idx)
+{
+  trunnel_assert(idx < 64);
+  return inp->signature[idx];
+}
+
+uint8_t
+signed_checksum32_ed25519_getconst_signature(const signed_checksum32_ed25519_t *inp, size_t idx)
+{
+  return signed_checksum32_ed25519_get_signature((signed_checksum32_ed25519_t*)inp, idx);
+}
+int
+signed_checksum32_ed25519_set_signature(signed_checksum32_ed25519_t *inp, size_t idx, uint8_t elt)
+{
+  trunnel_assert(idx < 64);
+  inp->signature[idx] = elt;
+  return 0;
+}
+
+uint8_t *
+signed_checksum32_ed25519_getarray_signature(signed_checksum32_ed25519_t *inp)
+{
+  return inp->signature;
+}
+const uint8_t  *
+signed_checksum32_ed25519_getconstarray_signature(const signed_checksum32_ed25519_t *inp)
+{
+  return (const uint8_t  *)signed_checksum32_ed25519_getarray_signature((signed_checksum32_ed25519_t*)inp);
+}
+size_t
+signed_checksum32_ed25519_getlen_namespace(const signed_checksum32_ed25519_t *inp)
+{
+  (void)inp;  return 32;
+}
+
+uint8_t
+signed_checksum32_ed25519_get_namespace(signed_checksum32_ed25519_t *inp, size_t idx)
+{
+  trunnel_assert(idx < 32);
+  return inp->namespace[idx];
+}
+
+uint8_t
+signed_checksum32_ed25519_getconst_namespace(const signed_checksum32_ed25519_t *inp, size_t idx)
+{
+  return signed_checksum32_ed25519_get_namespace((signed_checksum32_ed25519_t*)inp, idx);
+}
+int
+signed_checksum32_ed25519_set_namespace(signed_checksum32_ed25519_t *inp, size_t idx, uint8_t elt)
+{
+  trunnel_assert(idx < 32);
+  inp->namespace[idx] = elt;
+  return 0;
+}
+
+uint8_t *
+signed_checksum32_ed25519_getarray_namespace(signed_checksum32_ed25519_t *inp)
+{
+  return inp->namespace;
+}
+const uint8_t  *
+signed_checksum32_ed25519_getconstarray_namespace(const signed_checksum32_ed25519_t *inp)
+{
+  return (const uint8_t  *)signed_checksum32_ed25519_getarray_namespace((signed_checksum32_ed25519_t*)inp);
+}
+const char *
+signed_checksum32_ed25519_check(const signed_checksum32_ed25519_t *obj)
+{
+  if (obj == NULL)
+    return "Object was NULL";
+  if (obj->trunnel_error_code_)
+    return "A set function failed on this object";
+  if (! ((obj->length >= 1 && obj->length <= 128)))
+    return "Integer out of bounds";
+  if (TRUNNEL_DYNARRAY_LEN(&obj->identifier) != obj->length)
+    return "Length mismatch for identifier";
+  return NULL;
+}
+
+ssize_t
+signed_checksum32_ed25519_encoded_len(const signed_checksum32_ed25519_t *obj)
+{
+  ssize_t result = 0;
+
+  if (NULL != signed_checksum32_ed25519_check(obj))
+     return -1;
+
+
+  /* Length of u8 checksum[32] */
+  result += 32;
+
+  /* Length of u64 length IN [1..128] */
+  result += 8;
+
+  /* Length of u8 identifier[length] */
+  result += TRUNNEL_DYNARRAY_LEN(&obj->identifier);
+
+  /* Length of u8 signature[64] */
+  result += 64;
+
+  /* Length of u8 namespace[32] */
+  result += 32;
+  return result;
+}
+int
+signed_checksum32_ed25519_clear_errors(signed_checksum32_ed25519_t *obj)
+{
+  int r = obj->trunnel_error_code_;
+  obj->trunnel_error_code_ = 0;
+  return r;
+}
+ssize_t
+signed_checksum32_ed25519_encode(uint8_t *output, const size_t avail, const signed_checksum32_ed25519_t *obj)
+{
+  ssize_t result = 0;
+  size_t written = 0;
+  uint8_t *ptr = output;
+  const char *msg;
+#ifdef TRUNNEL_CHECK_ENCODED_LEN
+  const ssize_t encoded_len = signed_checksum32_ed25519_encoded_len(obj);
+#endif
+
+  if (NULL != (msg = signed_checksum32_ed25519_check(obj)))
+    goto check_failed;
+
+#ifdef TRUNNEL_CHECK_ENCODED_LEN
+  trunnel_assert(encoded_len >= 0);
+#endif
+
+  /* Encode u8 checksum[32] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 32)
+    goto truncated;
+  memcpy(ptr, obj->checksum, 32);
+  written += 32; ptr += 32;
+
+  /* Encode u64 length IN [1..128] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->length));
+  written += 8; ptr += 8;
+
+  /* Encode u8 identifier[length] */
+  {
+    size_t elt_len = TRUNNEL_DYNARRAY_LEN(&obj->identifier);
+    trunnel_assert(obj->length == elt_len);
+    trunnel_assert(written <= avail);
+    if (avail - written < elt_len)
+      goto truncated;
+    if (elt_len)
+      memcpy(ptr, obj->identifier.elts_, elt_len);
+    written += elt_len; ptr += elt_len;
+  }
+
+  /* Encode u8 signature[64] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 64)
+    goto truncated;
+  memcpy(ptr, obj->signature, 64);
+  written += 64; ptr += 64;
+
+  /* Encode u8 namespace[32] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 32)
+    goto truncated;
+  memcpy(ptr, obj->namespace, 32);
+  written += 32; ptr += 32;
+
+
+  trunnel_assert(ptr == output + written);
+#ifdef TRUNNEL_CHECK_ENCODED_LEN
+  {
+    trunnel_assert(encoded_len >= 0);
+    trunnel_assert((size_t)encoded_len == written);
+  }
+
+#endif
+
+  return written;
+
+ truncated:
+  result = -2;
+  goto fail;
+ check_failed:
+  (void)msg;
+  result = -1;
+  goto fail;
+ fail:
+  trunnel_assert(result < 0);
+  return result;
+}
+
+/** As signed_checksum32_ed25519_parse(), but do not allocate the
+ * output object.
+ */
+static ssize_t
+signed_checksum32_ed25519_parse_into(signed_checksum32_ed25519_t *obj, const uint8_t *input, const size_t len_in)
+{
+  const uint8_t *ptr = input;
+  size_t remaining = len_in;
+  ssize_t result = 0;
+  (void)result;
+
+  /* Parse u8 checksum[32] */
+  CHECK_REMAINING(32, truncated);
+  memcpy(obj->checksum, ptr, 32);
   remaining -= 32; ptr += 32;
 
-  /* Parse u64 length */
+  /* Parse u64 length IN [1..128] */
   CHECK_REMAINING(8, truncated);
   obj->length = trunnel_ntohll(trunnel_get_uint64(ptr));
   remaining -= 8; ptr += 8;
+  if (! ((obj->length >= 1 && obj->length <= 128)))
+    goto fail;
 
-  /* Parse u8 sigident[length] */
+  /* Parse u8 identifier[length] */
   CHECK_REMAINING(obj->length, truncated);
-  TRUNNEL_DYNARRAY_EXPAND(uint8_t, &obj->sigident, obj->length, {});
-  obj->sigident.n_ = obj->length;
+  TRUNNEL_DYNARRAY_EXPAND(uint8_t, &obj->identifier, obj->length, {});
+  obj->identifier.n_ = obj->length;
   if (obj->length)
-    memcpy(obj->sigident.elts_, ptr, obj->length);
+    memcpy(obj->identifier.elts_, ptr, obj->length);
   ptr += obj->length; remaining -= obj->length;
+
+  /* Parse u8 signature[64] */
+  CHECK_REMAINING(64, truncated);
+  memcpy(obj->signature, ptr, 64);
+  remaining -= 64; ptr += 64;
+
+  /* Parse u8 namespace[32] */
+  CHECK_REMAINING(32, truncated);
+  memcpy(obj->namespace, ptr, 32);
+  remaining -= 32; ptr += 32;
   trunnel_assert(ptr + remaining == input + len_in);
   return len_in - remaining;
 
@@ -1182,15 +1397,15 @@ signed_tree_head_v1_parse_into(signed_tree_head_v1_t *obj, const uint8_t *input,
 }
 
 ssize_t
-signed_tree_head_v1_parse(signed_tree_head_v1_t **output, const uint8_t *input, const size_t len_in)
+signed_checksum32_ed25519_parse(signed_checksum32_ed25519_t **output, const uint8_t *input, const size_t len_in)
 {
   ssize_t result;
-  *output = signed_tree_head_v1_new();
+  *output = signed_checksum32_ed25519_new();
   if (NULL == *output)
     return -1;
-  result = signed_tree_head_v1_parse_into(*output, input, len_in);
+  result = signed_checksum32_ed25519_parse_into(*output, input, len_in);
   if (result < 0) {
-    signed_tree_head_v1_free(*output);
+    signed_checksum32_ed25519_free(*output);
     *output = NULL;
   }
   return result;
@@ -1201,6 +1416,7 @@ consistency_proof_v1_new(void)
   consistency_proof_v1_t *val = trunnel_calloc(1, sizeof(consistency_proof_v1_t));
   if (NULL == val)
     return NULL;
+  val->magic = MAGIC_V1;
   val->format = T_CONSISTENCY_PROOF_V1;
   return val;
 }
@@ -1211,8 +1427,13 @@ static void
 consistency_proof_v1_clear(consistency_proof_v1_t *obj)
 {
   (void) obj;
-  ed25519_v1_free(obj->identifier);
-  obj->identifier = NULL;
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->hashes); ++idx) {
+      hash_free(TRUNNEL_DYNARRAY_GET(&obj->hashes, idx));
+    }
+  }
   TRUNNEL_DYNARRAY_WIPE(&obj->hashes);
   TRUNNEL_DYNARRAY_CLEAR(&obj->hashes);
 }
@@ -1228,6 +1449,21 @@ consistency_proof_v1_free(consistency_proof_v1_t *obj)
 }
 
 uint64_t
+consistency_proof_v1_get_magic(const consistency_proof_v1_t *inp)
+{
+  return inp->magic;
+}
+int
+consistency_proof_v1_set_magic(consistency_proof_v1_t *inp, uint64_t val)
+{
+  if (! ((val == MAGIC_V1))) {
+     TRUNNEL_SET_ERROR_CODE(inp);
+     return -1;
+  }
+  inp->magic = val;
+  return 0;
+}
+uint64_t
 consistency_proof_v1_get_format(const consistency_proof_v1_t *inp)
 {
   return inp->format;
@@ -1242,28 +1478,41 @@ consistency_proof_v1_set_format(consistency_proof_v1_t *inp, uint64_t val)
   inp->format = val;
   return 0;
 }
-struct ed25519_v1_st *
-consistency_proof_v1_get_identifier(consistency_proof_v1_t *inp)
+size_t
+consistency_proof_v1_getlen_identifier(const consistency_proof_v1_t *inp)
+{
+  (void)inp;  return 32;
+}
+
+uint8_t
+consistency_proof_v1_get_identifier(consistency_proof_v1_t *inp, size_t idx)
+{
+  trunnel_assert(idx < 32);
+  return inp->identifier[idx];
+}
+
+uint8_t
+consistency_proof_v1_getconst_identifier(const consistency_proof_v1_t *inp, size_t idx)
+{
+  return consistency_proof_v1_get_identifier((consistency_proof_v1_t*)inp, idx);
+}
+int
+consistency_proof_v1_set_identifier(consistency_proof_v1_t *inp, size_t idx, uint8_t elt)
+{
+  trunnel_assert(idx < 32);
+  inp->identifier[idx] = elt;
+  return 0;
+}
+
+uint8_t *
+consistency_proof_v1_getarray_identifier(consistency_proof_v1_t *inp)
 {
   return inp->identifier;
 }
-const struct ed25519_v1_st *
-consistency_proof_v1_getconst_identifier(const consistency_proof_v1_t *inp)
+const uint8_t  *
+consistency_proof_v1_getconstarray_identifier(const consistency_proof_v1_t *inp)
 {
-  return consistency_proof_v1_get_identifier((consistency_proof_v1_t*) inp);
-}
-int
-consistency_proof_v1_set_identifier(consistency_proof_v1_t *inp, struct ed25519_v1_st *val)
-{
-  if (inp->identifier && inp->identifier != val)
-    ed25519_v1_free(inp->identifier);
-  return consistency_proof_v1_set0_identifier(inp, val);
-}
-int
-consistency_proof_v1_set0_identifier(consistency_proof_v1_t *inp, struct ed25519_v1_st *val)
-{
-  inp->identifier = val;
-  return 0;
+  return (const uint8_t  *)consistency_proof_v1_getarray_identifier((consistency_proof_v1_t*)inp);
 }
 uint64_t
 consistency_proof_v1_get_old_size(const consistency_proof_v1_t *inp)
@@ -1288,14 +1537,14 @@ consistency_proof_v1_set_new_size(consistency_proof_v1_t *inp, uint64_t val)
   return 0;
 }
 uint64_t
-consistency_proof_v1_get_length(const consistency_proof_v1_t *inp)
+consistency_proof_v1_get_n_items(const consistency_proof_v1_t *inp)
 {
-  return inp->length;
+  return inp->n_items;
 }
 int
-consistency_proof_v1_set_length(consistency_proof_v1_t *inp, uint64_t val)
+consistency_proof_v1_set_n_items(consistency_proof_v1_t *inp, uint64_t val)
 {
-  inp->length = val;
+  inp->n_items = val;
   return 0;
 }
 size_t
@@ -1304,58 +1553,66 @@ consistency_proof_v1_getlen_hashes(const consistency_proof_v1_t *inp)
   return TRUNNEL_DYNARRAY_LEN(&inp->hashes);
 }
 
-uint8_t
+struct hash_st *
 consistency_proof_v1_get_hashes(consistency_proof_v1_t *inp, size_t idx)
 {
   return TRUNNEL_DYNARRAY_GET(&inp->hashes, idx);
 }
 
-uint8_t
+ const struct hash_st *
 consistency_proof_v1_getconst_hashes(const consistency_proof_v1_t *inp, size_t idx)
 {
   return consistency_proof_v1_get_hashes((consistency_proof_v1_t*)inp, idx);
 }
 int
-consistency_proof_v1_set_hashes(consistency_proof_v1_t *inp, size_t idx, uint8_t elt)
+consistency_proof_v1_set_hashes(consistency_proof_v1_t *inp, size_t idx, struct hash_st * elt)
+{
+  hash_t *oldval = TRUNNEL_DYNARRAY_GET(&inp->hashes, idx);
+  if (oldval && oldval != elt)
+    hash_free(oldval);
+  return consistency_proof_v1_set0_hashes(inp, idx, elt);
+}
+int
+consistency_proof_v1_set0_hashes(consistency_proof_v1_t *inp, size_t idx, struct hash_st * elt)
 {
   TRUNNEL_DYNARRAY_SET(&inp->hashes, idx, elt);
   return 0;
 }
 int
-consistency_proof_v1_add_hashes(consistency_proof_v1_t *inp, uint8_t elt)
+consistency_proof_v1_add_hashes(consistency_proof_v1_t *inp, struct hash_st * elt)
 {
 #if SIZE_MAX >= UINT64_MAX
   if (inp->hashes.n_ == UINT64_MAX)
     goto trunnel_alloc_failed;
 #endif
-  TRUNNEL_DYNARRAY_ADD(uint8_t, &inp->hashes, elt, {});
+  TRUNNEL_DYNARRAY_ADD(struct hash_st *, &inp->hashes, elt, {});
   return 0;
  trunnel_alloc_failed:
   TRUNNEL_SET_ERROR_CODE(inp);
   return -1;
 }
 
-uint8_t *
+struct hash_st * *
 consistency_proof_v1_getarray_hashes(consistency_proof_v1_t *inp)
 {
   return inp->hashes.elts_;
 }
-const uint8_t  *
+const struct hash_st *  const  *
 consistency_proof_v1_getconstarray_hashes(const consistency_proof_v1_t *inp)
 {
-  return (const uint8_t  *)consistency_proof_v1_getarray_hashes((consistency_proof_v1_t*)inp);
+  return (const struct hash_st *  const  *)consistency_proof_v1_getarray_hashes((consistency_proof_v1_t*)inp);
 }
 int
 consistency_proof_v1_setlen_hashes(consistency_proof_v1_t *inp, size_t newlen)
 {
-  uint8_t *newptr;
+  struct hash_st * *newptr;
 #if UINT64_MAX < SIZE_MAX
   if (newlen > UINT64_MAX)
     goto trunnel_alloc_failed;
 #endif
   newptr = trunnel_dynarray_setlen(&inp->hashes.allocated_,
                  &inp->hashes.n_, inp->hashes.elts_, newlen,
-                 sizeof(inp->hashes.elts_[0]), (trunnel_free_fn_t) NULL,
+                 sizeof(inp->hashes.elts_[0]), (trunnel_free_fn_t) hash_free,
                  &inp->trunnel_error_code_);
   if (newlen != 0 && newptr == NULL)
     goto trunnel_alloc_failed;
@@ -1372,14 +1629,20 @@ consistency_proof_v1_check(const consistency_proof_v1_t *obj)
     return "Object was NULL";
   if (obj->trunnel_error_code_)
     return "A set function failed on this object";
+  if (! (obj->magic == MAGIC_V1))
+    return "Integer out of bounds";
   if (! (obj->format == T_CONSISTENCY_PROOF_V1))
     return "Integer out of bounds";
   {
     const char *msg;
-    if (NULL != (msg = ed25519_v1_check(obj->identifier)))
-      return msg;
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->hashes); ++idx) {
+      if (NULL != (msg = hash_check(TRUNNEL_DYNARRAY_GET(&obj->hashes, idx))))
+        return msg;
+    }
   }
-  if (TRUNNEL_DYNARRAY_LEN(&obj->hashes) != obj->length)
+  if (TRUNNEL_DYNARRAY_LEN(&obj->hashes) != obj->n_items)
     return "Length mismatch for hashes";
   return NULL;
 }
@@ -1393,11 +1656,14 @@ consistency_proof_v1_encoded_len(const consistency_proof_v1_t *obj)
      return -1;
 
 
+  /* Length of u64 magic IN [MAGIC_V1] */
+  result += 8;
+
   /* Length of u64 format IN [T_CONSISTENCY_PROOF_V1] */
   result += 8;
 
-  /* Length of struct ed25519_v1 identifier */
-  result += ed25519_v1_encoded_len(obj->identifier);
+  /* Length of u8 identifier[32] */
+  result += 32;
 
   /* Length of u64 old_size */
   result += 8;
@@ -1405,11 +1671,17 @@ consistency_proof_v1_encoded_len(const consistency_proof_v1_t *obj)
   /* Length of u64 new_size */
   result += 8;
 
-  /* Length of u64 length */
+  /* Length of u64 n_items */
   result += 8;
 
-  /* Length of u8 hashes[length] */
-  result += TRUNNEL_DYNARRAY_LEN(&obj->hashes);
+  /* Length of struct hash hashes[n_items] */
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->hashes); ++idx) {
+      result += hash_encoded_len(TRUNNEL_DYNARRAY_GET(&obj->hashes, idx));
+    }
+  }
   return result;
 }
 int
@@ -1437,6 +1709,13 @@ consistency_proof_v1_encode(uint8_t *output, const size_t avail, const consisten
   trunnel_assert(encoded_len >= 0);
 #endif
 
+  /* Encode u64 magic IN [MAGIC_V1] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->magic));
+  written += 8; ptr += 8;
+
   /* Encode u64 format IN [T_CONSISTENCY_PROOF_V1] */
   trunnel_assert(written <= avail);
   if (avail - written < 8)
@@ -1444,12 +1723,12 @@ consistency_proof_v1_encode(uint8_t *output, const size_t avail, const consisten
   trunnel_set_uint64(ptr, trunnel_htonll(obj->format));
   written += 8; ptr += 8;
 
-  /* Encode struct ed25519_v1 identifier */
+  /* Encode u8 identifier[32] */
   trunnel_assert(written <= avail);
-  result = ed25519_v1_encode(ptr, avail - written, obj->identifier);
-  if (result < 0)
-    goto fail; /* XXXXXXX !*/
-  written += result; ptr += result;
+  if (avail - written < 32)
+    goto truncated;
+  memcpy(ptr, obj->identifier, 32);
+  written += 32; ptr += 32;
 
   /* Encode u64 old_size */
   trunnel_assert(written <= avail);
@@ -1465,23 +1744,24 @@ consistency_proof_v1_encode(uint8_t *output, const size_t avail, const consisten
   trunnel_set_uint64(ptr, trunnel_htonll(obj->new_size));
   written += 8; ptr += 8;
 
-  /* Encode u64 length */
+  /* Encode u64 n_items */
   trunnel_assert(written <= avail);
   if (avail - written < 8)
     goto truncated;
-  trunnel_set_uint64(ptr, trunnel_htonll(obj->length));
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->n_items));
   written += 8; ptr += 8;
 
-  /* Encode u8 hashes[length] */
+  /* Encode struct hash hashes[n_items] */
   {
-    size_t elt_len = TRUNNEL_DYNARRAY_LEN(&obj->hashes);
-    trunnel_assert(obj->length == elt_len);
-    trunnel_assert(written <= avail);
-    if (avail - written < elt_len)
-      goto truncated;
-    if (elt_len)
-      memcpy(ptr, obj->hashes.elts_, elt_len);
-    written += elt_len; ptr += elt_len;
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->hashes); ++idx) {
+      trunnel_assert(written <= avail);
+      result = hash_encode(ptr, avail - written, TRUNNEL_DYNARRAY_GET(&obj->hashes, idx));
+      if (result < 0)
+        goto fail; /* XXXXXXX !*/
+      written += result; ptr += result;
+    }
   }
 
 
@@ -1519,6 +1799,13 @@ consistency_proof_v1_parse_into(consistency_proof_v1_t *obj, const uint8_t *inpu
   ssize_t result = 0;
   (void)result;
 
+  /* Parse u64 magic IN [MAGIC_V1] */
+  CHECK_REMAINING(8, truncated);
+  obj->magic = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+  if (! (obj->magic == MAGIC_V1))
+    goto fail;
+
   /* Parse u64 format IN [T_CONSISTENCY_PROOF_V1] */
   CHECK_REMAINING(8, truncated);
   obj->format = trunnel_ntohll(trunnel_get_uint64(ptr));
@@ -1526,12 +1813,10 @@ consistency_proof_v1_parse_into(consistency_proof_v1_t *obj, const uint8_t *inpu
   if (! (obj->format == T_CONSISTENCY_PROOF_V1))
     goto fail;
 
-  /* Parse struct ed25519_v1 identifier */
-  result = ed25519_v1_parse(&obj->identifier, ptr, remaining);
-  if (result < 0)
-    goto relay_fail;
-  trunnel_assert((size_t)result <= remaining);
-  remaining -= result; ptr += result;
+  /* Parse u8 identifier[32] */
+  CHECK_REMAINING(32, truncated);
+  memcpy(obj->identifier, ptr, 32);
+  remaining -= 32; ptr += 32;
 
   /* Parse u64 old_size */
   CHECK_REMAINING(8, truncated);
@@ -1543,18 +1828,25 @@ consistency_proof_v1_parse_into(consistency_proof_v1_t *obj, const uint8_t *inpu
   obj->new_size = trunnel_ntohll(trunnel_get_uint64(ptr));
   remaining -= 8; ptr += 8;
 
-  /* Parse u64 length */
+  /* Parse u64 n_items */
   CHECK_REMAINING(8, truncated);
-  obj->length = trunnel_ntohll(trunnel_get_uint64(ptr));
+  obj->n_items = trunnel_ntohll(trunnel_get_uint64(ptr));
   remaining -= 8; ptr += 8;
 
-  /* Parse u8 hashes[length] */
-  CHECK_REMAINING(obj->length, truncated);
-  TRUNNEL_DYNARRAY_EXPAND(uint8_t, &obj->hashes, obj->length, {});
-  obj->hashes.n_ = obj->length;
-  if (obj->length)
-    memcpy(obj->hashes.elts_, ptr, obj->length);
-  ptr += obj->length; remaining -= obj->length;
+  /* Parse struct hash hashes[n_items] */
+  TRUNNEL_DYNARRAY_EXPAND(hash_t *, &obj->hashes, obj->n_items, {});
+  {
+    hash_t * elt;
+    unsigned idx;
+    for (idx = 0; idx < obj->n_items; ++idx) {
+      result = hash_parse(&elt, ptr, remaining);
+      if (result < 0)
+        goto relay_fail;
+      trunnel_assert((size_t)result <= remaining);
+      remaining -= result; ptr += result;
+      TRUNNEL_DYNARRAY_ADD(hash_t *, &obj->hashes, elt, {hash_free(elt);});
+    }
+  }
   trunnel_assert(ptr + remaining == input + len_in);
   return len_in - remaining;
 
@@ -1584,12 +1876,375 @@ consistency_proof_v1_parse(consistency_proof_v1_t **output, const uint8_t *input
   }
   return result;
 }
+entries_v1_t *
+entries_v1_new(void)
+{
+  entries_v1_t *val = trunnel_calloc(1, sizeof(entries_v1_t));
+  if (NULL == val)
+    return NULL;
+  val->magic = MAGIC_V1;
+  val->format = T_ENTRIES_V1;
+  return val;
+}
+
+/** Release all storage held inside 'obj', but do not free 'obj'.
+ */
+static void
+entries_v1_clear(entries_v1_t *obj)
+{
+  (void) obj;
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->checksums); ++idx) {
+      signed_checksum32_ed25519_free(TRUNNEL_DYNARRAY_GET(&obj->checksums, idx));
+    }
+  }
+  TRUNNEL_DYNARRAY_WIPE(&obj->checksums);
+  TRUNNEL_DYNARRAY_CLEAR(&obj->checksums);
+}
+
+void
+entries_v1_free(entries_v1_t *obj)
+{
+  if (obj == NULL)
+    return;
+  entries_v1_clear(obj);
+  trunnel_memwipe(obj, sizeof(entries_v1_t));
+  trunnel_free_(obj);
+}
+
+uint64_t
+entries_v1_get_magic(const entries_v1_t *inp)
+{
+  return inp->magic;
+}
+int
+entries_v1_set_magic(entries_v1_t *inp, uint64_t val)
+{
+  if (! ((val == MAGIC_V1))) {
+     TRUNNEL_SET_ERROR_CODE(inp);
+     return -1;
+  }
+  inp->magic = val;
+  return 0;
+}
+uint64_t
+entries_v1_get_format(const entries_v1_t *inp)
+{
+  return inp->format;
+}
+int
+entries_v1_set_format(entries_v1_t *inp, uint64_t val)
+{
+  if (! ((val == T_ENTRIES_V1))) {
+     TRUNNEL_SET_ERROR_CODE(inp);
+     return -1;
+  }
+  inp->format = val;
+  return 0;
+}
+uint64_t
+entries_v1_get_n_items(const entries_v1_t *inp)
+{
+  return inp->n_items;
+}
+int
+entries_v1_set_n_items(entries_v1_t *inp, uint64_t val)
+{
+  inp->n_items = val;
+  return 0;
+}
+size_t
+entries_v1_getlen_checksums(const entries_v1_t *inp)
+{
+  return TRUNNEL_DYNARRAY_LEN(&inp->checksums);
+}
+
+struct signed_checksum32_ed25519_st *
+entries_v1_get_checksums(entries_v1_t *inp, size_t idx)
+{
+  return TRUNNEL_DYNARRAY_GET(&inp->checksums, idx);
+}
+
+ const struct signed_checksum32_ed25519_st *
+entries_v1_getconst_checksums(const entries_v1_t *inp, size_t idx)
+{
+  return entries_v1_get_checksums((entries_v1_t*)inp, idx);
+}
+int
+entries_v1_set_checksums(entries_v1_t *inp, size_t idx, struct signed_checksum32_ed25519_st * elt)
+{
+  signed_checksum32_ed25519_t *oldval = TRUNNEL_DYNARRAY_GET(&inp->checksums, idx);
+  if (oldval && oldval != elt)
+    signed_checksum32_ed25519_free(oldval);
+  return entries_v1_set0_checksums(inp, idx, elt);
+}
+int
+entries_v1_set0_checksums(entries_v1_t *inp, size_t idx, struct signed_checksum32_ed25519_st * elt)
+{
+  TRUNNEL_DYNARRAY_SET(&inp->checksums, idx, elt);
+  return 0;
+}
+int
+entries_v1_add_checksums(entries_v1_t *inp, struct signed_checksum32_ed25519_st * elt)
+{
+#if SIZE_MAX >= UINT64_MAX
+  if (inp->checksums.n_ == UINT64_MAX)
+    goto trunnel_alloc_failed;
+#endif
+  TRUNNEL_DYNARRAY_ADD(struct signed_checksum32_ed25519_st *, &inp->checksums, elt, {});
+  return 0;
+ trunnel_alloc_failed:
+  TRUNNEL_SET_ERROR_CODE(inp);
+  return -1;
+}
+
+struct signed_checksum32_ed25519_st * *
+entries_v1_getarray_checksums(entries_v1_t *inp)
+{
+  return inp->checksums.elts_;
+}
+const struct signed_checksum32_ed25519_st *  const  *
+entries_v1_getconstarray_checksums(const entries_v1_t *inp)
+{
+  return (const struct signed_checksum32_ed25519_st *  const  *)entries_v1_getarray_checksums((entries_v1_t*)inp);
+}
+int
+entries_v1_setlen_checksums(entries_v1_t *inp, size_t newlen)
+{
+  struct signed_checksum32_ed25519_st * *newptr;
+#if UINT64_MAX < SIZE_MAX
+  if (newlen > UINT64_MAX)
+    goto trunnel_alloc_failed;
+#endif
+  newptr = trunnel_dynarray_setlen(&inp->checksums.allocated_,
+                 &inp->checksums.n_, inp->checksums.elts_, newlen,
+                 sizeof(inp->checksums.elts_[0]), (trunnel_free_fn_t) signed_checksum32_ed25519_free,
+                 &inp->trunnel_error_code_);
+  if (newlen != 0 && newptr == NULL)
+    goto trunnel_alloc_failed;
+  inp->checksums.elts_ = newptr;
+  return 0;
+ trunnel_alloc_failed:
+  TRUNNEL_SET_ERROR_CODE(inp);
+  return -1;
+}
+const char *
+entries_v1_check(const entries_v1_t *obj)
+{
+  if (obj == NULL)
+    return "Object was NULL";
+  if (obj->trunnel_error_code_)
+    return "A set function failed on this object";
+  if (! (obj->magic == MAGIC_V1))
+    return "Integer out of bounds";
+  if (! (obj->format == T_ENTRIES_V1))
+    return "Integer out of bounds";
+  {
+    const char *msg;
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->checksums); ++idx) {
+      if (NULL != (msg = signed_checksum32_ed25519_check(TRUNNEL_DYNARRAY_GET(&obj->checksums, idx))))
+        return msg;
+    }
+  }
+  if (TRUNNEL_DYNARRAY_LEN(&obj->checksums) != obj->n_items)
+    return "Length mismatch for checksums";
+  return NULL;
+}
+
+ssize_t
+entries_v1_encoded_len(const entries_v1_t *obj)
+{
+  ssize_t result = 0;
+
+  if (NULL != entries_v1_check(obj))
+     return -1;
+
+
+  /* Length of u64 magic IN [MAGIC_V1] */
+  result += 8;
+
+  /* Length of u64 format IN [T_ENTRIES_V1] */
+  result += 8;
+
+  /* Length of u64 n_items */
+  result += 8;
+
+  /* Length of struct signed_checksum32_ed25519 checksums[n_items] */
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->checksums); ++idx) {
+      result += signed_checksum32_ed25519_encoded_len(TRUNNEL_DYNARRAY_GET(&obj->checksums, idx));
+    }
+  }
+  return result;
+}
+int
+entries_v1_clear_errors(entries_v1_t *obj)
+{
+  int r = obj->trunnel_error_code_;
+  obj->trunnel_error_code_ = 0;
+  return r;
+}
+ssize_t
+entries_v1_encode(uint8_t *output, const size_t avail, const entries_v1_t *obj)
+{
+  ssize_t result = 0;
+  size_t written = 0;
+  uint8_t *ptr = output;
+  const char *msg;
+#ifdef TRUNNEL_CHECK_ENCODED_LEN
+  const ssize_t encoded_len = entries_v1_encoded_len(obj);
+#endif
+
+  if (NULL != (msg = entries_v1_check(obj)))
+    goto check_failed;
+
+#ifdef TRUNNEL_CHECK_ENCODED_LEN
+  trunnel_assert(encoded_len >= 0);
+#endif
+
+  /* Encode u64 magic IN [MAGIC_V1] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->magic));
+  written += 8; ptr += 8;
+
+  /* Encode u64 format IN [T_ENTRIES_V1] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->format));
+  written += 8; ptr += 8;
+
+  /* Encode u64 n_items */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->n_items));
+  written += 8; ptr += 8;
+
+  /* Encode struct signed_checksum32_ed25519 checksums[n_items] */
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->checksums); ++idx) {
+      trunnel_assert(written <= avail);
+      result = signed_checksum32_ed25519_encode(ptr, avail - written, TRUNNEL_DYNARRAY_GET(&obj->checksums, idx));
+      if (result < 0)
+        goto fail; /* XXXXXXX !*/
+      written += result; ptr += result;
+    }
+  }
+
+
+  trunnel_assert(ptr == output + written);
+#ifdef TRUNNEL_CHECK_ENCODED_LEN
+  {
+    trunnel_assert(encoded_len >= 0);
+    trunnel_assert((size_t)encoded_len == written);
+  }
+
+#endif
+
+  return written;
+
+ truncated:
+  result = -2;
+  goto fail;
+ check_failed:
+  (void)msg;
+  result = -1;
+  goto fail;
+ fail:
+  trunnel_assert(result < 0);
+  return result;
+}
+
+/** As entries_v1_parse(), but do not allocate the output object.
+ */
+static ssize_t
+entries_v1_parse_into(entries_v1_t *obj, const uint8_t *input, const size_t len_in)
+{
+  const uint8_t *ptr = input;
+  size_t remaining = len_in;
+  ssize_t result = 0;
+  (void)result;
+
+  /* Parse u64 magic IN [MAGIC_V1] */
+  CHECK_REMAINING(8, truncated);
+  obj->magic = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+  if (! (obj->magic == MAGIC_V1))
+    goto fail;
+
+  /* Parse u64 format IN [T_ENTRIES_V1] */
+  CHECK_REMAINING(8, truncated);
+  obj->format = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+  if (! (obj->format == T_ENTRIES_V1))
+    goto fail;
+
+  /* Parse u64 n_items */
+  CHECK_REMAINING(8, truncated);
+  obj->n_items = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+
+  /* Parse struct signed_checksum32_ed25519 checksums[n_items] */
+  TRUNNEL_DYNARRAY_EXPAND(signed_checksum32_ed25519_t *, &obj->checksums, obj->n_items, {});
+  {
+    signed_checksum32_ed25519_t * elt;
+    unsigned idx;
+    for (idx = 0; idx < obj->n_items; ++idx) {
+      result = signed_checksum32_ed25519_parse(&elt, ptr, remaining);
+      if (result < 0)
+        goto relay_fail;
+      trunnel_assert((size_t)result <= remaining);
+      remaining -= result; ptr += result;
+      TRUNNEL_DYNARRAY_ADD(signed_checksum32_ed25519_t *, &obj->checksums, elt, {signed_checksum32_ed25519_free(elt);});
+    }
+  }
+  trunnel_assert(ptr + remaining == input + len_in);
+  return len_in - remaining;
+
+ truncated:
+  return -2;
+ relay_fail:
+  trunnel_assert(result < 0);
+  return result;
+ trunnel_alloc_failed:
+  return -1;
+ fail:
+  result = -1;
+  return result;
+}
+
+ssize_t
+entries_v1_parse(entries_v1_t **output, const uint8_t *input, const size_t len_in)
+{
+  ssize_t result;
+  *output = entries_v1_new();
+  if (NULL == *output)
+    return -1;
+  result = entries_v1_parse_into(*output, input, len_in);
+  if (result < 0) {
+    entries_v1_free(*output);
+    *output = NULL;
+  }
+  return result;
+}
 inclusion_proof_v1_t *
 inclusion_proof_v1_new(void)
 {
   inclusion_proof_v1_t *val = trunnel_calloc(1, sizeof(inclusion_proof_v1_t));
   if (NULL == val)
     return NULL;
+  val->magic = MAGIC_V1;
   val->format = T_INCLUSION_PROOF_V1;
   return val;
 }
@@ -1600,8 +2255,13 @@ static void
 inclusion_proof_v1_clear(inclusion_proof_v1_t *obj)
 {
   (void) obj;
-  ed25519_v1_free(obj->identifier);
-  obj->identifier = NULL;
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->hashes); ++idx) {
+      hash_free(TRUNNEL_DYNARRAY_GET(&obj->hashes, idx));
+    }
+  }
   TRUNNEL_DYNARRAY_WIPE(&obj->hashes);
   TRUNNEL_DYNARRAY_CLEAR(&obj->hashes);
 }
@@ -1617,6 +2277,21 @@ inclusion_proof_v1_free(inclusion_proof_v1_t *obj)
 }
 
 uint64_t
+inclusion_proof_v1_get_magic(const inclusion_proof_v1_t *inp)
+{
+  return inp->magic;
+}
+int
+inclusion_proof_v1_set_magic(inclusion_proof_v1_t *inp, uint64_t val)
+{
+  if (! ((val == MAGIC_V1))) {
+     TRUNNEL_SET_ERROR_CODE(inp);
+     return -1;
+  }
+  inp->magic = val;
+  return 0;
+}
+uint64_t
 inclusion_proof_v1_get_format(const inclusion_proof_v1_t *inp)
 {
   return inp->format;
@@ -1631,28 +2306,41 @@ inclusion_proof_v1_set_format(inclusion_proof_v1_t *inp, uint64_t val)
   inp->format = val;
   return 0;
 }
-struct ed25519_v1_st *
-inclusion_proof_v1_get_identifier(inclusion_proof_v1_t *inp)
+size_t
+inclusion_proof_v1_getlen_identifier(const inclusion_proof_v1_t *inp)
+{
+  (void)inp;  return 32;
+}
+
+uint8_t
+inclusion_proof_v1_get_identifier(inclusion_proof_v1_t *inp, size_t idx)
+{
+  trunnel_assert(idx < 32);
+  return inp->identifier[idx];
+}
+
+uint8_t
+inclusion_proof_v1_getconst_identifier(const inclusion_proof_v1_t *inp, size_t idx)
+{
+  return inclusion_proof_v1_get_identifier((inclusion_proof_v1_t*)inp, idx);
+}
+int
+inclusion_proof_v1_set_identifier(inclusion_proof_v1_t *inp, size_t idx, uint8_t elt)
+{
+  trunnel_assert(idx < 32);
+  inp->identifier[idx] = elt;
+  return 0;
+}
+
+uint8_t *
+inclusion_proof_v1_getarray_identifier(inclusion_proof_v1_t *inp)
 {
   return inp->identifier;
 }
-const struct ed25519_v1_st *
-inclusion_proof_v1_getconst_identifier(const inclusion_proof_v1_t *inp)
+const uint8_t  *
+inclusion_proof_v1_getconstarray_identifier(const inclusion_proof_v1_t *inp)
 {
-  return inclusion_proof_v1_get_identifier((inclusion_proof_v1_t*) inp);
-}
-int
-inclusion_proof_v1_set_identifier(inclusion_proof_v1_t *inp, struct ed25519_v1_st *val)
-{
-  if (inp->identifier && inp->identifier != val)
-    ed25519_v1_free(inp->identifier);
-  return inclusion_proof_v1_set0_identifier(inp, val);
-}
-int
-inclusion_proof_v1_set0_identifier(inclusion_proof_v1_t *inp, struct ed25519_v1_st *val)
-{
-  inp->identifier = val;
-  return 0;
+  return (const uint8_t  *)inclusion_proof_v1_getarray_identifier((inclusion_proof_v1_t*)inp);
 }
 uint64_t
 inclusion_proof_v1_get_tree_size(const inclusion_proof_v1_t *inp)
@@ -1677,14 +2365,14 @@ inclusion_proof_v1_set_leaf_index(inclusion_proof_v1_t *inp, uint64_t val)
   return 0;
 }
 uint64_t
-inclusion_proof_v1_get_length(const inclusion_proof_v1_t *inp)
+inclusion_proof_v1_get_n_items(const inclusion_proof_v1_t *inp)
 {
-  return inp->length;
+  return inp->n_items;
 }
 int
-inclusion_proof_v1_set_length(inclusion_proof_v1_t *inp, uint64_t val)
+inclusion_proof_v1_set_n_items(inclusion_proof_v1_t *inp, uint64_t val)
 {
-  inp->length = val;
+  inp->n_items = val;
   return 0;
 }
 size_t
@@ -1693,58 +2381,66 @@ inclusion_proof_v1_getlen_hashes(const inclusion_proof_v1_t *inp)
   return TRUNNEL_DYNARRAY_LEN(&inp->hashes);
 }
 
-uint8_t
+struct hash_st *
 inclusion_proof_v1_get_hashes(inclusion_proof_v1_t *inp, size_t idx)
 {
   return TRUNNEL_DYNARRAY_GET(&inp->hashes, idx);
 }
 
-uint8_t
+ const struct hash_st *
 inclusion_proof_v1_getconst_hashes(const inclusion_proof_v1_t *inp, size_t idx)
 {
   return inclusion_proof_v1_get_hashes((inclusion_proof_v1_t*)inp, idx);
 }
 int
-inclusion_proof_v1_set_hashes(inclusion_proof_v1_t *inp, size_t idx, uint8_t elt)
+inclusion_proof_v1_set_hashes(inclusion_proof_v1_t *inp, size_t idx, struct hash_st * elt)
+{
+  hash_t *oldval = TRUNNEL_DYNARRAY_GET(&inp->hashes, idx);
+  if (oldval && oldval != elt)
+    hash_free(oldval);
+  return inclusion_proof_v1_set0_hashes(inp, idx, elt);
+}
+int
+inclusion_proof_v1_set0_hashes(inclusion_proof_v1_t *inp, size_t idx, struct hash_st * elt)
 {
   TRUNNEL_DYNARRAY_SET(&inp->hashes, idx, elt);
   return 0;
 }
 int
-inclusion_proof_v1_add_hashes(inclusion_proof_v1_t *inp, uint8_t elt)
+inclusion_proof_v1_add_hashes(inclusion_proof_v1_t *inp, struct hash_st * elt)
 {
 #if SIZE_MAX >= UINT64_MAX
   if (inp->hashes.n_ == UINT64_MAX)
     goto trunnel_alloc_failed;
 #endif
-  TRUNNEL_DYNARRAY_ADD(uint8_t, &inp->hashes, elt, {});
+  TRUNNEL_DYNARRAY_ADD(struct hash_st *, &inp->hashes, elt, {});
   return 0;
  trunnel_alloc_failed:
   TRUNNEL_SET_ERROR_CODE(inp);
   return -1;
 }
 
-uint8_t *
+struct hash_st * *
 inclusion_proof_v1_getarray_hashes(inclusion_proof_v1_t *inp)
 {
   return inp->hashes.elts_;
 }
-const uint8_t  *
+const struct hash_st *  const  *
 inclusion_proof_v1_getconstarray_hashes(const inclusion_proof_v1_t *inp)
 {
-  return (const uint8_t  *)inclusion_proof_v1_getarray_hashes((inclusion_proof_v1_t*)inp);
+  return (const struct hash_st *  const  *)inclusion_proof_v1_getarray_hashes((inclusion_proof_v1_t*)inp);
 }
 int
 inclusion_proof_v1_setlen_hashes(inclusion_proof_v1_t *inp, size_t newlen)
 {
-  uint8_t *newptr;
+  struct hash_st * *newptr;
 #if UINT64_MAX < SIZE_MAX
   if (newlen > UINT64_MAX)
     goto trunnel_alloc_failed;
 #endif
   newptr = trunnel_dynarray_setlen(&inp->hashes.allocated_,
                  &inp->hashes.n_, inp->hashes.elts_, newlen,
-                 sizeof(inp->hashes.elts_[0]), (trunnel_free_fn_t) NULL,
+                 sizeof(inp->hashes.elts_[0]), (trunnel_free_fn_t) hash_free,
                  &inp->trunnel_error_code_);
   if (newlen != 0 && newptr == NULL)
     goto trunnel_alloc_failed;
@@ -1761,14 +2457,20 @@ inclusion_proof_v1_check(const inclusion_proof_v1_t *obj)
     return "Object was NULL";
   if (obj->trunnel_error_code_)
     return "A set function failed on this object";
+  if (! (obj->magic == MAGIC_V1))
+    return "Integer out of bounds";
   if (! (obj->format == T_INCLUSION_PROOF_V1))
     return "Integer out of bounds";
   {
     const char *msg;
-    if (NULL != (msg = ed25519_v1_check(obj->identifier)))
-      return msg;
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->hashes); ++idx) {
+      if (NULL != (msg = hash_check(TRUNNEL_DYNARRAY_GET(&obj->hashes, idx))))
+        return msg;
+    }
   }
-  if (TRUNNEL_DYNARRAY_LEN(&obj->hashes) != obj->length)
+  if (TRUNNEL_DYNARRAY_LEN(&obj->hashes) != obj->n_items)
     return "Length mismatch for hashes";
   return NULL;
 }
@@ -1782,11 +2484,14 @@ inclusion_proof_v1_encoded_len(const inclusion_proof_v1_t *obj)
      return -1;
 
 
+  /* Length of u64 magic IN [MAGIC_V1] */
+  result += 8;
+
   /* Length of u64 format IN [T_INCLUSION_PROOF_V1] */
   result += 8;
 
-  /* Length of struct ed25519_v1 identifier */
-  result += ed25519_v1_encoded_len(obj->identifier);
+  /* Length of u8 identifier[32] */
+  result += 32;
 
   /* Length of u64 tree_size */
   result += 8;
@@ -1794,11 +2499,17 @@ inclusion_proof_v1_encoded_len(const inclusion_proof_v1_t *obj)
   /* Length of u64 leaf_index */
   result += 8;
 
-  /* Length of u64 length */
+  /* Length of u64 n_items */
   result += 8;
 
-  /* Length of u8 hashes[length] */
-  result += TRUNNEL_DYNARRAY_LEN(&obj->hashes);
+  /* Length of struct hash hashes[n_items] */
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->hashes); ++idx) {
+      result += hash_encoded_len(TRUNNEL_DYNARRAY_GET(&obj->hashes, idx));
+    }
+  }
   return result;
 }
 int
@@ -1826,6 +2537,13 @@ inclusion_proof_v1_encode(uint8_t *output, const size_t avail, const inclusion_p
   trunnel_assert(encoded_len >= 0);
 #endif
 
+  /* Encode u64 magic IN [MAGIC_V1] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->magic));
+  written += 8; ptr += 8;
+
   /* Encode u64 format IN [T_INCLUSION_PROOF_V1] */
   trunnel_assert(written <= avail);
   if (avail - written < 8)
@@ -1833,12 +2551,12 @@ inclusion_proof_v1_encode(uint8_t *output, const size_t avail, const inclusion_p
   trunnel_set_uint64(ptr, trunnel_htonll(obj->format));
   written += 8; ptr += 8;
 
-  /* Encode struct ed25519_v1 identifier */
+  /* Encode u8 identifier[32] */
   trunnel_assert(written <= avail);
-  result = ed25519_v1_encode(ptr, avail - written, obj->identifier);
-  if (result < 0)
-    goto fail; /* XXXXXXX !*/
-  written += result; ptr += result;
+  if (avail - written < 32)
+    goto truncated;
+  memcpy(ptr, obj->identifier, 32);
+  written += 32; ptr += 32;
 
   /* Encode u64 tree_size */
   trunnel_assert(written <= avail);
@@ -1854,23 +2572,24 @@ inclusion_proof_v1_encode(uint8_t *output, const size_t avail, const inclusion_p
   trunnel_set_uint64(ptr, trunnel_htonll(obj->leaf_index));
   written += 8; ptr += 8;
 
-  /* Encode u64 length */
+  /* Encode u64 n_items */
   trunnel_assert(written <= avail);
   if (avail - written < 8)
     goto truncated;
-  trunnel_set_uint64(ptr, trunnel_htonll(obj->length));
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->n_items));
   written += 8; ptr += 8;
 
-  /* Encode u8 hashes[length] */
+  /* Encode struct hash hashes[n_items] */
   {
-    size_t elt_len = TRUNNEL_DYNARRAY_LEN(&obj->hashes);
-    trunnel_assert(obj->length == elt_len);
-    trunnel_assert(written <= avail);
-    if (avail - written < elt_len)
-      goto truncated;
-    if (elt_len)
-      memcpy(ptr, obj->hashes.elts_, elt_len);
-    written += elt_len; ptr += elt_len;
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->hashes); ++idx) {
+      trunnel_assert(written <= avail);
+      result = hash_encode(ptr, avail - written, TRUNNEL_DYNARRAY_GET(&obj->hashes, idx));
+      if (result < 0)
+        goto fail; /* XXXXXXX !*/
+      written += result; ptr += result;
+    }
   }
 
 
@@ -1908,6 +2627,13 @@ inclusion_proof_v1_parse_into(inclusion_proof_v1_t *obj, const uint8_t *input, c
   ssize_t result = 0;
   (void)result;
 
+  /* Parse u64 magic IN [MAGIC_V1] */
+  CHECK_REMAINING(8, truncated);
+  obj->magic = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+  if (! (obj->magic == MAGIC_V1))
+    goto fail;
+
   /* Parse u64 format IN [T_INCLUSION_PROOF_V1] */
   CHECK_REMAINING(8, truncated);
   obj->format = trunnel_ntohll(trunnel_get_uint64(ptr));
@@ -1915,12 +2641,10 @@ inclusion_proof_v1_parse_into(inclusion_proof_v1_t *obj, const uint8_t *input, c
   if (! (obj->format == T_INCLUSION_PROOF_V1))
     goto fail;
 
-  /* Parse struct ed25519_v1 identifier */
-  result = ed25519_v1_parse(&obj->identifier, ptr, remaining);
-  if (result < 0)
-    goto relay_fail;
-  trunnel_assert((size_t)result <= remaining);
-  remaining -= result; ptr += result;
+  /* Parse u8 identifier[32] */
+  CHECK_REMAINING(32, truncated);
+  memcpy(obj->identifier, ptr, 32);
+  remaining -= 32; ptr += 32;
 
   /* Parse u64 tree_size */
   CHECK_REMAINING(8, truncated);
@@ -1932,18 +2656,25 @@ inclusion_proof_v1_parse_into(inclusion_proof_v1_t *obj, const uint8_t *input, c
   obj->leaf_index = trunnel_ntohll(trunnel_get_uint64(ptr));
   remaining -= 8; ptr += 8;
 
-  /* Parse u64 length */
+  /* Parse u64 n_items */
   CHECK_REMAINING(8, truncated);
-  obj->length = trunnel_ntohll(trunnel_get_uint64(ptr));
+  obj->n_items = trunnel_ntohll(trunnel_get_uint64(ptr));
   remaining -= 8; ptr += 8;
 
-  /* Parse u8 hashes[length] */
-  CHECK_REMAINING(obj->length, truncated);
-  TRUNNEL_DYNARRAY_EXPAND(uint8_t, &obj->hashes, obj->length, {});
-  obj->hashes.n_ = obj->length;
-  if (obj->length)
-    memcpy(obj->hashes.elts_, ptr, obj->length);
-  ptr += obj->length; remaining -= obj->length;
+  /* Parse struct hash hashes[n_items] */
+  TRUNNEL_DYNARRAY_EXPAND(hash_t *, &obj->hashes, obj->n_items, {});
+  {
+    hash_t * elt;
+    unsigned idx;
+    for (idx = 0; idx < obj->n_items; ++idx) {
+      result = hash_parse(&elt, ptr, remaining);
+      if (result < 0)
+        goto relay_fail;
+      trunnel_assert((size_t)result <= remaining);
+      remaining -= result; ptr += result;
+      TRUNNEL_DYNARRAY_ADD(hash_t *, &obj->hashes, elt, {hash_free(elt);});
+    }
+  }
   trunnel_assert(ptr + remaining == input + len_in);
   return len_in - remaining;
 
@@ -1979,6 +2710,7 @@ request_v1_new(void)
   request_v1_t *val = trunnel_calloc(1, sizeof(request_v1_t));
   if (NULL == val)
     return NULL;
+  val->magic = MAGIC_V1;
   val->format = T_GET_CONSISTENCY_PROOF_V1;
   return val;
 }
@@ -2007,6 +2739,21 @@ request_v1_free(request_v1_t *obj)
   trunnel_free_(obj);
 }
 
+uint64_t
+request_v1_get_magic(const request_v1_t *inp)
+{
+  return inp->magic;
+}
+int
+request_v1_set_magic(request_v1_t *inp, uint64_t val)
+{
+  if (! ((val == MAGIC_V1))) {
+     TRUNNEL_SET_ERROR_CODE(inp);
+     return -1;
+  }
+  inp->magic = val;
+  return 0;
+}
 uint64_t
 request_v1_get_format(const request_v1_t *inp)
 {
@@ -2098,6 +2845,8 @@ request_v1_check(const request_v1_t *obj)
     return "Object was NULL";
   if (obj->trunnel_error_code_)
     return "A set function failed on this object";
+  if (! (obj->magic == MAGIC_V1))
+    return "Integer out of bounds";
   if (! (obj->format == T_GET_CONSISTENCY_PROOF_V1 || obj->format == T_GET_ENTRIES_V1 || obj->format == T_GET_PROOF_BY_HASH_V1))
     return "Integer out of bounds";
   switch (obj->format) {
@@ -2141,6 +2890,9 @@ request_v1_encoded_len(const request_v1_t *obj)
   if (NULL != request_v1_check(obj))
      return -1;
 
+
+  /* Length of u64 magic IN [MAGIC_V1] */
+  result += 8;
 
   /* Length of u64 format IN [T_GET_CONSISTENCY_PROOF_V1, T_GET_ENTRIES_V1, T_GET_PROOF_BY_HASH_V1] */
   result += 8;
@@ -2194,6 +2946,13 @@ request_v1_encode(uint8_t *output, const size_t avail, const request_v1_t *obj)
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
   trunnel_assert(encoded_len >= 0);
 #endif
+
+  /* Encode u64 magic IN [MAGIC_V1] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->magic));
+  written += 8; ptr += 8;
 
   /* Encode u64 format IN [T_GET_CONSISTENCY_PROOF_V1, T_GET_ENTRIES_V1, T_GET_PROOF_BY_HASH_V1] */
   trunnel_assert(written <= avail);
@@ -2275,6 +3034,13 @@ request_v1_parse_into(request_v1_t *obj, const uint8_t *input, const size_t len_
   ssize_t result = 0;
   (void)result;
 
+  /* Parse u64 magic IN [MAGIC_V1] */
+  CHECK_REMAINING(8, truncated);
+  obj->magic = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+  if (! (obj->magic == MAGIC_V1))
+    goto fail;
+
   /* Parse u64 format IN [T_GET_CONSISTENCY_PROOF_V1, T_GET_ENTRIES_V1, T_GET_PROOF_BY_HASH_V1] */
   CHECK_REMAINING(8, truncated);
   obj->format = trunnel_ntohll(trunnel_get_uint64(ptr));
@@ -2346,351 +3112,359 @@ request_v1_parse(request_v1_t **output, const uint8_t *input, const size_t len_i
   }
   return result;
 }
-signed_checksum32_ed25519_v1_t *
-signed_checksum32_ed25519_v1_new(void)
+signed_tree_head_v1_t *
+signed_tree_head_v1_new(void)
 {
-  signed_checksum32_ed25519_v1_t *val = trunnel_calloc(1, sizeof(signed_checksum32_ed25519_v1_t));
+  signed_tree_head_v1_t *val = trunnel_calloc(1, sizeof(signed_tree_head_v1_t));
   if (NULL == val)
     return NULL;
-  val->format = T_SIGNED_CHECKSUM32_ED25519_V1;
-  val->length = 1;
+  val->magic = MAGIC_V1;
+  val->format = T_SIGNED_TREE_HEAD_V1;
   return val;
 }
 
 /** Release all storage held inside 'obj', but do not free 'obj'.
  */
 static void
-signed_checksum32_ed25519_v1_clear(signed_checksum32_ed25519_v1_t *obj)
+signed_tree_head_v1_clear(signed_tree_head_v1_t *obj)
 {
   (void) obj;
-  TRUNNEL_DYNARRAY_WIPE(&obj->identifier);
-  TRUNNEL_DYNARRAY_CLEAR(&obj->identifier);
-  ed25519_v1_free(obj->namespace);
-  obj->namespace = NULL;
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->signatures); ++idx) {
+      sigident_ed25519_free(TRUNNEL_DYNARRAY_GET(&obj->signatures, idx));
+    }
+  }
+  TRUNNEL_DYNARRAY_WIPE(&obj->signatures);
+  TRUNNEL_DYNARRAY_CLEAR(&obj->signatures);
 }
 
 void
-signed_checksum32_ed25519_v1_free(signed_checksum32_ed25519_v1_t *obj)
+signed_tree_head_v1_free(signed_tree_head_v1_t *obj)
 {
   if (obj == NULL)
     return;
-  signed_checksum32_ed25519_v1_clear(obj);
-  trunnel_memwipe(obj, sizeof(signed_checksum32_ed25519_v1_t));
+  signed_tree_head_v1_clear(obj);
+  trunnel_memwipe(obj, sizeof(signed_tree_head_v1_t));
   trunnel_free_(obj);
 }
 
 uint64_t
-signed_checksum32_ed25519_v1_get_format(const signed_checksum32_ed25519_v1_t *inp)
+signed_tree_head_v1_get_magic(const signed_tree_head_v1_t *inp)
+{
+  return inp->magic;
+}
+int
+signed_tree_head_v1_set_magic(signed_tree_head_v1_t *inp, uint64_t val)
+{
+  if (! ((val == MAGIC_V1))) {
+     TRUNNEL_SET_ERROR_CODE(inp);
+     return -1;
+  }
+  inp->magic = val;
+  return 0;
+}
+uint64_t
+signed_tree_head_v1_get_format(const signed_tree_head_v1_t *inp)
 {
   return inp->format;
 }
 int
-signed_checksum32_ed25519_v1_set_format(signed_checksum32_ed25519_v1_t *inp, uint64_t val)
+signed_tree_head_v1_set_format(signed_tree_head_v1_t *inp, uint64_t val)
 {
-  if (! ((val == T_SIGNED_CHECKSUM32_ED25519_V1))) {
+  if (! ((val == T_SIGNED_TREE_HEAD_V1))) {
      TRUNNEL_SET_ERROR_CODE(inp);
      return -1;
   }
   inp->format = val;
   return 0;
 }
+uint64_t
+signed_tree_head_v1_get_timestamp(const signed_tree_head_v1_t *inp)
+{
+  return inp->timestamp;
+}
+int
+signed_tree_head_v1_set_timestamp(signed_tree_head_v1_t *inp, uint64_t val)
+{
+  inp->timestamp = val;
+  return 0;
+}
+uint64_t
+signed_tree_head_v1_get_tree_size(const signed_tree_head_v1_t *inp)
+{
+  return inp->tree_size;
+}
+int
+signed_tree_head_v1_set_tree_size(signed_tree_head_v1_t *inp, uint64_t val)
+{
+  inp->tree_size = val;
+  return 0;
+}
 size_t
-signed_checksum32_ed25519_v1_getlen_checksum(const signed_checksum32_ed25519_v1_t *inp)
+signed_tree_head_v1_getlen_root_hash(const signed_tree_head_v1_t *inp)
 {
   (void)inp;  return 32;
 }
 
 uint8_t
-signed_checksum32_ed25519_v1_get_checksum(signed_checksum32_ed25519_v1_t *inp, size_t idx)
+signed_tree_head_v1_get_root_hash(signed_tree_head_v1_t *inp, size_t idx)
 {
   trunnel_assert(idx < 32);
-  return inp->checksum[idx];
+  return inp->root_hash[idx];
 }
 
 uint8_t
-signed_checksum32_ed25519_v1_getconst_checksum(const signed_checksum32_ed25519_v1_t *inp, size_t idx)
+signed_tree_head_v1_getconst_root_hash(const signed_tree_head_v1_t *inp, size_t idx)
 {
-  return signed_checksum32_ed25519_v1_get_checksum((signed_checksum32_ed25519_v1_t*)inp, idx);
+  return signed_tree_head_v1_get_root_hash((signed_tree_head_v1_t*)inp, idx);
 }
 int
-signed_checksum32_ed25519_v1_set_checksum(signed_checksum32_ed25519_v1_t *inp, size_t idx, uint8_t elt)
+signed_tree_head_v1_set_root_hash(signed_tree_head_v1_t *inp, size_t idx, uint8_t elt)
 {
   trunnel_assert(idx < 32);
-  inp->checksum[idx] = elt;
+  inp->root_hash[idx] = elt;
   return 0;
 }
 
 uint8_t *
-signed_checksum32_ed25519_v1_getarray_checksum(signed_checksum32_ed25519_v1_t *inp)
+signed_tree_head_v1_getarray_root_hash(signed_tree_head_v1_t *inp)
 {
-  return inp->checksum;
+  return inp->root_hash;
 }
 const uint8_t  *
-signed_checksum32_ed25519_v1_getconstarray_checksum(const signed_checksum32_ed25519_v1_t *inp)
+signed_tree_head_v1_getconstarray_root_hash(const signed_tree_head_v1_t *inp)
 {
-  return (const uint8_t  *)signed_checksum32_ed25519_v1_getarray_checksum((signed_checksum32_ed25519_v1_t*)inp);
+  return (const uint8_t  *)signed_tree_head_v1_getarray_root_hash((signed_tree_head_v1_t*)inp);
 }
 uint64_t
-signed_checksum32_ed25519_v1_get_length(const signed_checksum32_ed25519_v1_t *inp)
+signed_tree_head_v1_get_n_items(const signed_tree_head_v1_t *inp)
 {
-  return inp->length;
+  return inp->n_items;
 }
 int
-signed_checksum32_ed25519_v1_set_length(signed_checksum32_ed25519_v1_t *inp, uint64_t val)
+signed_tree_head_v1_set_n_items(signed_tree_head_v1_t *inp, uint64_t val)
 {
-  if (! (((val >= 1 && val <= 127)))) {
-     TRUNNEL_SET_ERROR_CODE(inp);
-     return -1;
-  }
-  inp->length = val;
+  inp->n_items = val;
   return 0;
 }
 size_t
-signed_checksum32_ed25519_v1_getlen_identifier(const signed_checksum32_ed25519_v1_t *inp)
+signed_tree_head_v1_getlen_signatures(const signed_tree_head_v1_t *inp)
 {
-  return TRUNNEL_DYNARRAY_LEN(&inp->identifier);
+  return TRUNNEL_DYNARRAY_LEN(&inp->signatures);
 }
 
-uint8_t
-signed_checksum32_ed25519_v1_get_identifier(signed_checksum32_ed25519_v1_t *inp, size_t idx)
+struct sigident_ed25519_st *
+signed_tree_head_v1_get_signatures(signed_tree_head_v1_t *inp, size_t idx)
 {
-  return TRUNNEL_DYNARRAY_GET(&inp->identifier, idx);
+  return TRUNNEL_DYNARRAY_GET(&inp->signatures, idx);
 }
 
-uint8_t
-signed_checksum32_ed25519_v1_getconst_identifier(const signed_checksum32_ed25519_v1_t *inp, size_t idx)
+ const struct sigident_ed25519_st *
+signed_tree_head_v1_getconst_signatures(const signed_tree_head_v1_t *inp, size_t idx)
 {
-  return signed_checksum32_ed25519_v1_get_identifier((signed_checksum32_ed25519_v1_t*)inp, idx);
+  return signed_tree_head_v1_get_signatures((signed_tree_head_v1_t*)inp, idx);
 }
 int
-signed_checksum32_ed25519_v1_set_identifier(signed_checksum32_ed25519_v1_t *inp, size_t idx, uint8_t elt)
+signed_tree_head_v1_set_signatures(signed_tree_head_v1_t *inp, size_t idx, struct sigident_ed25519_st * elt)
 {
-  TRUNNEL_DYNARRAY_SET(&inp->identifier, idx, elt);
+  sigident_ed25519_t *oldval = TRUNNEL_DYNARRAY_GET(&inp->signatures, idx);
+  if (oldval && oldval != elt)
+    sigident_ed25519_free(oldval);
+  return signed_tree_head_v1_set0_signatures(inp, idx, elt);
+}
+int
+signed_tree_head_v1_set0_signatures(signed_tree_head_v1_t *inp, size_t idx, struct sigident_ed25519_st * elt)
+{
+  TRUNNEL_DYNARRAY_SET(&inp->signatures, idx, elt);
   return 0;
 }
 int
-signed_checksum32_ed25519_v1_add_identifier(signed_checksum32_ed25519_v1_t *inp, uint8_t elt)
+signed_tree_head_v1_add_signatures(signed_tree_head_v1_t *inp, struct sigident_ed25519_st * elt)
 {
 #if SIZE_MAX >= UINT64_MAX
-  if (inp->identifier.n_ == UINT64_MAX)
+  if (inp->signatures.n_ == UINT64_MAX)
     goto trunnel_alloc_failed;
 #endif
-  TRUNNEL_DYNARRAY_ADD(uint8_t, &inp->identifier, elt, {});
+  TRUNNEL_DYNARRAY_ADD(struct sigident_ed25519_st *, &inp->signatures, elt, {});
   return 0;
  trunnel_alloc_failed:
   TRUNNEL_SET_ERROR_CODE(inp);
   return -1;
 }
 
-uint8_t *
-signed_checksum32_ed25519_v1_getarray_identifier(signed_checksum32_ed25519_v1_t *inp)
+struct sigident_ed25519_st * *
+signed_tree_head_v1_getarray_signatures(signed_tree_head_v1_t *inp)
 {
-  return inp->identifier.elts_;
+  return inp->signatures.elts_;
 }
-const uint8_t  *
-signed_checksum32_ed25519_v1_getconstarray_identifier(const signed_checksum32_ed25519_v1_t *inp)
+const struct sigident_ed25519_st *  const  *
+signed_tree_head_v1_getconstarray_signatures(const signed_tree_head_v1_t *inp)
 {
-  return (const uint8_t  *)signed_checksum32_ed25519_v1_getarray_identifier((signed_checksum32_ed25519_v1_t*)inp);
+  return (const struct sigident_ed25519_st *  const  *)signed_tree_head_v1_getarray_signatures((signed_tree_head_v1_t*)inp);
 }
 int
-signed_checksum32_ed25519_v1_setlen_identifier(signed_checksum32_ed25519_v1_t *inp, size_t newlen)
+signed_tree_head_v1_setlen_signatures(signed_tree_head_v1_t *inp, size_t newlen)
 {
-  uint8_t *newptr;
+  struct sigident_ed25519_st * *newptr;
 #if UINT64_MAX < SIZE_MAX
   if (newlen > UINT64_MAX)
     goto trunnel_alloc_failed;
 #endif
-  newptr = trunnel_dynarray_setlen(&inp->identifier.allocated_,
-                 &inp->identifier.n_, inp->identifier.elts_, newlen,
-                 sizeof(inp->identifier.elts_[0]), (trunnel_free_fn_t) NULL,
+  newptr = trunnel_dynarray_setlen(&inp->signatures.allocated_,
+                 &inp->signatures.n_, inp->signatures.elts_, newlen,
+                 sizeof(inp->signatures.elts_[0]), (trunnel_free_fn_t) sigident_ed25519_free,
                  &inp->trunnel_error_code_);
   if (newlen != 0 && newptr == NULL)
     goto trunnel_alloc_failed;
-  inp->identifier.elts_ = newptr;
+  inp->signatures.elts_ = newptr;
   return 0;
  trunnel_alloc_failed:
   TRUNNEL_SET_ERROR_CODE(inp);
   return -1;
 }
-size_t
-signed_checksum32_ed25519_v1_getlen_signature(const signed_checksum32_ed25519_v1_t *inp)
-{
-  (void)inp;  return 64;
-}
-
-uint8_t
-signed_checksum32_ed25519_v1_get_signature(signed_checksum32_ed25519_v1_t *inp, size_t idx)
-{
-  trunnel_assert(idx < 64);
-  return inp->signature[idx];
-}
-
-uint8_t
-signed_checksum32_ed25519_v1_getconst_signature(const signed_checksum32_ed25519_v1_t *inp, size_t idx)
-{
-  return signed_checksum32_ed25519_v1_get_signature((signed_checksum32_ed25519_v1_t*)inp, idx);
-}
-int
-signed_checksum32_ed25519_v1_set_signature(signed_checksum32_ed25519_v1_t *inp, size_t idx, uint8_t elt)
-{
-  trunnel_assert(idx < 64);
-  inp->signature[idx] = elt;
-  return 0;
-}
-
-uint8_t *
-signed_checksum32_ed25519_v1_getarray_signature(signed_checksum32_ed25519_v1_t *inp)
-{
-  return inp->signature;
-}
-const uint8_t  *
-signed_checksum32_ed25519_v1_getconstarray_signature(const signed_checksum32_ed25519_v1_t *inp)
-{
-  return (const uint8_t  *)signed_checksum32_ed25519_v1_getarray_signature((signed_checksum32_ed25519_v1_t*)inp);
-}
-struct ed25519_v1_st *
-signed_checksum32_ed25519_v1_get_namespace(signed_checksum32_ed25519_v1_t *inp)
-{
-  return inp->namespace;
-}
-const struct ed25519_v1_st *
-signed_checksum32_ed25519_v1_getconst_namespace(const signed_checksum32_ed25519_v1_t *inp)
-{
-  return signed_checksum32_ed25519_v1_get_namespace((signed_checksum32_ed25519_v1_t*) inp);
-}
-int
-signed_checksum32_ed25519_v1_set_namespace(signed_checksum32_ed25519_v1_t *inp, struct ed25519_v1_st *val)
-{
-  if (inp->namespace && inp->namespace != val)
-    ed25519_v1_free(inp->namespace);
-  return signed_checksum32_ed25519_v1_set0_namespace(inp, val);
-}
-int
-signed_checksum32_ed25519_v1_set0_namespace(signed_checksum32_ed25519_v1_t *inp, struct ed25519_v1_st *val)
-{
-  inp->namespace = val;
-  return 0;
-}
 const char *
-signed_checksum32_ed25519_v1_check(const signed_checksum32_ed25519_v1_t *obj)
+signed_tree_head_v1_check(const signed_tree_head_v1_t *obj)
 {
   if (obj == NULL)
     return "Object was NULL";
   if (obj->trunnel_error_code_)
     return "A set function failed on this object";
-  if (! (obj->format == T_SIGNED_CHECKSUM32_ED25519_V1))
+  if (! (obj->magic == MAGIC_V1))
     return "Integer out of bounds";
-  if (! ((obj->length >= 1 && obj->length <= 127)))
+  if (! (obj->format == T_SIGNED_TREE_HEAD_V1))
     return "Integer out of bounds";
-  if (TRUNNEL_DYNARRAY_LEN(&obj->identifier) != obj->length)
-    return "Length mismatch for identifier";
   {
     const char *msg;
-    if (NULL != (msg = ed25519_v1_check(obj->namespace)))
-      return msg;
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->signatures); ++idx) {
+      if (NULL != (msg = sigident_ed25519_check(TRUNNEL_DYNARRAY_GET(&obj->signatures, idx))))
+        return msg;
+    }
   }
+  if (TRUNNEL_DYNARRAY_LEN(&obj->signatures) != obj->n_items)
+    return "Length mismatch for signatures";
   return NULL;
 }
 
 ssize_t
-signed_checksum32_ed25519_v1_encoded_len(const signed_checksum32_ed25519_v1_t *obj)
+signed_tree_head_v1_encoded_len(const signed_tree_head_v1_t *obj)
 {
   ssize_t result = 0;
 
-  if (NULL != signed_checksum32_ed25519_v1_check(obj))
+  if (NULL != signed_tree_head_v1_check(obj))
      return -1;
 
 
-  /* Length of u64 format IN [T_SIGNED_CHECKSUM32_ED25519_V1] */
+  /* Length of u64 magic IN [MAGIC_V1] */
   result += 8;
 
-  /* Length of u8 checksum[32] */
+  /* Length of u64 format IN [T_SIGNED_TREE_HEAD_V1] */
+  result += 8;
+
+  /* Length of u64 timestamp */
+  result += 8;
+
+  /* Length of u64 tree_size */
+  result += 8;
+
+  /* Length of u8 root_hash[32] */
   result += 32;
 
-  /* Length of u64 length IN [1..127] */
+  /* Length of u64 n_items */
   result += 8;
 
-  /* Length of u8 identifier[length] */
-  result += TRUNNEL_DYNARRAY_LEN(&obj->identifier);
+  /* Length of struct sigident_ed25519 signatures[n_items] */
+  {
 
-  /* Length of u8 signature[64] */
-  result += 64;
-
-  /* Length of struct ed25519_v1 namespace */
-  result += ed25519_v1_encoded_len(obj->namespace);
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->signatures); ++idx) {
+      result += sigident_ed25519_encoded_len(TRUNNEL_DYNARRAY_GET(&obj->signatures, idx));
+    }
+  }
   return result;
 }
 int
-signed_checksum32_ed25519_v1_clear_errors(signed_checksum32_ed25519_v1_t *obj)
+signed_tree_head_v1_clear_errors(signed_tree_head_v1_t *obj)
 {
   int r = obj->trunnel_error_code_;
   obj->trunnel_error_code_ = 0;
   return r;
 }
 ssize_t
-signed_checksum32_ed25519_v1_encode(uint8_t *output, const size_t avail, const signed_checksum32_ed25519_v1_t *obj)
+signed_tree_head_v1_encode(uint8_t *output, const size_t avail, const signed_tree_head_v1_t *obj)
 {
   ssize_t result = 0;
   size_t written = 0;
   uint8_t *ptr = output;
   const char *msg;
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
-  const ssize_t encoded_len = signed_checksum32_ed25519_v1_encoded_len(obj);
+  const ssize_t encoded_len = signed_tree_head_v1_encoded_len(obj);
 #endif
 
-  if (NULL != (msg = signed_checksum32_ed25519_v1_check(obj)))
+  if (NULL != (msg = signed_tree_head_v1_check(obj)))
     goto check_failed;
 
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
   trunnel_assert(encoded_len >= 0);
 #endif
 
-  /* Encode u64 format IN [T_SIGNED_CHECKSUM32_ED25519_V1] */
+  /* Encode u64 magic IN [MAGIC_V1] */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->magic));
+  written += 8; ptr += 8;
+
+  /* Encode u64 format IN [T_SIGNED_TREE_HEAD_V1] */
   trunnel_assert(written <= avail);
   if (avail - written < 8)
     goto truncated;
   trunnel_set_uint64(ptr, trunnel_htonll(obj->format));
   written += 8; ptr += 8;
 
-  /* Encode u8 checksum[32] */
-  trunnel_assert(written <= avail);
-  if (avail - written < 32)
-    goto truncated;
-  memcpy(ptr, obj->checksum, 32);
-  written += 32; ptr += 32;
-
-  /* Encode u64 length IN [1..127] */
+  /* Encode u64 timestamp */
   trunnel_assert(written <= avail);
   if (avail - written < 8)
     goto truncated;
-  trunnel_set_uint64(ptr, trunnel_htonll(obj->length));
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->timestamp));
   written += 8; ptr += 8;
 
-  /* Encode u8 identifier[length] */
-  {
-    size_t elt_len = TRUNNEL_DYNARRAY_LEN(&obj->identifier);
-    trunnel_assert(obj->length == elt_len);
-    trunnel_assert(written <= avail);
-    if (avail - written < elt_len)
-      goto truncated;
-    if (elt_len)
-      memcpy(ptr, obj->identifier.elts_, elt_len);
-    written += elt_len; ptr += elt_len;
-  }
-
-  /* Encode u8 signature[64] */
+  /* Encode u64 tree_size */
   trunnel_assert(written <= avail);
-  if (avail - written < 64)
+  if (avail - written < 8)
     goto truncated;
-  memcpy(ptr, obj->signature, 64);
-  written += 64; ptr += 64;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->tree_size));
+  written += 8; ptr += 8;
 
-  /* Encode struct ed25519_v1 namespace */
+  /* Encode u8 root_hash[32] */
   trunnel_assert(written <= avail);
-  result = ed25519_v1_encode(ptr, avail - written, obj->namespace);
-  if (result < 0)
-    goto fail; /* XXXXXXX !*/
-  written += result; ptr += result;
+  if (avail - written < 32)
+    goto truncated;
+  memcpy(ptr, obj->root_hash, 32);
+  written += 32; ptr += 32;
+
+  /* Encode u64 n_items */
+  trunnel_assert(written <= avail);
+  if (avail - written < 8)
+    goto truncated;
+  trunnel_set_uint64(ptr, trunnel_htonll(obj->n_items));
+  written += 8; ptr += 8;
+
+  /* Encode struct sigident_ed25519 signatures[n_items] */
+  {
+
+    unsigned idx;
+    for (idx = 0; idx < TRUNNEL_DYNARRAY_LEN(&obj->signatures); ++idx) {
+      trunnel_assert(written <= avail);
+      result = sigident_ed25519_encode(ptr, avail - written, TRUNNEL_DYNARRAY_GET(&obj->signatures, idx));
+      if (result < 0)
+        goto fail; /* XXXXXXX !*/
+      written += result; ptr += result;
+    }
+  }
 
 
   trunnel_assert(ptr == output + written);
@@ -2716,55 +3490,65 @@ signed_checksum32_ed25519_v1_encode(uint8_t *output, const size_t avail, const s
   return result;
 }
 
-/** As signed_checksum32_ed25519_v1_parse(), but do not allocate the
- * output object.
+/** As signed_tree_head_v1_parse(), but do not allocate the output
+ * object.
  */
 static ssize_t
-signed_checksum32_ed25519_v1_parse_into(signed_checksum32_ed25519_v1_t *obj, const uint8_t *input, const size_t len_in)
+signed_tree_head_v1_parse_into(signed_tree_head_v1_t *obj, const uint8_t *input, const size_t len_in)
 {
   const uint8_t *ptr = input;
   size_t remaining = len_in;
   ssize_t result = 0;
   (void)result;
 
-  /* Parse u64 format IN [T_SIGNED_CHECKSUM32_ED25519_V1] */
+  /* Parse u64 magic IN [MAGIC_V1] */
+  CHECK_REMAINING(8, truncated);
+  obj->magic = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+  if (! (obj->magic == MAGIC_V1))
+    goto fail;
+
+  /* Parse u64 format IN [T_SIGNED_TREE_HEAD_V1] */
   CHECK_REMAINING(8, truncated);
   obj->format = trunnel_ntohll(trunnel_get_uint64(ptr));
   remaining -= 8; ptr += 8;
-  if (! (obj->format == T_SIGNED_CHECKSUM32_ED25519_V1))
+  if (! (obj->format == T_SIGNED_TREE_HEAD_V1))
     goto fail;
 
-  /* Parse u8 checksum[32] */
+  /* Parse u64 timestamp */
+  CHECK_REMAINING(8, truncated);
+  obj->timestamp = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+
+  /* Parse u64 tree_size */
+  CHECK_REMAINING(8, truncated);
+  obj->tree_size = trunnel_ntohll(trunnel_get_uint64(ptr));
+  remaining -= 8; ptr += 8;
+
+  /* Parse u8 root_hash[32] */
   CHECK_REMAINING(32, truncated);
-  memcpy(obj->checksum, ptr, 32);
+  memcpy(obj->root_hash, ptr, 32);
   remaining -= 32; ptr += 32;
 
-  /* Parse u64 length IN [1..127] */
+  /* Parse u64 n_items */
   CHECK_REMAINING(8, truncated);
-  obj->length = trunnel_ntohll(trunnel_get_uint64(ptr));
+  obj->n_items = trunnel_ntohll(trunnel_get_uint64(ptr));
   remaining -= 8; ptr += 8;
-  if (! ((obj->length >= 1 && obj->length <= 127)))
-    goto fail;
 
-  /* Parse u8 identifier[length] */
-  CHECK_REMAINING(obj->length, truncated);
-  TRUNNEL_DYNARRAY_EXPAND(uint8_t, &obj->identifier, obj->length, {});
-  obj->identifier.n_ = obj->length;
-  if (obj->length)
-    memcpy(obj->identifier.elts_, ptr, obj->length);
-  ptr += obj->length; remaining -= obj->length;
-
-  /* Parse u8 signature[64] */
-  CHECK_REMAINING(64, truncated);
-  memcpy(obj->signature, ptr, 64);
-  remaining -= 64; ptr += 64;
-
-  /* Parse struct ed25519_v1 namespace */
-  result = ed25519_v1_parse(&obj->namespace, ptr, remaining);
-  if (result < 0)
-    goto relay_fail;
-  trunnel_assert((size_t)result <= remaining);
-  remaining -= result; ptr += result;
+  /* Parse struct sigident_ed25519 signatures[n_items] */
+  TRUNNEL_DYNARRAY_EXPAND(sigident_ed25519_t *, &obj->signatures, obj->n_items, {});
+  {
+    sigident_ed25519_t * elt;
+    unsigned idx;
+    for (idx = 0; idx < obj->n_items; ++idx) {
+      result = sigident_ed25519_parse(&elt, ptr, remaining);
+      if (result < 0)
+        goto relay_fail;
+      trunnel_assert((size_t)result <= remaining);
+      remaining -= result; ptr += result;
+      TRUNNEL_DYNARRAY_ADD(sigident_ed25519_t *, &obj->signatures, elt, {sigident_ed25519_free(elt);});
+    }
+  }
   trunnel_assert(ptr + remaining == input + len_in);
   return len_in - remaining;
 
@@ -2781,15 +3565,15 @@ signed_checksum32_ed25519_v1_parse_into(signed_checksum32_ed25519_v1_t *obj, con
 }
 
 ssize_t
-signed_checksum32_ed25519_v1_parse(signed_checksum32_ed25519_v1_t **output, const uint8_t *input, const size_t len_in)
+signed_tree_head_v1_parse(signed_tree_head_v1_t **output, const uint8_t *input, const size_t len_in)
 {
   ssize_t result;
-  *output = signed_checksum32_ed25519_v1_new();
+  *output = signed_tree_head_v1_new();
   if (NULL == *output)
     return -1;
-  result = signed_checksum32_ed25519_v1_parse_into(*output, input, len_in);
+  result = signed_tree_head_v1_parse_into(*output, input, len_in);
   if (result < 0) {
-    signed_checksum32_ed25519_v1_free(*output);
+    signed_tree_head_v1_free(*output);
     *output = NULL;
   }
   return result;
