@@ -1,0 +1,85 @@
+const T_GET_ENTRIES_V1 = 1;
+const T_GET_PROOF_BY_HASH_V1 = 2;
+const T_GET_CONSISTENCY_PROOF_V1 = 3;
+const T_INCLUSION_PROOF_V1 = 4;
+const T_CONSISTENCY_PROOF_V1 = 5;
+const T_SIGNED_TREE_HEAD_V1 = 6;
+const T_SIGNED_CHECKSUM32_ED25519_V1 = 7;
+const T_ED25519_V1 = 8;
+
+struct req_get_entries_v1 {
+  u64 start_size;
+  u64 end_size;
+};
+
+struct req_get_proof_by_hash_v1 {
+  u64 tree_size;
+  u8 leaf_hash[32];
+};
+
+struct req_get_consistency_proof_v1 {
+  u64 old_size;
+  u64 new_size;
+};
+
+struct request_v1 {
+  u64 format IN [ T_GET_ENTRIES_V1, T_GET_PROOF_BY_HASH_V1, T_GET_CONSISTENCY_PROOF_V1 ];
+
+  union request[format] {
+    T_GET_ENTRIES_V1: struct req_get_entries_v1 get_entries;
+    T_GET_PROOF_BY_HASH_V1: struct req_get_proof_by_hash_v1 get_proof_by_hash;
+    T_GET_CONSISTENCY_PROOF_V1: struct req_get_consistency_proof_v1 get_consistency_proof;
+    default: fail;
+  };
+}	    
+
+struct inclusion_proof_v1 {
+  u64 format IN [ T_INCLUSION_PROOF_V1 ];
+  struct ed25519_v1 identifier;
+  u64 tree_size;
+  u64 leaf_index;
+  u64 length; /* TODO: constraint: multiple of 32 */
+  u8 hashes[length];  
+};
+
+struct consistency_proof_v1 {
+  u64 format IN [ T_CONSISTENCY_PROOF_V1 ];
+  struct ed25519_v1 identifier;
+  u64 old_size;
+  u64 new_size;
+  u64 length; /* TODO: constraint: multiple of 32 */
+  u8 hashes[length];  
+};
+
+/* Not used
+struct sigident {
+  u8 signature[64];
+  struct ed25519_v1 identifier;
+}; */
+
+struct signed_tree_head_v1 {
+  u64 format IN [ T_SIGNED_TREE_HEAD_V1 ];
+  u64 timestamp;
+  u64 tree_size;
+  u8 root_hash[32];
+  u64 length; /* TODO: constraint: multiple of 104 */
+  u8 sigident[length];
+  /* Alternatively, if we would chose to replace length with n_items:
+  u64 n_items;
+  struct sigident[n_items]; */
+};
+
+struct signed_checksum32_ed25519_v1 {
+  u64 format IN [ T_SIGNED_CHECKSUM32_ED25519_V1 ];
+  u8 checksum[32];
+  u64 length IN [ 1..127 ]; /* The spec contradicts itself on this point -- is it 127 or 128? */
+  u8 identifier[length];
+  u8 signature[64];
+  struct ed25519_v1 namespace;  
+};
+
+struct ed25519_v1 {
+  u64 format IN [ T_ED25519_V1 ];
+  u8 pubkey[32];
+};
+
