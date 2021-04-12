@@ -1,22 +1,21 @@
 # System Transparency Front-End (STFE)
 STFE is a [Trillian](https://transparency.dev/#trillian)
 [personality](https://github.com/google/trillian/blob/master/docs/Personalities.md)
-that allows you to log signed checksums.  What a checksum covers is up to the
-submitter.  For example, it could be a Firefox update, a Debian package, or a
-document.  A log leaf contains:
-- A _checksum_ that covers something opaque, e.g., an executable binary.
-- An _identifier_ that is tied to what the checksum represents, e.g., name,
-version, and platform.
-- A _signature_ that covers `checksum` and `identifier` using the submitter's
-secret signing key.
+that allows you to log signed checksums.  What a checksum represents is up to
+the submitter.  For example, it could be a Firefox update, a Debian package, or
+a document.  A log leaf contains:
+- A _checksum_ that represents a data item of opaque type.
+- An _identifier_ that is tied to what the checksum represents.
+- A _signature_ over `checksum` and `identifier` using the submitter's secret
+signing key.
 - A _namespace_ that is tied to the submitter's verification key, e.g., think of
 it as a hashed public key.
 
-The log verifies that the entry is signed for the specified namespace but
-nothing more than that.  A client that wishes to enforce transparency logging
-could require that, say, a valid Debian package is only used if its checksum
-appears in the log with a correct namespace and identifier. Such a use-case
-scenario enables us to:
+The log only verifies that an entry's checksum and identifier are
+cryptographically signed based on the specified namespace.  A client that wishes
+to enforce transparency logging could require that, say, a valid Debian package
+is only used if its checksum appears in the log with a correct namespace and
+identifier.  This allows us to:
 1. **Facilitate detection of compromised signing keys**, e.g., a software
 publisher can inspect the log to see if there are any unexpected checksums in
 their own signing namespace(s).
@@ -87,10 +86,10 @@ checksums.  As far as we can tell the log's leaf entry must at minimum indicate:
 2. What opaque data does the checksum _refer to_ such that the log entry can be
 analyzed by monitors.
 
-Additional metadata needs can be included in the data that the checksum covers,
-and the data itself can be stored in a public unauthenticated archive.  Log APIs
-and data formats should also follow the principle of minimal common denominator.
-We are still in the process of analyzing this further.
+Additional metadata needs can be included in the data that the checksum
+represents, and the data itself can be stored in a public unauthenticated
+archive.  Log APIs and data formats should also follow the principle of minimal
+common denominator.  We are still in the process of analyzing this further.
 
 ### Spam and log poisoning
 Trillian personalities usually have an _admission criteria_ that determines who
