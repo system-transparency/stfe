@@ -119,6 +119,39 @@ A key-hash is included in the leaf so that it can be attributed to the signing
 entity.  A hash, rather than the full public verification key, is used to force
 the verifier to locate the appropriate key and make an explicit trust decision.
 
+#### Shard hint
+The log is only accepting new leaves during a predefined time interval.  We
+refer to this time interval as the log's _shard_.  Sharding can simplify log
+operations because it becomes explicit when the log can be shutdown.
+
+Unlike X.509 certificates that already have a validity range, a checksum does
+not have any such information.  Therefore, we require the submitter to sign a
+_shard hint_.  A shard hint is composed of a prefix and a tree leaf.
+
+```
+struct shard_hint {
+	u64 prefix;
+	struct tree_leaf leaf;
+}
+```
+
+The log will check that the signed `shard_hint` can be verified using the
+submitter's public verification key.  The prefix could be anything and may
+repeat.  This API documentation assumes that the prefix is set to zero.
+
+As long as the `shard_hint` signature is not revealed, no one but the submitter
+can submit a leaf that the log will accept.  Therefore, the good Samaritan
+cannot submit all leaves from an earlier shard into a newer one.  The
+`shard_hint` does not prevent the _legitimate submitter_ from reusing an earlier
+submission in a future shard.
+
+Note the importance of letting the submitter decide if an entry is logged again
+or not.  If the log has a rate limiting function, replayed submissions could
+deny service in a new shard.  In practise we expect submitters to not log a
+leaf again. Once an inclusion proof and a cosigned tree head is available, you
+have all the necessary proofs.  These proofs continue to be valid after the log
+shuts down because the verification process is non-interactive.
+
 ## Public endpoints
 Every log has a base URL that identifies it uniquely.  The only constraint is
 that it must be a valid HTTP(S) URL that can have the `/st/v0/<endpoint>` suffix
@@ -199,6 +232,7 @@ Input key-value pairs:
 - `leaf_checksum`: the checksum that the submitter wants to log in base64.
 - `signature_scheme`: the signature scheme that the submitter wants to use.
 - `tree_leaf_signature`: the submitter's `tree_leaf` signature in base64.
+- `shard_hint_signature`: the submitter's `shard_hint` signature in base64.
 - `verification_key`: the submitter's public verification key.  It is serialized
 as described in the corresponding RFC, then base64-encoded.
 - `domain_hint`: a domain name that indicates where the public verification-key
