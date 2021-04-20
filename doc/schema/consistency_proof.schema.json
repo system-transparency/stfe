@@ -1,0 +1,30 @@
+{
+	"$schema": "https://json-schema.org/draft-07/schema#",
+	"title": "inclusion_proof",
+	"description": "JSON-formatted inclusion proof, version 0.",
+
+	"type": "object",
+	"required": [ "new_size", "old_size", "consistency_proof" ],
+	"properties": {
+		"new_size": {
+			"description": "The tree size of the newer Merkle tree head.",
+			"type": "integer",
+			"minimum": 0
+		},
+		"old_size": {
+			"description": "The tree size of the older Merkle tree head.",
+			"type": "integer",
+			"minimum": 0
+		},
+		"consistency_proof": {
+			"description": "A list of base64-encoded node hashes that proves consistency",
+			"type": "array",
+			"items": {
+				"description": "A node hash in base64",
+				"type": "string",
+				"minLength": 44,
+				"maxLength": 44
+			}
+		}
+	}
+}

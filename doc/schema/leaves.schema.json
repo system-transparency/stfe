@@ -1,0 +1,38 @@
+{
+	"$schema": "https://json-schema.org/draft-07/schema#",
+	"title": "list of tree_leaf",
+	"description": "JSON-formatted tree leaf list, version 0.",
+
+	"type": "array",
+	"description": "A list Merkle tree leaves",
+	"items": {
+		"type": "object",
+		"required": [ "checksum", "signature_scheme", "signature", "key_hash" ],
+		"properties": {
+			"checksum": {
+				"description": "A cryptographic hash that is computed over some data of opaque type.  The result is base64-encoded.",
+				"type": "string",
+				"minLength": 44,
+				"maxLength": 44
+			},
+			"signature_scheme": {
+				"description": "An integer that identifies the signature scheme used by the submitter.  See API documentation.",
+				"type": "integer",
+				"enum": [ 1, 2, 3 ]
+			},
+			"signature": {
+				"description": "The submitter's signature over the checksum in base64",
+				"type": "string",
+				"minLength": 44,
+				"maxLength": 684
+			},
+			"key_hash": {
+				"description": "A public verification-key hash that identifies the signer.",
+				"type": "string",
+				"minLength": 44,
+				"maxLength": 44
+			}
+		}
+	},
+	"minItems": 1
+}
