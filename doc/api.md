@@ -85,72 +85,74 @@ struct tree_head {
 };
 ```
 
-The serialized tree head must be signed using Ed25519.  A witness must only sign
-the log's tree head if it is consistent with prior history and the timestamp is
-roughly correct.  A timestamp is roughly correct if it is not backdated or
-future-dated more than 12 hours.
+The serialized tree head must be signed using Ed25519.  A witness must not
+cosign a tree head if it is inconsistent with prior history or if the timestamp
+is backdated or future-dated more than 12 hours.
 
 #### Merkle tree leaf
-The log supports a single leaf type.  It contains a checksum, a signature
-scheme, a signature that the submitter computed over that checksum, and the hash
-of the public verification key that can be used to verify the signature.
+The log supports a single leaf type.  It contains a message, a signature scheme,
+a signature that the submitter computed over the message, and a hash of the
+public verification key that can be used to verify the signature.
 
 ```
-const ALG_ED25519 = 1; // RFC 8032
-const ALG_RSASSA_PKCS1_V1_5 = 2; // RFC 8017
-const ALG_RSASSA_PSS = 3; // RFC 8017
+const SIGNATURE_SCHEME_ED25519 = 1; // RFC 8032
+const SIGNATURE_SCHEME_RSASSA_PKCS1_V1_5 = 2; // RFC 8017
+const SIGNATURE_SCHEME_RSASSA_PSS = 3; // RFC 8017
+
+struct signature_ed25519 {
+	u8 signature[32];
+};
+
+struct signature_rsassa {
+	u64 num_bytes IN [ 256, 384, 512 ];
+	u8 signature[num_bytes];
+};
+
+struct message {
+	u64 shard_hint;
+	u8 checksum[32];
+};
 
 struct tree_leaf {
-	u8 checksum[32];
+	struct message message;
 	u64 signature_scheme IN [
-		ALG_ED25519,
-		ALG_RSASSA_PKCS1_V1_5,
-		ALG_RSASSA_PSS,
+		SIGNATURE_SCHEME_ED25519,
+		SIGNATURE_SCHEME_RSASSA_PKCS1_V1_5,
+		SIGNATURE_SCHEME_RSASSA_PSS,
 	];
 	union signature[signature_scheme] {
-		ALG_ED25519: u8 ed25519[32];
-		default:     u8 rsa[512];
+		SIGNATURE_SCHEME_ED25519: struct signature_ed25519 ed25519;
+		default: struct signature_rsassa rsassa;
 	}
 	u8 key_hash[32];
 }
 ```
 
+Unlike X.509 certificates that already have validity ranges, a checksum does not
+have any such information.  Therefore, we require that the submitter selects a
+_shard hint_.  The selected shard hint must be in the log's _shard interval_.  A
+shard interval is defined by a start time and an end time.  Both ends of the
+shard interval are inclusive and expressed as the number of milliseconds since
+the UNIX epoch (January 1, 1970 00:00:00 UTC).
+
+Sharding simplifies log operations because it becomes explicit when a log can be
+shutdown.  A log must only accept logging requests that have valid shard hints.
+A log should only accept logging requests during the predefined shard interval.
+Note that _the submitter's shard hint is not a verified timestamp_.  The
+submitter should set the shard hint as large as possible.  If a roughly verified
+timestamp is needed, a cosigned tree head can be used.
+
+Without a shard hint, the good Samaritan could log all leaves from an earlier
+shard into a newer one.  Not only would that defeat the purpose of sharding, but
+it would also become a potential denial-of-service vector.
+
+The signed message is composed of the selected shard hint and the submitter's
+checksum.  It must be possible to verify the signature using the specified
+signature scheme and the submitter's public verification key.
+
 A key-hash is included in the leaf so that it can be attributed to the signing
 entity.  A hash, rather than the full public verification key, is used to force
 the verifier to locate the appropriate key and make an explicit trust decision.
-
-#### Shard hint
-The log is only accepting new leaves during a predefined time interval.  We
-refer to this time interval as the log's _shard_.  Sharding can simplify log
-operations because it becomes explicit when the log can be shutdown.
-
-Unlike X.509 certificates that already have a validity range, a checksum does
-not have any such information.  Therefore, we require the submitter to sign a
-_shard hint_.  A shard hint is composed of a prefix and a tree leaf.
-
-```
-struct shard_hint {
-	u64 prefix;
-	struct tree_leaf leaf;
-}
-```
-
-The log will check that the signed `shard_hint` can be verified using the
-submitter's public verification key.  The prefix could be anything and may
-repeat.  This API documentation assumes that the prefix is set to zero.
-
-As long as the `shard_hint` signature is not revealed, no one but the submitter
-can submit a leaf that the log will accept.  Therefore, the good Samaritan
-cannot submit all leaves from an earlier shard into a newer one.  The
-`shard_hint` does not prevent the _legitimate submitter_ from reusing an earlier
-submission in a future shard.
-
-Note the importance of letting the submitter decide if an entry is logged again
-or not.  If the log has a rate limiting function, replayed submissions could
-deny service in a new shard.  In practise we expect submitters to not log a
-leaf again. Once an inclusion proof and a cosigned tree head is available, you
-have all the necessary proofs.  These proofs continue to be valid after the log
-shuts down because the verification process is non-interactive.
 
 ## Public endpoints
 Every log has a base URL that identifies it uniquely.  The only constraint is
@@ -229,10 +231,10 @@ POST <base url>/st/v0/add-leaf
 ```
 
 Input key-value pairs:
-- `leaf_checksum`: the checksum that the submitter wants to log in base64.
+- `shard_hint`: the shard hint that the submitter selected.
+- `checksum`: the checksum that the submitter wants to log in base64.
 - `signature_scheme`: the signature scheme that the submitter wants to use.
-- `tree_leaf_signature`: the submitter's `tree_leaf` signature in base64.
-- `shard_hint_signature`: the submitter's `shard_hint` signature in base64.
+- `signature`: the submitter's signature over `tree_leaf.message` in base64.
 - `verification_key`: the submitter's public verification key.  It is serialized
 as described in the corresponding RFC, then base64-encoded.
 - `domain_hint`: a domain name that indicates where the public verification-key
@@ -279,3 +281,13 @@ human-readable error message.
 The key-hash can be used to identify which witness signed the log's tree head.
 A key-hash, rather than the full verification key, is used to force the verifier
 to locate the appropriate key and make an explicit trust decision.
+
+## Summary of log parameters
+- **Public key**: an Ed25519 verification key that can be used to verify the
+log's tree head signatures.  
+- **Log identifier**: the hashed public verification key using SHA256.
+- **Shard interval**: the time during which the log accepts logging requests.
+The shard interval's start and end are inclusive and expressed as the number of
+milliseconds since the UNIX epoch.
+- **Base URL**: where the log can be reached over HTTP(S).  It is the prefix
+before a version-0 specific endpoint.
