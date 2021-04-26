@@ -28,5 +28,35 @@ System Transparency logging makes signed checksums transparent.  The goal is to
 _detect_ unwanted key-usage without making assumptions about the signed data.
 
 ## Threat model and (non-)goals
+We consider a powerful attacker that gained control of a target's signing and
+release infrastructure.  This covers a weaker form of attacker that is able to
+sign data and distribute it to a subset of isolated users.  For example, this is
+essentially what FBI requested from Apple in the San Bernardino case [\[FBI-Apple\]](https://www.eff.org/cases/apple-challenges-fbi-all-writs-act-order).
+The fact that signing keys and related infrastructure components get
+compromised should not be controversial [\[SolarWinds\]](https://www.zdnet.com/article/third-malware-strain-discovered-in-solarwinds-supply-chain-attack/).
+
+The attacker can also gain control of the transparency log's signing key and
+infrastructure.  This covers a weaker form of attacker that is able to sign log
+data and distribute it to a subset of isolated users.  For example, this could
+have been the case when a remote code execution was found for a Certificate
+Transparency Log [\[DigiCert\]](https://groups.google.com/a/chromium.org/g/ct-policy/c/aKNbZuJzwfM).
+
+Any attacker that is able to position itself to control these components will
+likely be _risk-averse_.  This is at minimum due to two factors.  First,
+detection would result in a significant loss of capability that is by no means
+trivial to come by.  Second, detection means that some part of the attacker's
+malicious behavior will be disclosed publicly.
+
+Our goal is to facilitate _detection_ of compromised signing keys.  Therefore,
+we transparency log signed checksums.  We assume that clients _fail closed_ if a
+checksum does not appear in a public log.  We also assume that the attacker
+controls at most a threshold of independent parties to achieve our goal
+("strength in numbers").
+
+It is a non-goal to disclose the data that a signed checksum represents.  For
+example, the log cannot distinguish between a checksum that represents a tax
+declaration, an ISO image, or a Debian package.  This means that the type of
+detection we support is _courser-grained_ when compared to Certificate
+Transparency.
 
 ## Design
