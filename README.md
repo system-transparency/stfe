@@ -1,4 +1,9 @@
 # System Transparency Front-End (STFE)
+**Heads-up**: a refactor is happening in the `design` branch.  The most
+up-to-date design [motivation](https://github.com/system-transparency/stfe/blob/design/doc/design.md)
+and [specification](https://github.com/system-transparency/stfe/blob/design/doc/api.md)
+can be found there.
+
 STFE is a [Trillian](https://transparency.dev/#trillian)
 [personality](https://github.com/google/trillian/blob/master/docs/Personalities.md)
 that allows you to log signed checksums.  What a checksum represents is up to
