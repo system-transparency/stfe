@@ -132,8 +132,8 @@ ecosystem needs more than one log to be reliable.  DNS also has built-in
 caching that can be influenced by setting TTLs accordingly.
 
 The submitter's domain hint is not part of the leaf because key management is
-more complex than that.  The only service that the log provides is discovery of
-signed checksums.  Key transparency projects have their own merit.
+more complex than that.  A separate project should focus on transparent key
+management.  The scope of our work is transparent _key-usage_.
 
 The log will _try_ to incorporate a leaf into the Merkle tree if a logging
 request is accepted.  There are no _promises of public logging_ as in
