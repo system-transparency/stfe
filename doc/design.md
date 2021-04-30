@@ -143,14 +143,14 @@ inclusion promises makes the log less complex.
 
 #### Step 3 - distributing proofs of public logging
 The data publisher is responsible for collecting all cryptographic proofs that
-their end-users will need to enforce public logging.  It must be possible to
-download the following collection (in)directly from the data publisher:
-1. **Shard hint**: the data publisher's selected shard hint.
-2. **Opaque data**: the data publisher's opaque data.
+their end-users will need to enforce public logging.  The collection below
+should be downloadable from the same place that the data is normally hosted.
+1. **Opaque data**: the data publisher's opaque data.
+2. **Shard hint**: the data publisher's selected shard hint.
 3. **Signature**: the data publisher's leaf signature.
-5. **Cosigned tree head**: the log's tree head and a _list of signatures_ that
+4. **Cosigned tree head**: the log's tree head and a _list of signatures_ that
 state it is consistent with prior history.
-6. **Inclusion proof**: a proof of inclusion that is based on the leaf and tree
+5. **Inclusion proof**: a proof of inclusion that is based on the leaf and tree
 head in question.
 
 The public verification key is known.  Therefore, the first three fields are
