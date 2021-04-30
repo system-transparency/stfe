@@ -186,7 +186,7 @@ question-answer format is helpful because it is easily modified and extended.
 #### What cryptographic primitives are supported?
 The only supported hash algorithm is SHA256.  The only supported signature
 scheme is Ed25519.  Not having any cryptographic agility makes the protocol
-simpler and more secure.
+less complex and more secure.
 
 An immediate follow-up question is how that is supposed to work with existing
 and future signature tooling.  The key insight is that _additional tooling is
