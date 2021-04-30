@@ -1,6 +1,6 @@
 # System Transparency Logging: Design v0
 We propose System Transparency logging.  It is similar to Certificate
-Transparency, expect that cryptographically signed checksums are logged as
+Transparency, except that cryptographically signed checksums are logged as
 opposed to X.509 certificates.  Publicly logging signed checksums allow anyone
 to discover which keys produced what signatures.  As such, malicious and
 unintended key-usage can be _detected_.  We present our design and conclude by
@@ -31,7 +31,7 @@ is to facilitate detection of unwanted key-usage.
 We consider a powerful attacker that gained control of a target's signing and
 release infrastructure.  This covers a weaker form of attacker that is able to
 sign data and distribute it to a subset of isolated users.  For example, this is
-essentially what FBI requested from Apple in the San Bernardino case [\[FBI-Apple\]](https://www.eff.org/cases/apple-challenges-fbi-all-writs-act-order).
+essentially what the FBI requested from Apple in the San Bernardino case [\[FBI-Apple\]](https://www.eff.org/cases/apple-challenges-fbi-all-writs-act-order).
 The fact that signing keys and related infrastructure components get
 compromised should not be controversial these days [\[SolarWinds\]](https://www.zdnet.com/article/third-malware-strain-discovered-in-solarwinds-supply-chain-attack/).
 
@@ -57,7 +57,7 @@ independent parties are adversarial.
 It is a non-goal to disclose the data that a checksum represents.  For example,
 the log cannot distinguish between a checksum that represents a tax declaration,
 an ISO image, or a Debian package.  This means that the type of detection we
-support is more _course-grained_ when compared to Certificate Transparency.
+support is more _coarse-grained_ when compared to Certificate Transparency.
 
 ## Design
 We consider a data publisher that wants to digitally sign their data.  The data
@@ -69,7 +69,7 @@ signature tooling.  The ecosystem at large can continue to use `gpg`, `openssl`,
 
 We _have to assume_ that additional tooling can be installed by end-users that
 wish to enforce transparency logging.  For example, none of the existing
-signature tooling support verification of Merkle tree proofs.  A side-effect of
+signature tooling supports verification of Merkle tree proofs.  A side-effect of
 our design is that this additional tooling makes no outbound connections.  The
 above data flows are thus preserved.
 
@@ -78,7 +78,7 @@ A central part of any transparency log is the data.  The data is stored by the
 leaves of an append-only Merkle tree.  Our leaf structure contains four fields:
 - **shard_hint**: a number that binds the leaf to a particular _shard interval_.
 Sharding means that the log has a predefined time during which logging requests
-will be accepted.  Once elapsed, the log can be shutdown.
+will be accepted.  Once elapsed, the log can be shut down.
 - **checksum**: a cryptographic hash of some opaque data.  The log never
 sees the opaque data; just the hash.
 - **signature**: a digital signature that is computed by the data publisher over
@@ -166,7 +166,7 @@ benign witness will only sign the log's tree head if it is consistent with prior
 history.
 
 #### Summary
-The log is sharded and will shutdown at a predefined time.  The log can shut
+The log is sharded and will shut down at a predefined time.  The log can shut
 down _safely_ because end-user verification is not interactive.  The difficulty
 of bypassing public logging is based on the difficulty of controlling a
 threshold of independent witnesses.  Witnesses cosign tree heads to make them
@@ -178,7 +178,7 @@ End-users interact with the log _indirectly_ via a data publisher.  It is the
 data publisher's job to log signed checksums, distribute necessary proofs of
 logging, and monitor the log.
 
-### A peak into the details
+### A peek into the details
 Our bird's view introduction skipped many details that matter in practise.  Some
 of these details are presented here using a question-answer format.  A
 question-answer format is helpful because it is easily modified and extended.
