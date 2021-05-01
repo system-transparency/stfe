@@ -218,6 +218,9 @@ additional key-pair.
 #### Why witness cosigning?
 #### TODO
 Add more key questions and answers.
+- Log spamming
+- Log poisoning
+- Why we removed identifier field from the leaf
 
 ## Concluding remarks
 Example of binary transparency and reproducible builds.
