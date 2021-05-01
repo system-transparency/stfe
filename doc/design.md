@@ -183,32 +183,39 @@ question-answer format is helpful because it is easily modified and extended.
 
 #### What cryptographic primitives are supported?
 The only supported hash algorithm is SHA256.  The only supported signature
-scheme is Ed25519.  Not having any cryptographic agility makes the protocol
-less complex and more secure.
+scheme is Ed25519.  Not having any cryptographic agility makes the protocol less
+complex and more secure.
 
-An immediate follow-up question is how that is supposed to work with existing
-and future signature tooling.  The key insight is that _additional tooling is
-already required to verify Merkle tree proofs.  That tooling should use SHA256.
-That tooling should also verify all Ed25519 signatures that logs, witnesses, and
-data publishers create_.
+We can be cryptographically opinionated because of a key insight.  Existing
+signature tools like `gpg`, `ssh-keygen -Y`, and `signify` cannot verify proofs
+of public logging.  Therefore, _additional tooling must already be installed by
+end-users_.  That tooling should verify hashes using the log's hash function.
+That tooling should also verify signatures using the log's signature scheme.
+Signed messages include tree heads as well as tree leaves.
 
-For example, suppose that an ecosystem uses `gpg` which has its own incompatible
-signature format and algorithms.  The data publisher could _cross-sign_ using
-Ed25519 as follows:
-1. Sign the opaque data as you normally would with `gpg`.
+#### Why not let the data publisher pick their own signature scheme and format?
+Agility introduces complexity and difficult policy questions.  For example,
+which algorithms and formats should (not) be supported and why?  Picking Ed25519
+is a current best practise that should be encouraged if possible.
+
+There is not much we can do if a data publisher _refuses_ to rely on the log's
+hash function or signature scheme.
+
+#### What if the data publisher must use a specific signature scheme or format?
+You may _cross-sign_ the data as follows.
+1. Sign the opaque data as you normally would. 
 2. Hash the opaque data and use that as the leaf's checksum.  Sign the leaf
-using Ed25519.
+using the log's signature scheme.
 
-First the end-user verifies that the `gpg` signature is valid.  This is the
-old verification process.  Then the end-user uses the additional tooling to
-verify proofs of logging, which involves SHA256 hashing and Ed25519 signatures.
-
-The downside is that the data publisher may need to manage an Ed25519 key _as
-well_.  TODO: motivate why that is a suboptimal but worth-while trade-off.
+First the end-user verifies that the normal signature is valid.  Then the
+end-user lets the additional tooling (that is already required) verify the rest.
+Cross-signing should be a relatively comfortable upgrade path that is backwards
+compatible.  The downside is that the data publisher may need to manage an
+additional key-pair.
 
 #### What (de)serialization parsers are needed?
-#### Why witness cosigning?
 #### What policy should be used?
+#### Why witness cosigning?
 #### TODO
 Add more key questions and answers.
 
