@@ -108,10 +108,8 @@ mistake_.
 
 #### Step 2 - submitting a logging request
 The log implements an HTTP(S) API.  Input and output is human-readable and uses
-percent encoding.  We decided to use percent encoding for requests and responses
-because it is a simple format that is commonly used on the web.  A more complex
-parser like JSON is not needed if the exchanged data structures are basic
-enough.
+a simple key-value format.  A more complex parser like JSON is not needed
+because the exchanged data structures are basic enough.
 
 The data publisher submits their shard hint, checksum, signature, and public
 verification key as key-value pairs.  The log will use the public verification
