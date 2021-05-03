@@ -1,25 +1,29 @@
 # System Transparency Logging: API v0
 This document describes details of the System Transparency logging API,
 version 0.  The broader picture is not explained here.  We assume that you have
-read the System Transparency design document.  It can be found [here](https://github.com/system-transparency/stfe/blob/design/doc/design.md).
+read the System Transparency Logging design document.  It can be found [here](https://github.com/system-transparency/stfe/blob/design/doc/design.md).
 
 **Warning.**
 This is a work-in-progress document that may be moved or modified.
 
 ## Overview
 The log implements an HTTP(S) API:
-- Requests that add data to the log use the HTTP POST method.
-- Request that retrieve data from the log use the HTTP GET method.
-- The HTTP content type is `application/x-www-form-urlencoded` for requests and
-responses.  This means that all input and output are expressed as key-value
-pairs.  Binary data must be hex-encoded.
 
-We decided to use percent encoding for requests and responses because it is a
-_simple format_ that is commonly used on the web.  We are not using percent
-encoding for signed and/or logged data.  In other words, a submitter may
-distribute log responses to their end-users in a different format that suit
-them.  The forced (de)serialization parser on _end-users_ is a small subset of
-Trunnel.  Trunnel is an "idiot-proof" wire-format that the Tor project uses.
+- Requests to the log use the HTTP GET method.
+- Input data (in requests) and output data (in responses) are
+  expressed as ASCII-encoded key/value pairs.
+- Requests use HTTP request headers for input data while responses use
+  the HTTP message body for output data.
+- Binary data is hex-encoded before being transmitted.
+
+The motivation for using a text based key/value format for request and
+response data is that it's simple to parse.  Note that this format is not being
+used for the serialization of signed or logged data, where a more
+well defined and storage efficient format is desirable.
+A submitter may distribute log responses to their end-users in any
+format that suits them.  The (de)serialization required for
+_end-users_ is a small subset of Trunnel.  Trunnel is an "idiot-proof"
+wire-format in use by the Tor project.
 
 ## Primitives
 ### Cryptography
@@ -32,19 +36,14 @@ All other parts that are not Merkle tree related also use SHA256 as the hash
 function.  Using more than one hash function would increases the overall attack
 surface: two hash functions must be collision resistant instead of one.
 
-We recommend that submitters sign using Ed25519.  We also support RSA with
-[deterministic](https://tools.ietf.org/html/rfc8017#section-8.2)
-or [probabilistic](https://tools.ietf.org/html/rfc8017#section-8.1)
-padding.  Supporting RSA is suboptimal, but excluding it would make the log
-useless for many possible adopters.
-
 ### Serialization
-Log requests and responses are percent encoded.  Percent encoding is a smaller
-dependency than an alternative parser like JSON.  It is comparable to rolling
-your own minimalistic line-terminated format.  Some input and output data is
-binary: cryptographic hashes and signatures.  Binary data must be expressed as
-hex before percent-encoding it.  We decided to use hex as opposed to base64
-because it is simpler, favoring simplicity over efficiency on the wire.
+Log requests and responses are transmitted as ASCII-encoded key/value
+pairs, for a smaller dependency than an alternative parser like JSON.
+Some input and output data is binary: cryptographic hashes and
+signatures.  Binary data must be Base16-encoded, also known as hex
+encoding.  Using hex as opposed to base64 is motivated by it being
+simpler, favoring ease of decoding and encoding over efficiency on the
+wire.
 
 We use the [Trunnel](https://gitweb.torproject.org/trunnel.git) [description language](https://www.seul.org/~nickm/trunnel-manual.html)
 to define (de)serialization of data structures that need to be signed or
@@ -57,9 +56,9 @@ can be generated in C and Go.
 
 A fair summary of our Trunnel usage is as follows.
 
-All integers are 64-bit, unsigned, and in network byte order.  A fixed-size byte
-array is put into the serialization buffer in-order, starting from the first
-byte.  A variable length byte array first declares its length as an integer,
+All integers are 64-bit, unsigned, and in network byte order.  Fixed-size byte
+arrays are put into the serialization buffer in-order, starting from the first
+byte.  Variable length byte arrays first declare their length as an integer,
 which is then followed by that number of bytes.  These basic types are
 concatenated to form a collection.  You should not need a general-purpose
 Trunnel (de)serialization parser to work with this format.  If you have one, you
@@ -70,7 +69,7 @@ format explicit and unambiguous.
 Tree heads are signed by the log and its witnesses.  It contains a timestamp, a
 tree size, and a root hash.  The timestamp is included so that monitors can
 ensure _liveliness_.  It is the time since the UNIX epoch (January 1, 1970
-00:00:00 UTC) in milliseconds.  The tree size specifies the current number of
+00:00:00 UTC) in seconds.  The tree size specifies the current number of
 leaves.  The root hash fixes the structure and content of the Merkle tree.
 
 ```
@@ -86,50 +85,25 @@ cosign a tree head if it is inconsistent with prior history or if the timestamp
 is backdated or future-dated more than 12 hours.
 
 #### Merkle tree leaf
-The log supports a single leaf type.  It contains a message, a signature scheme,
-a signature that the submitter computed over the message, and a hash of the
+The log supports a single leaf type.  It contains a shard hint, a checksum over whatever the submitter wants to log a checksum for,
+a signature that the submitter computed over the shard hint and the checksum, and a hash of the
 public verification key that can be used to verify the signature.
 
 ```
-const SIGNATURE_SCHEME_ED25519 = 1; // RFC 8032
-const SIGNATURE_SCHEME_RSASSA_PKCS1_V1_5 = 2; // RFC 8017
-const SIGNATURE_SCHEME_RSASSA_PSS = 3; // RFC 8017
-
-struct signature_ed25519 {
-	u8 signature[32];
-};
-
-struct signature_rsassa {
-	u64 num_bytes IN [ 256, 384, 512 ];
-	u8 signature[num_bytes];
-};
-
-struct message {
+struct tree_leaf {
 	u64 shard_hint;
 	u8 checksum[32];
-};
-
-struct tree_leaf {
-	struct message message;
-	u64 signature_scheme IN [
-		SIGNATURE_SCHEME_ED25519,
-		SIGNATURE_SCHEME_RSASSA_PKCS1_V1_5,
-		SIGNATURE_SCHEME_RSASSA_PSS,
-	];
-	union signature[signature_scheme] {
-		SIGNATURE_SCHEME_ED25519: struct signature_ed25519 ed25519;
-		default: struct signature_rsassa rsassa;
-	}
+    u8 signature[32];
 	u8 key_hash[32];
 }
 ```
 
-Unlike X.509 certificates that already have validity ranges, a checksum does not
-have any such information.  Therefore, we require that the submitter selects a
+Unlike X.509 certificates which already have validity ranges, a checksum does not
+carry any such information.  Therefore, we require that the submitter selects a
 _shard hint_.  The selected shard hint must be in the log's _shard interval_.  A
 shard interval is defined by a start time and an end time.  Both ends of the
-shard interval are inclusive and expressed as the number of milliseconds since
-the UNIX epoch (January 1, 1970 00:00:00 UTC).
+shard interval are inclusive and expressed as the number of seconds since
+the UNIX epoch (January 1, 1970 00:00 UTC).
 
 Sharding simplifies log operations because it becomes explicit when a log can be
 shutdown.  A log must only accept logging requests that have valid shard hints.
@@ -143,11 +117,15 @@ shard into a newer one.  Not only would that defeat the purpose of sharding, but
 it would also become a potential denial-of-service vector.
 
 The signed message is composed of the selected shard hint and the submitter's
-checksum.  It must be possible to verify the signature using the specified
-signature scheme and the submitter's public verification key.
+checksum.  It must be possible to verify the signature using the
+submitter's public verification key.
 
-A key-hash is included in the leaf so that it can be attributed to the signing
-entity.  A hash, rather than the full public verification key, is used to force
+Note that the way `shard_hint` and `chekcsum` are serialized with
+regards to signing differs from how they're being transmitted to the
+log.
+
+A key hash is included in the leaf so that the leaf can be attributed to the
+submitter.  A hash, rather than the full public verification key, is used to motivate
 the verifier to locate the appropriate key and make an explicit trust decision.
 
 ## Public endpoints
@@ -162,31 +140,75 @@ human-readable value that describes what went wrong.  For example,
 `error=invalid+signature`, `error=rate+limit+exceeded`, or
 `error=unknown+leaf+hash`.
 
-### get-signed-tree-head
+### get-tree-head-cosigned
+Returns the latest cosigned tree head. Used by ordinary users of the log.
+
 ```
-GET <base url>/st/v0/get-signed-tree-head
+GET <base url>/st/v0/get-tree-head-cosigned
 ```
 
 Input:
-- "type": either the string "latest", "stable", or "cosigned".
-	- latest: ask for the most recent signed tree head.
-	- stable: ask for a recent signed tree head that is fixed for some period
-	  of time.
-	- cosigned: ask for a recent cosigned tree head.
+- None
 
 Output on success:
-- "timestamp": `tree_head.timestamp` as a human-readable number.
-- "tree_size": `tree_head.tree_size` as a human-readable number.
-- "root_hash": `tree_head.root_hash` in hex.
-- "signature": an Ed25519 signature over `tree_head`.  The result is
-hex-encoded.
+- "timestamp": `tree_head.timestamp` ASCII-encoded decimal number, seconds since the UNIX epoch.
+- "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
+- "root_hash": `tree_head.root_hash` hex-encoded.
+- "signature": hex-encoded Ed25519 signature over `tree_head` serialzed as described in section `Merkle tree head`.
 - "key_hash": a hash of the public verification key that can be used to verify
-the signature.  The public verification key is serialized as in RFC 8032, then
-hashed using SHA256.  The result is hex-encoded.
+the signature.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and then
+hashed using SHA256.  The hash value is hex-encoded.
 
 The "signature" and "key_hash" fields may repeat. The first signature
 corresponds to the first key hash, the second signature corresponds to the
 second key hash, etc.  The number of signatures and key hashes must match.
+
+### get-tree-head-to-sign
+Returns the latest tree head to be signed by log witnesses. Used by
+witnesses.
+
+```
+GET <base url>/st/v0/get-tree-head-to-sign
+```
+
+Input:
+- None
+
+Output on success:
+- "timestamp": `tree_head.timestamp` ASCII-encoded decimal number, seconds since the UNIX epoch.
+- "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
+- "root_hash": `tree_head.root_hash` hex-encoded.
+- "signature": hex-encoded Ed25519 signature over `tree_head` serialzed as described in section `Merkle tree head`.
+- "key_hash": a hash of the public verification key that can be used to verify
+the signature.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and then
+hashed using SHA256.  The hash value is hex-encoded.
+
+There is exactly one `signature` and one `key_hash` field. The
+`key_hash` refers to the log's signing key.
+
+
+### get-tree-head-latest
+Returns the latest tree head, signed only by the log. Used for debug.
+
+```
+GET <base url>/st/v0/get-tree-head-latest
+```
+
+Input:
+- None
+
+Output on success:
+- "timestamp": `tree_head.timestamp` ASCII-encoded decimal number, seconds since the UNIX epoch.
+- "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
+- "root_hash": `tree_head.root_hash` hex-encoded.
+- "signature": hex-encoded Ed25519 signature over `tree_head` serialzed as described in section `Merkle tree head`.
+- "key_hash": a hash of the public verification key that can be used to verify
+the signature.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and then
+hashed using SHA256.  The hash value is hex-encoded.
+
+There is exactly one `signature` and one `key_hash` field. The
+`key_hash` refers to the log's signing key.
+
 
 ### get-proof-by-hash
 ```
@@ -260,11 +282,9 @@ POST <base url>/st/v0/add-leaf
 ```
 
 Input:
-- "shard_hint": human-readable number in the log's shard interval that the
+- "shard_hint": human-readable decimal number in the log's shard interval that the
 submitter selected.
-- "checksum": the cryptographic checksum that the submitter wants to log in hex.
-- "signature_scheme": human-readable number that identifies the submitter's
-signature scheme.
+- "checksum": the cryptographic checksum that the submitter wants to log in hex. note: fixed length 64 bytes, validated by the server somehow
 - "signature": the submitter's signature over `tree_leaf.message`.  The result
 is hex-encoded.
 - "verification_key": the submitter's public verification key.  It is serialized
@@ -314,6 +334,6 @@ log's tree head signatures.
 - **Log identifier**: the hashed public verification key using SHA256.
 - **Shard interval**: the time during which the log accepts logging requests.
 The shard interval's start and end are inclusive and expressed as the number of
-milliseconds since the UNIX epoch.
+seconds since the UNIX epoch.
 - **Base URL**: where the log can be reached over HTTP(S).  It is the prefix
 before a version-0 specific endpoint.
