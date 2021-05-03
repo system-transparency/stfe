@@ -222,6 +222,7 @@ Add more key questions and answers.
 - Log poisoning
 - Why we removed identifier field from the leaf
 - Explain `latest`, `stable` and `cosigned` tree head.
+- Privacy aspects
 
 ## Concluding remarks
 Example of binary transparency and reproducible builds.
