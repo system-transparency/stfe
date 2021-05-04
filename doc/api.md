@@ -114,41 +114,20 @@ struct tree_leaf {
 }
 ```
 
-Unlike X.509 certificates which already have validity ranges, a
-checksum does not carry any such information.  Therefore, we require
-that the submitter selects a _shard hint_.  The selected shard hint
-must be in the log's _shard interval_.  A shard interval is defined by
-a start time and an end time.  Both ends of the shard interval are
-inclusive and expressed as the number of seconds since the UNIX epoch
-(January 1, 1970 00:00 UTC).
+`message` is composed of the `shard_hint`, chosen by the submitter to
+match the shard interval for the log, and the submitter's `checksum`
+to be logged.
 
-Sharding simplifies log operations because it becomes explicit when a
-log can be shutdown.  A log must only accept logging requests that
-have valid shard hints.  A log should only accept logging requests
-during the predefined shard interval.  Note that _the submitter's
-shard hint is not a verified timestamp_.  The submitter should set the
-shard hint as large as possible.  If a roughly verified timestamp is
-needed, a cosigned tree head can be used.
+`signature_over_message` is a signature over `message`, using the
+submitter's verification key. It must be possible to verify the
+signature using the submitter's public verification key, as indicated
+by `key_hash`.
 
-Without a shard hint, the good Samaritan could log all leaves from an
-earlier shard into a newer one.  Not only would that defeat the
-purpose of sharding, but it would also become a potential
-denial-of-service vector.
-
-The signed message is composed of the chosen `shard_hint` and the
-submitter's `checksum`.  It must be possible to verify
-`signature_over_message` using the submitter's public verification
-key.
-
-Note that the way `shard_hint` and `checksum` are serialized with
-regards to signing differs from how they're being transmitted to the
-log.
-
-A `key_hash` of the key used for signing `message` is included in
-`tree_leaf` so that the leaf can be attributed to the submitter.  A
-hash, rather than the full public key, is used to motivate the
-verifier to locate the appropriate key and make an explicit trust
-decision.
+`key_hash` is a hash of the submitter's verification key used for
+signing `message`. It is included in `tree_leaf` so that the leaf can
+be attributed to the submitter.  A hash, rather than the full public
+key, is used to motivate verifiers to locate the appropriate key and
+make an explicit trust decision.
 
 ## Public endpoints
 Every log has a base URL that identifies it uniquely.  The only

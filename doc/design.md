@@ -216,6 +216,28 @@ additional key-pair.
 #### What (de)serialization parsers are needed?
 #### What policy should be used?
 #### Why witness cosigning?
+#### Why sharding?
+Unlike X.509 certificates which already have validity ranges, a
+checksum does not carry any such information.  Therefore, we require
+that the submitter selects a _shard hint_.  The selected shard hint
+must be in the log's _shard interval_.  A shard interval is defined by
+a start time and an end time.  Both ends of the shard interval are
+inclusive and expressed as the number of seconds since the UNIX epoch
+(January 1, 1970 00:00 UTC).
+
+Sharding simplifies log operations because it becomes explicit when a
+log can be shutdown.  A log must only accept logging requests that
+have valid shard hints.  A log should only accept logging requests
+during the predefined shard interval.  Note that _the submitter's
+shard hint is not a verified timestamp_.  The submitter should set the
+shard hint as large as possible.  If a roughly verified timestamp is
+needed, a cosigned tree head can be used.
+
+Without a shard hint, the good Samaritan could log all leaves from an
+earlier shard into a newer one.  Not only would that defeat the
+purpose of sharding, but it would also become a potential
+denial-of-service vector.
+
 #### TODO
 Add more key questions and answers.
 - Log spamming
