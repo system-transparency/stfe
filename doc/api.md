@@ -87,14 +87,18 @@ is backdated or future-dated more than 12 hours.
 #### Merkle tree leaf
 The log supports a single leaf type.  It contains a shard hint, a checksum over whatever the submitter wants to log a checksum for,
 a signature that the submitter computed over the shard hint and the checksum, and a hash of the
-public verification key that can be used to verify the signature.
+submitter's public verification key, that can be used to verify the signature.
 
 ```
+struct message {
+    u64 shard_hint;
+    u8 checksum[32];
+};
+
 struct tree_leaf {
-	u64 shard_hint;
-	u8 checksum[32];
-    u8 signature[32];
-	u8 key_hash[32];
+    struct message;
+    u8 signature_over_message[32];
+    u8 key_hash[32];
 }
 ```
 
@@ -116,17 +120,20 @@ Without a shard hint, the good Samaritan could log all leaves from an earlier
 shard into a newer one.  Not only would that defeat the purpose of sharding, but
 it would also become a potential denial-of-service vector.
 
-The signed message is composed of the selected shard hint and the submitter's
-checksum.  It must be possible to verify the signature using the
-submitter's public verification key.
+The signed message is composed of the chosen `shard_hint` and the
+submitter's `checksum`.  It must be possible to verify
+`signature_over_message` using the submitter's public verification
+key.
 
-Note that the way `shard_hint` and `chekcsum` are serialized with
+Note that the way `shard_hint` and `checksum` are serialized with
 regards to signing differs from how they're being transmitted to the
 log.
 
-A key hash is included in the leaf so that the leaf can be attributed to the
-submitter.  A hash, rather than the full public verification key, is used to motivate
-the verifier to locate the appropriate key and make an explicit trust decision.
+A `key_hash` of the key used for signing `message` is included in
+`tree_leaf` so that the leaf can be attributed to the submitter.  A
+hash, rather than the full public key, is used to motivate the
+verifier to locate the appropriate key and make an explicit trust
+decision.
 
 ## Public endpoints
 Every log has a base URL that identifies it uniquely.  The only constraint is
@@ -155,8 +162,8 @@ Output on success:
 - "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
 - "root_hash": `tree_head.root_hash` hex-encoded.
 - "signature": hex-encoded Ed25519 signature over `tree_head` serialzed as described in section `Merkle tree head`.
-- "key_hash": a hash of the public verification key that can be used to verify
-the signature.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and then
+- "key_hash": a hash of the public verification key (belonging to either the log or to one of its witnesses), which can be used to verify
+the most recent `signature`.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and then
 hashed using SHA256.  The hash value is hex-encoded.
 
 The "signature" and "key_hash" fields may repeat. The first signature
@@ -179,16 +186,16 @@ Output on success:
 - "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
 - "root_hash": `tree_head.root_hash` hex-encoded.
 - "signature": hex-encoded Ed25519 signature over `tree_head` serialzed as described in section `Merkle tree head`.
-- "key_hash": a hash of the public verification key that can be used to verify
-the signature.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and then
+- "key_hash": a hash of the log's public verification key, which can be used to verify
+`signature`.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and then
 hashed using SHA256.  The hash value is hex-encoded.
 
 There is exactly one `signature` and one `key_hash` field. The
-`key_hash` refers to the log's signing key.
+`key_hash` refers to the log's public verification key.
 
 
 ### get-tree-head-latest
-Returns the latest tree head, signed only by the log. Used for debug.
+Returns the latest tree head, signed only by the log. Used for debugging purposes.
 
 ```
 GET <base url>/st/v0/get-tree-head-latest
@@ -202,12 +209,13 @@ Output on success:
 - "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
 - "root_hash": `tree_head.root_hash` hex-encoded.
 - "signature": hex-encoded Ed25519 signature over `tree_head` serialzed as described in section `Merkle tree head`.
-- "key_hash": a hash of the public verification key that can be used to verify
-the signature.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and then
-hashed using SHA256.  The hash value is hex-encoded.
+- "key_hash": a hash of the log's public verification key that can be
+used to verify `signature`.  The key is encoded as defined in
+[RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2),
+and then hashed using SHA256.  The hash value is hex-encoded.
 
 There is exactly one `signature` and one `key_hash` field. The
-`key_hash` refers to the log's signing key.
+`key_hash` refers to the log's public verification key.
 
 
 ### get-proof-by-hash
@@ -317,9 +325,10 @@ POST <base url>/st/v0/add-cosignature
 Input:
 - "signature": an Ed25519 signature over `tree_head`.  The result is
 hex-encoded.
-- "key_hash": a hash of the public verification key that can be used to verify
-the signature.  The public verification key is serialized as in RFC 8032, then
-hashed using SHA256.  The result is hex-encoded.
+- "key_hash": a hash of the witness' public verification key that can be used
+to verify the signature.  The key is encoded as defined in [RFC 8032,
+section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), and
+then hashed using SHA256.  The hash value is hex-encoded.
 
 Output on success:
 - None
