@@ -141,6 +141,16 @@ that it must be a valid HTTP(S) URL that can have the `/st/v0/<endpoint>` suffix
 appended.  For example, a complete endpoint URL could be
 `https://log.example.com/2021/st/v0/get-signed-tree-head`.
 
+Input data (in requests) is sent as ASCII key/value pairs as HTTP
+entity headers, with their keys prefixed with the string
+`stlog-`. Example: For sending `treee_size=4711` as input a client
+would send the HTTP header `stlog-tree_size: 4711`.
+
+Output data (in replies) is sent in the HTTP message body in the same
+format as the input data, i.e. as ASCII key/value pairs on the format
+`Key: Value`. Example: For sending `tree_size=4711` as output a log
+would send an HTTP message body consisting of `stlog-tree_size: 4711`.
+
 The HTTP status code is 200 OK to indicate success.  A different HTTP status
 code is used to indicate failure.  The log should set the "error" key to a
 human-readable value that describes what went wrong.  For example,
