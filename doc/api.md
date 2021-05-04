@@ -147,10 +147,10 @@ format as the input data, i.e. as ASCII key/value pairs on the format
 would send an HTTP message body consisting of `stlog-tree_size: 4711`.
 
 The HTTP status code is 200 OK to indicate success.  A different HTTP
-status code is used to indicate failure.  The log should set the
-"error" key to a human-readable value that describes what went wrong.
-For example, `error=invalid+signature`, `error=rate+limit+exceeded`,
-or `error=unknown+leaf+hash`.
+status code is used to indicate failure.  The log should set the value
+value for the key `error` to a human-readable string describing what
+went wrong.  For example, `error: invalid signature`, `error: rate
+limit exceeded`, or `error: unknown leaf hash`.
 
 ### get-tree-head-cosigned
 Returns the latest cosigned tree head. Used together with
