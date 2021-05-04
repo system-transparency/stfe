@@ -164,19 +164,19 @@ Input:
 - None
 
 Output on success:
-- "timestamp": `tree_head.timestamp` ASCII-encoded decimal number,
+- `timestamp`: `tree_head.timestamp` ASCII-encoded decimal number,
   seconds since the UNIX epoch.
-- "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
-- "root_hash": `tree_head.root_hash` hex-encoded.
-- "signature": hex-encoded Ed25519 signature over `tree_head`
+- `tree_size`: `tree_head.tree_size` ASCII-encoded decimal number.
+- `root_hash`: `tree_head.root_hash` hex-encoded.
+- `signature`: hex-encoded Ed25519 signature over `tree_head`
   serialzed as described in section `Merkle tree head`.
-- "key_hash": a hash of the public verification key (belonging to
+- `key_hash`: a hash of the public verification key (belonging to
   either the log or to one of its witnesses), which can be used to
   verify the most recent `signature`.  The key is encoded as defined
   in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2), 
   and then hashed using SHA256.  The hash value is hex-encoded.
 
-The "signature" and "key_hash" fields may repeat. The first signature
+The `signature` and `key_hash` fields may repeat. The first signature
 corresponds to the first key hash, the second signature corresponds to
 the second key hash, etc.  The number of signatures and key hashes
 must match.
@@ -193,13 +193,13 @@ Input:
 - None
 
 Output on success:
-- "timestamp": `tree_head.timestamp` ASCII-encoded decimal number,
+- `timestamp`: `tree_head.timestamp` ASCII-encoded decimal number,
   seconds since the UNIX epoch.
-- "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
-- "root_hash": `tree_head.root_hash` hex-encoded.
-- "signature": hex-encoded Ed25519 signature over `tree_head`
+- `tree_size`: `tree_head.tree_size` ASCII-encoded decimal number.
+- `root_hash`: `tree_head.root_hash` hex-encoded.
+- `signature`: hex-encoded Ed25519 signature over `tree_head`
   serialzed as described in section `Merkle tree head`.
-- "key_hash": a hash of the log's public verification key, which can
+- `key_hash`: a hash of the log's public verification key, which can
   be used to verify `signature`.  The key is encoded as defined in
   [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2),
   and then hashed using SHA256.  The hash value is hex-encoded.
@@ -220,13 +220,13 @@ Input:
 - None
 
 Output on success:
-- "timestamp": `tree_head.timestamp` ASCII-encoded decimal number,
+- `timestamp`: `tree_head.timestamp` ASCII-encoded decimal number,
   seconds since the UNIX epoch.
-- "tree_size": `tree_head.tree_size` ASCII-encoded decimal number.
-- "root_hash": `tree_head.root_hash` hex-encoded.
-- "signature": hex-encoded Ed25519 signature over `tree_head`
+- `tree_size`: `tree_head.tree_size` ASCII-encoded decimal number.
+- `root_hash`: `tree_head.root_hash` hex-encoded.
+- `signature`: hex-encoded Ed25519 signature over `tree_head`
   serialzed as described in section `Merkle tree head`.
-- "key_hash": a hash of the log's public verification key that can be
+- `key_hash`: a hash of the log's public verification key that can be
   used to verify `signature`.  The key is encoded as defined in
   [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2),
   and then hashed using SHA256.  The hash value is hex-encoded.
@@ -241,17 +241,17 @@ GET <base url>/st/v0/get-proof-by-hash
 ```
 
 Input:
-- "leaf_hash": leaf identifying which `tree_leaf` the log should prove
+- `leaf_hash`: leaf identifying which `tree_leaf` the log should prove
   inclusion of, hex-encoded.
-- "tree_size": tree size of the tree head that the proof should be
+- `tree_size`: tree size of the tree head that the proof should be
   based on, as an ASCII-encoded decimal number.
 
 Output on success:
-- "tree_size": tree size that the proof is based on, as an
+- `tree_size`: tree size that the proof is based on, as an
   ASCII-encoded decimal number.
-- "leaf_index": zero-based index of the leaf that the proof is based
+- `leaf_index`: zero-based index of the leaf that the proof is based
   on, as an ASCII-encoded decimal number.
-- "inclusion_path": node hash, hex-encoded.
+- `inclusion_path`: node hash, hex-encoded.
 
 The leaf hash is computed using the RFC 6962 hashing strategy.  In
 other words, `SHA256(0x00 | tree_leaf)`.
@@ -266,18 +266,18 @@ GET <base url>/st/v0/get-consistency-proof
 ```
 
 Input:
-- "new_size": tree size of a newer tree head, as an ASCII-encoded
+- `new_size`: tree size of a newer tree head, as an ASCII-encoded
   decimal number.
-- "old_size": tree size of an older tree head that the log should
+- `old_size`: tree size of an older tree head that the log should
   prove is consistent with the newer tree head, as an ASCII-encoded
   decimal number.
 
 Output on success:
-- "new_size": tree size of the newer tree head that the proof is based
+- `new_size`: tree size of the newer tree head that the proof is based
   on, as an ASCII-encoded decimal number.
-- "old_size": tree size of the older tree head that the proof is based
+- `old_size`: tree size of the older tree head that the proof is based
   on, as an ASCII-encoded decimal number.
-- "consistency_path": node hash, hex-encoded.
+- `consistency_path`: node hash, hex-encoded.
 
 `consistency_path` may be omitted or repeated to represent a
 consistency proof of zero or more node hashes.  The order of node
@@ -289,17 +289,17 @@ GET <base url>/st/v0/get-leaves
 ```
 
 Input:
-- "start_size": index of the first leaf to retrieve, as an
+- `start_size`: index of the first leaf to retrieve, as an
   ASCII-encoded decimal number.
-- "end_size": index of the last leaf to retrieve, as an ASCII-encoded
+- `end_size`: index of the last leaf to retrieve, as an ASCII-encoded
   decimal number.
 
 Output on success:
-- "shard_hint": `tree_leaf.message.shard_hint` as an ASCII-encoded
+- `shard_hint`: `tree_leaf.message.shard_hint` as an ASCII-encoded
   decimal number.
-- "checksum": `tree_leaf.message.checksum`, hex-encoded.
-- "signature": `tree_leaf.signature_over_message`, hex-encoded.
-- "key_hash": `tree_leaf.key_hash`, hex-encoded.
+- `checksum`: `tree_leaf.message.checksum`, hex-encoded.
+- `signature`: `tree_leaf.signature_over_message`, hex-encoded.
+- `key_hash`: `tree_leaf.key_hash`, hex-encoded.
 
 All fields may be repeated to return more than one leaf.  The first
 value in each list refers to the first leaf, the second value in each
@@ -315,17 +315,17 @@ GET <base url>/st/v0/add-leaf
 ```
 
 Input:
-- "shard_hint": number within the log's shard interval as an
+- `shard_hint`: number within the log's shard interval as an
   ASCII-encoded decimal number.
-- "checksum": the cryptographic checksum that the submitter wants to
+- `checksum`: the cryptographic checksum that the submitter wants to
   log, hex-encoded.
-- "signature_over_message": the submitter's signature over
+- `signature_over_message`: the submitter's signature over
   `tree_leaf.message`, hex-encoded.
-- "verification_key": the submitter's public verification key.  The
+- `verification_key`: the submitter's public verification key.  The
   key is encoded as defined in
   [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2)
   and then hex-encoded.
-- "domain_hint": domain name indicating where `tree_leaf.key_hash`
+- `domain_hint`: domain name indicating where `tree_leaf.key_hash`
   can be found as a DNS TXT resource record.
 
 Output on success:
@@ -355,8 +355,8 @@ GET <base url>/st/v0/add-cosignature
 ```
 
 Input:
-- "signature": Ed25519 signature over `tree_head`, hex-encoded.
-- "key_hash": hash of the witness' public verification key that can be
+- `signature`: Ed25519 signature over `tree_head`, hex-encoded.
+- `key_hash`: hash of the witness' public verification key that can be
   used to verify `signature`.  The key is encoded as defined in
   [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2),
   and then hashed using SHA256. The hash value is hex-encoded.
