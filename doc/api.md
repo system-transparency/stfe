@@ -78,7 +78,7 @@ makes a simple format explicit and unambiguous.
 Tree heads are signed by the log and its witnesses.  It contains a
 timestamp, a tree size, and a root hash.  The timestamp is included so
 that monitors can ensure _liveliness_.  It is the time since the UNIX
-epoch (January 1, 1970 00:00:00 UTC) in seconds.  The tree size
+epoch (January 1, 1970 00:00 UTC) in seconds.  The tree size
 specifies the current number of leaves.  The root hash fixes the
 structure and content of the Merkle tree.
 
