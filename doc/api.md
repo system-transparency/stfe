@@ -296,8 +296,7 @@ submitter selected.
 - "checksum": the cryptographic checksum that the submitter wants to log in hex. note: fixed length 64 bytes, validated by the server somehow
 - "signature": the submitter's signature over `tree_leaf.message`.  The result
 is hex-encoded.
-- "verification_key": the submitter's public verification key.  It is serialized
-as described in the corresponding RFC.  The result is hex-encoded.
+- "verification_key": the submitter's public verification key.  The key is encoded as defined in [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2).  The result is hex-encoded.
 - "domain_hint": a domain name that indicates where `tree_leaf.key_hash` can be
 retrieved as a DNS TXT resource record in hex.
 
