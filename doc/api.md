@@ -148,7 +148,8 @@ human-readable value that describes what went wrong.  For example,
 `error=unknown+leaf+hash`.
 
 ### get-tree-head-cosigned
-Returns the latest cosigned tree head. Used by ordinary users of the log.
+Returns the latest cosigned tree head. Used together with
+`get-proof-by-hash` and `get-consistency-proof` for verifying the log.
 
 ```
 GET <base url>/st/v0/get-tree-head-cosigned
