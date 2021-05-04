@@ -237,65 +237,69 @@ There is exactly one `signature` and one `key_hash` field. The
 
 ### get-proof-by-hash
 ```
-POST <base url>/st/v0/get-proof-by-hash
+GET <base url>/st/v0/get-proof-by-hash
 ```
 
 Input:
-- "leaf_hash": a hex-encoded leaf hash that identifies which
-  `tree_leaf` the log should prove inclusion for.  The leaf hash is
-  computed using the RFC 6962 hashing strategy.  In other words,
-  `SHA256(0x00 | tree_leaf)`.
-- "tree_size": a human-readable tree size of the tree head that the
-  proof should be based on.
+- "leaf_hash": leaf identifying which `tree_leaf` the log should prove
+  inclusion of, hex-encoded.
+- "tree_size": tree size of the tree head that the proof should be
+  based on, as an ASCII-encoded decimal number.
 
 Output on success:
-- "tree_size": human-readable tree size that the proof is based on.
-- "leaf_index": human-readable zero-based index of the leaf that the
-  proof is based on.
-- "inclusion_path": a node hash in hex.
+- "tree_size": tree size that the proof is based on, as an
+  ASCII-encoded decimal number.
+- "leaf_index": zero-based index of the leaf that the proof is based
+  on, as an ASCII-encoded decimal number.
+- "inclusion_path": node hash, hex-encoded.
 
-The "inclusion_path" may be omitted or repeated to represent an
-inclusion proof of zero or more node hashes.  The order of node hashes
-follow from our hash strategy, see RFC 6962.
+The leaf hash is computed using the RFC 6962 hashing strategy.  In
+other words, `SHA256(0x00 | tree_leaf)`.
+
+`inclusion_path` may be omitted or repeated to represent an inclusion
+proof of zero or more node hashes.  The order of node hashes follow
+from the hash strategy, see RFC 6962.
 
 ### get-consistency-proof
 ```
-POST <base url>/st/v0/get-consistency-proof
+GET <base url>/st/v0/get-consistency-proof
 ```
 
 Input:
-- "new_size": human-readable tree size of a newer tree head.
-- "old_size": human-readable tree size of an older tree head that the
-  log should prove is consistent with the newer tree head.
+- "new_size": tree size of a newer tree head, as an ASCII-encoded
+  decimal number.
+- "old_size": tree size of an older tree head that the log should
+  prove is consistent with the newer tree head, as an ASCII-encoded
+  decimal number.
 
 Output on success:
-- "new_size": human-readable tree size of a newer tree head that the
-  proof is based on.
-- "old_size": human-readable tree size of an older tree head that the
-  proof is based on.
-- "consistency_path": a node hash in hex.
+- "new_size": tree size of the newer tree head that the proof is based
+  on, as an ASCII-encoded decimal number.
+- "old_size": tree size of the older tree head that the proof is based
+  on, as an ASCII-encoded decimal number.
+- "consistency_path": node hash, hex-encoded.
 
-The "consistency_path" may be omitted or repeated to represent a
+`consistency_path` may be omitted or repeated to represent a
 consistency proof of zero or more node hashes.  The order of node
-hashes follow from our hash strategy, see RFC 6962.
+hashes follow from the hash strategy, see RFC 6962.
 
 ### get-leaves
 ```
-POST <base url>/st/v0/get-leaves
+GET <base url>/st/v0/get-leaves
 ```
 
 Input:
-- "start_size": human-readable index of the first leaf to retrieve.
-- "end_size": human-readable index of the last leaf to retrieve.
+- "start_size": index of the first leaf to retrieve, as an
+  ASCII-encoded decimal number.
+- "end_size": index of the last leaf to retrieve, as an ASCII-encoded
+  decimal number.
 
 Output on success:
-- "shard_hint": `tree_leaf.message.shard_hint` as a human-readable
-  number.
-- "checksum": `tree_leaf.message.checksum` in hex.
-- "signature_scheme": human-readable number that identifies a
-  signature scheme.
-- "signature": `tree_leaf.signature` in hex.
-- "key_hash": `tree_leaf.key_hash` in hex.
+- "shard_hint": `tree_leaf.message.shard_hint` as an ASCII-encoded
+  decimal number.
+- "checksum": `tree_leaf.message.checksum`, hex-encoded.
+- "signature": `tree_leaf.signature_over_message`, hex-encoded.
+- "key_hash": `tree_leaf.key_hash`, hex-encoded.
 
 All fields may be repeated to return more than one leaf.  The first
 value in each list refers to the first leaf, the second value in each
@@ -307,31 +311,32 @@ must be returned on HTTP status code 200 OK.
 
 ### add-leaf
 ```
-POST <base url>/st/v0/add-leaf
+GET <base url>/st/v0/add-leaf
 ```
 
 Input:
-- "shard_hint": human-readable decimal number in the log's shard
-  interval that the submitter selected.
+- "shard_hint": number within the log's shard interval as an
+  ASCII-encoded decimal number.
 - "checksum": the cryptographic checksum that the submitter wants to
-  log in hex. note: fixed length 64 bytes, validated by the server
-  somehow
-- "signature": the submitter's signature over `tree_leaf.message`.
-  The result is hex-encoded.
+  log, hex-encoded.
+- "signature_over_message": the submitter's signature over
+  `tree_leaf.message`, hex-encoded.
 - "verification_key": the submitter's public verification key.  The
   key is encoded as defined in
-  [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2).   The result is hex-encoded.
-- "domain_hint": a domain name that indicates where
-  `tree_leaf.key_hash` can be retrieved as a DNS TXT resource record
-  in hex.
+  [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2)
+  and then hex-encoded.
+- "domain_hint": domain name indicating where `tree_leaf.key_hash`
+  can be found as a DNS TXT resource record.
 
 Output on success:
 - None
 
-The submitted entry will not be accepted if the signature is invalid
-or if the downloaded verification-key hash does not match.  The
-submitted entry may also not be accepted if the second-level domain
-name exceeded its rate limit.  By coupling every add-leaf request with
+The submission will not be accepted if `signature_over_message` is
+invalid or if the key hash retrieved using `domain_hint` does not
+match a hash over `verification_key`.
+
+The submission may also not be accepted if the second-level domain
+name exceeded its rate limit.  By coupling every add-leaf request to
 a second-level domain, it becomes more difficult to spam the log.  You
 would need an excessive number of domain names.  This becomes costly
 if free domain names are rejected.
@@ -339,31 +344,30 @@ if free domain names are rejected.
 The log does not publish domain-name to key bindings because key
 management is more complex than that.
 
-Public logging should not be assumed until an inclusion proof is
-available.  An inclusion proof should not be relied upon unless it
-leads up to a trustworthy signed tree head.  Witness cosigning can
-make a tree head trustworthy.
+Public logging should not be assumed to have happened until an
+inclusion proof is available.  An inclusion proof should not be relied
+upon unless it leads up to a trustworthy signed tree head.  Witness
+cosigning can make a tree head trustworthy.
 
 ### add-cosignature
 ```
-POST <base url>/st/v0/add-cosignature
+GET <base url>/st/v0/add-cosignature
 ```
 
 Input:
-- "signature": an Ed25519 signature over `tree_head`.  The result is
-  hex-encoded.
-- "key_hash": a hash of the witness' public verification key that can
-  be used to verify the signature.  The key is encoded as defined in
+- "signature": Ed25519 signature over `tree_head`, hex-encoded.
+- "key_hash": hash of the witness' public verification key that can be
+  used to verify `signature`.  The key is encoded as defined in
   [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2),
-  and then hashed using SHA256.  The hash value is hex-encoded.
+  and then hashed using SHA256. The hash value is hex-encoded.
 
 Output on success:
 - None
 
-The key-hash can be used to identify which witness signed the log's
-tree head.  A key-hash, rather than the full verification key, is used
-to force the verifier to locate the appropriate key and make an
-explicit trust decision.
+`key_hash` can be used to identify which witness signed the log's tree
+head.  A key-hash, rather than the full verification key, is used to
+motivate verifiers to locate the appropriate key and make an explicit
+trust decision.
 
 ## Summary of log parameters
 - **Public key**: an Ed25519 verification key that can be used to
