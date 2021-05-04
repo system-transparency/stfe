@@ -12,7 +12,7 @@ The log implements an HTTP(S) API:
 - Requests to the log use the HTTP GET method.
 - Input data (in requests) and output data (in responses) are
   expressed as ASCII-encoded key/value pairs.
-- Requests use HTTP request headers for input data while responses use
+- Requests use HTTP entity headers for input data while responses use
   the HTTP message body for output data.
 - Binary data is hex-encoded before being transmitted.
 
