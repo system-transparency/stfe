@@ -74,46 +74,46 @@ our design is that this additional tooling makes no outbound connections.  The
 above data flows are thus preserved.
 
 ### A bird's view
-A central part of any transparency log is the data.  The data is stored by the
+A central part of any transparency log is the data stored by the log.  The data is stored by the
 leaves of an append-only Merkle tree.  Our leaf structure contains four fields:
 - **shard_hint**: a number that binds the leaf to a particular _shard interval_.
 Sharding means that the log has a predefined time during which logging requests
-will be accepted.  Once elapsed, the log can be shut down.
+are accepted.  Once elapsed, the log can be shut down.
 - **checksum**: a cryptographic hash of some opaque data.  The log never
-sees the opaque data; just the hash.
+sees the opaque data; just the hash made by the data publisher.
 - **signature**: a digital signature that is computed by the data publisher over
 the leaf's shard hint and checksum.
-- **key_hash**: a cryptographic hash of the public verification key that can be
-used to verify the leaf's signature.
+- **key_hash**: a cryptographic hash of the data publisher's public verification key that can be
+used to verify the signature.
 
 #### Step 1 - preparing a logging request
 The data publisher selects a shard hint and a checksum that should be logged.
 For example, the shard hint could be "logs that are active during 2021".  The
-checksum might be a hashed release file or something else.
+checksum might be the hash of a release file.
 
-The data publisher signs the selected shard hint and checksum using their secret
+The data publisher signs the selected shard hint and checksum using a secret
 signing key.  Both the signed message and the signature is stored
 in the leaf for anyone to verify.  Including a shard hint in the signed message
-ensures that the good Samaritan cannot change it to log all leaves from an
+ensures that a good Samaritan cannot change it to log all leaves from an
 earlier shard into a newer one.
 
-The hashed public verification key is also stored in the leaf.  This makes it
-easy to attribute the leaf to the signing entity.  For example, a data publisher
+A hash of the public verification key is also stored in the leaf.  This makes it
+possible to attribute the leaf to the data publisher.  For example, a data publisher
 that monitors the log can look for leaves that match their own key hash(es).
 
-A hash, rather than the full public verification key, is used to force the
-verifier to locate the key and trust it explicitly.  Not disclosing the public
-verification key in the leaf makes it more difficult to use an untrusted key _by
+A hash, rather than the full public verification key, is used to motivate the
+verifier to locate the key and make an explicit trust decision.  Not disclosing the public
+verification key in the leaf makes it more unlikely that someone would use an untrusted key _by
 mistake_.
 
 #### Step 2 - submitting a logging request
 The log implements an HTTP(S) API.  Input and output is human-readable and uses
 a simple key-value format.  A more complex parser like JSON is not needed
-because the exchanged data structures are basic enough.
+because the exchanged data structures are primitive enough.
 
 The data publisher submits their shard hint, checksum, signature, and public
 verification key as key-value pairs.  The log will use the public verification
-key to check that the signature is valid, then hash it to construct the leaf.
+key to check that the signature is valid, then hash it to construct the `key_hash` part of the leaf.
 
 The data publisher also submits a _domain hint_.  The log will download a DNS
 TXT resource record based on the provided domain name.  The downloaded result
@@ -126,8 +126,8 @@ Using DNS to combat spam is convenient because many data publishers already have
 a domain name.  A single domain name is also relatively cheap.  Another
 benefit is that the same anti-spam mechanism can be used across several
 independent logs without coordination.  This is important because a healthy log
-ecosystem needs more than one log to be reliable.  DNS also has built-in
-caching that can be influenced by setting TTLs accordingly.
+ecosystem needs more than one log in order to be reliable.  DNS also has built-in
+caching which data publishers can influence by setting TTLs accordingly.
 
 The submitter's domain hint is not part of the leaf because key management is
 more complex than that.  A separate project should focus on transparent key
@@ -136,26 +136,26 @@ management.  The scope of our work is transparent _key-usage_.
 The log will _try_ to incorporate a leaf into the Merkle tree if a logging
 request is accepted.  There are no _promises of public logging_ as in
 Certificate Transparency.  Therefore, the submitter needs to wait for an
-inclusion proof before concluding that the request succeeded.  Not having
+inclusion proof to appear before concluding that the logging request succeeded.  Not having
 inclusion promises makes the log less complex.
 
 #### Step 3 - distributing proofs of public logging
 The data publisher is responsible for collecting all cryptographic proofs that
 their end-users will need to enforce public logging.  The collection below
-should be downloadable from the same place that the data is normally hosted.
+should be downloadable from the same place that published data is normally hosted.
 1. **Opaque data**: the data publisher's opaque data.
 2. **Shard hint**: the data publisher's selected shard hint.
 3. **Signature**: the data publisher's leaf signature.
 4. **Cosigned tree head**: the log's tree head and a _list of signatures_ that
 state it is consistent with prior history.
-5. **Inclusion proof**: a proof of inclusion that is based on the leaf and tree
+5. **Inclusion proof**: a proof of inclusion based on the logged leaf and tree
 head in question.
 
-The public verification key is known.  Therefore, the first three fields are
+The data publisher's public verification key is known.  Therefore, the first three fields are
 sufficient to reconstruct the logged leaf.  The leaf's signature can be
 verified.  The final two fields then prove that the leaf is in the log.  If the
 leaf is included in the log, any monitor can detect that there is a new
-signature for a data publisher's public verification key.
+signature made by a given data publisher, 's public verification key.
 
 The catch is that the proof of logging is only as convincing as the tree head
 that the inclusion proof leads up to.  To bypass public logging, the attacker
@@ -191,7 +191,7 @@ signature tools like `gpg`, `ssh-keygen -Y`, and `signify` cannot verify proofs
 of public logging.  Therefore, _additional tooling must already be installed by
 end-users_.  That tooling should verify hashes using the log's hash function.
 That tooling should also verify signatures using the log's signature scheme.
-Signed messages include tree heads as well as tree leaves.
+Both tree heads and tree leaves are being signed.
 
 #### Why not let the data publisher pick their own signature scheme and format?
 Agility introduces complexity and difficult policy questions.  For example,
@@ -202,13 +202,13 @@ There is not much we can do if a data publisher _refuses_ to rely on the log's
 hash function or signature scheme.
 
 #### What if the data publisher must use a specific signature scheme or format?
-You may _cross-sign_ the data as follows.
-1. Sign the opaque data as you normally would. 
-2. Hash the opaque data and use that as the leaf's checksum.  Sign the leaf
-using the log's signature scheme.
+They may _cross-sign_ the data as follows.
+1. Sign the data as they're used to.
+2. Hash the data and use the result as the leaf's checksum to be logged.
+3. Sign the leaf using the log's signature scheme.
 
-First the end-user verifies that the normal signature is valid.  Then the
-end-user lets the additional tooling (that is already required) verify the rest.
+For verification, the end-user first verifies that the usual signature from step 1 is valid.  Then the
+end-user uses the additional tooling (which is already required) to verify the rest.
 Cross-signing should be a relatively comfortable upgrade path that is backwards
 compatible.  The downside is that the data publisher may need to manage an
 additional key-pair.
