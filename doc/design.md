@@ -245,6 +245,7 @@ Add more key questions and answers.
 - Why we removed identifier field from the leaf
 - Explain `latest`, `stable` and `cosigned` tree head.
 - Privacy aspects
+- How does this whole thing work with more than one log?
 
 ## Concluding remarks
 Example of binary transparency and reproducible builds.
