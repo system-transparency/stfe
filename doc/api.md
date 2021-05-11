@@ -109,7 +109,7 @@ struct message {
 
 struct tree_leaf {
     struct message;
-    u8 signature_over_message[32];
+    u8 signature_over_message[64];
     u8 key_hash[32];
 }
 ```
