@@ -27,7 +27,7 @@ looked-up in a public database using X as an identifier.  A rebuilder would
 verify this claim by compiling the source, comparing the hashed output to the
 claimed value.
 
-## **System<sup>CHECKSUM-LOG<sup>**:
+## **System<sup>CHECKSUM-LOG</sup>**:
 System<sup>CHECKSUM-LOG</sup> is about the claims made by a _log operator_.
 It adds _discoverability_ into System<sup>CHECKSUM</sup>.  Discoverability means
 that Verifier<sup>CHECKSUM</sup> can see all Statement<sup>CHECKSUM</sup> that
@@ -47,9 +47,7 @@ Believer<sup>CHECKSUM</sup> will accept.
 	Belief is based on two factors:
 	1. seeing a valid Statement<sup>CHECKSUM-LOG</sup>
 	2. seeing a number of valid Statement<sup>CHECKSUM-WITNESS</sup> from
-	independent instances on System<sup>CHECKSUM-WITNESS</sup>
-	
-	A _policy_ defines the exact conditions that must be met.
+	independent instances on System<sup>CHECKSUM-WITNESS</sup>.
 * **Verifier<sup>CHECKSUM-LOG</sup>**: System<sup>CHECKSUM-WITNESS</sup><br>
 	Witnesses verify the log's append-only property from their own local
 	vantage point(s).
@@ -58,7 +56,7 @@ Believer<sup>CHECKSUM</sup> will accept.
 	instance of System<sup>CHECKSUM-LOG</sup> if cryptographic proofs of log
 	misbehavior are preseneted by some Verifier<sup>CHECKSUM-LOG</sup>.
 
-## **System<sup>CHECKSUM-WITNESS<sup>**:
+## **System<sup>CHECKSUM-WITNESS</sup>**:
 System<sup>CHECKSUM-WITNESS</sup> is about making the claims of a log operator
 _trustworthy_.
 * **Claim<sup>CHECKSUM-WITNESS</sup>**:
