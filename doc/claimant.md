@@ -7,12 +7,11 @@ System<sup>CHECKSUM</sup> is about the claims made by a data publisher.
 	2. is produced by no-one but myself
 * **Statement<sup>CHECKSUM</sup>**: signed checksum<br>
 * **Claimant<sup>CHECKSUM</sup>**: data publisher<br>
-	The data publisher is a party that wants to publish some data to an
-	end-user.
+	The data publisher is a party that wants to publish some data.
 * **Believer<sup>CHECKSUM</sup>**: end-user<br>
-	Belief is based on seeing a valid Statement<sup>CHECKSUM</sup>.
+	The end-user is a party that wants to use some published data.
 * **Verifier<sup>CHECKSUM</sup>**: data publisher<br>
-	The data publisher tries to detect unwanted statements.
+	Only the data publisher can verify the above claims.
 * **Arbiter<sup>CHECKSUM</sup>**:<br>
     There's no official body.  Invalidated claims would affect reputation.
 
@@ -29,8 +28,11 @@ that makes reproducible builds available.
 	using X as an identifier
 * **Statement<sup>CHECKSUM-RB</sup>**: Statement<sup>CHECKSUM</sup>
 * **Claimant<sup>CHECKSUM-RB</sup>**: software publisher<br>
+	The software publisher is a party that wants to publish the output of a
+	reproducible build.
 * **Believer<sup>CHECKSUM-RB</sup>**: end-user<br>
-	Belief is based on seeing a valid Statement<sup>CHECKSUM-RB</sup>.
+	The end-user is a party that wants to run an executable binary that built
+	reproducibly.
 * **Verifier<sup>CHECKSUM-RB</sup>**: any interested party<br>
 	These parties try to verify the above claims.  For example:
 	* the software publisher itself (_"has my identity been compromised?"_)
@@ -53,41 +55,17 @@ Statement<sup>CHECKSUM</sup> that Believer<sup>CHECKSUM\*</sup> accept.
 	* a small subset of data publishers
 	* members of relevant consortia
 * **Believer<sup>CHECKSUM-LOG</sup>**:
-		Believer<sup>CHECKSUM\*</sup> and
-		Verifier<sup>CHECKSUM\*</sup><br>
-	Belief is based on two factors:
-	1. seeing a valid Statement<sup>CHECKSUM-LOG</sup>
-	2. seeing a number of valid Statement<sup>CHECKSUM-WITNESS</sup> from
-	independent instances of System<sup>CHECKSUM-WITNESS</sup>.
-* **Verifier<sup>CHECKSUM-LOG</sup>**: System<sup>CHECKSUM-WITNESS</sup><br>
-	Witnesses verify the log's append-only property from their own local
-	vantage point(s).
-* **Arbiter<sup>CHECKSUM-LOG</sup>**:<br>
-	There is no official body.  The ecosystem at large should stop using an
-	instance of System<sup>CHECKSUM-LOG</sup> if cryptographic proofs of log
-	misbehavior are preseneted by some Verifier<sup>CHECKSUM-LOG</sup>.
-
-## **System<sup>CHECKSUM-WITNESS</sup>**:
-System<sup>CHECKSUM-WITNESS</sup> is about making the claims of a log operator
-_trustworthy_.
-* **Claim<sup>CHECKSUM-WITNESS</sup>**:
-	_I, witness, claim that_:
-	1. System<sup>CHECKSUM-LOG</sup> provides a locally consistent append-only
-	log
-* **Statement<sup>CHECKSUM-WITNESS</sup>**: signed tree head
-* **Claimant<sup>CHECKSUM-WITNESS</sup>**: third party<br>
-	Examples of parties that may take on this role include:
+	* Believer<sup>CHECKSUM\*</sup>
+	* Verifier<sup>CHECKSUM\*</sup><br>
+* **Verifier<sup>CHECKSUM-LOG</sup>**: third parties<br>
+	These parties verify the above claims.  Examples include:
 	* members of relevant consortia
 	* non-profits and other reputable organizations
 	* security enthusiasts and researchers
 	* log operators (cross-ecosystem)
 	* monitors (cross-ecosystem)
 	* a small subset of data publishers (cross-ecosystem)
-* **Believer<sup>CHECKSUM-WITNESS</sup>**:
-		Believer<sup>CHECKSUM\*</sup> and
-		Verifier<sup>CHECKSUM\*</sup><br>
-	Belief is based on seeing a valid Statement<sup>CHECKSUM-WITNESS</sup>.
-* **Verifier<sup>CHECKSUM-WITNESS</sup>**: n/a <br>
-	Witnesses are trusted parties.  Security is based on _strength in numbers_.
-* **Arbiter<sup>CHECKSUM-WITNESS</sup>**:<br>
-	There is no official body.  Invalidated claims would affect reputation.
+* **Arbiter<sup>CHECKSUM-LOG</sup>**:<br>
+	There is no official body.  The ecosystem at large should stop using an
+	instance of System<sup>CHECKSUM-LOG</sup> if cryptographic proofs of log
+	misbehavior are preseneted by some Verifier<sup>CHECKSUM-LOG</sup>.
