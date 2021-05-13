@@ -1,37 +1,48 @@
 # Claimant model
-## **System<sup>CHECKSUM</sup>**:
-System<sup>CHECKSUM</sup> is about the claims made by a _data publisher_.
+## **System<sup>CHECKSUM</sup>**
+System<sup>CHECKSUM</sup> is about the claims made by a data publisher.
 * **Claim<sup>CHECKSUM</sup>**:
 	_I, data publisher, claim that the data_:
 	1. has cryptographic hash X
-	2. can be located using X as an identifier
-	3. has properties Y (_"ecosystem specific_")
+	2. is produced by no-one but myself
 * **Statement<sup>CHECKSUM</sup>**: signed checksum<br>
 * **Claimant<sup>CHECKSUM</sup>**: data publisher<br>
 	The data publisher is a party that wants to publish some data to an
 	end-user.
 * **Believer<sup>CHECKSUM</sup>**: end-user<br>
 	Belief is based on seeing a valid Statement<sup>CHECKSUM</sup>.
-* **Verifier<sup>CHECKSUM</sup>**: any interested party<br>
-	These parties try to verify the above claims.  For example:
-	* the data publisher itself (_"has my identity been compromised?"_)
-	* third-parties that want to look further into the data (_"ecosystem
-	specific_")
+* **Verifier<sup>CHECKSUM</sup>**: data publisher<br>
+	The data publisher tries to detect unwanted statements.
 * **Arbiter<sup>CHECKSUM</sup>**:<br>
     There's no official body.  Invalidated claims would affect reputation.
 
-**Example.**
-The published data could be an executable binary from a reproducible build.  The
-ecosystem-specific claim would be that the corresponding source code can be
-looked-up in a public database using X as an identifier.  A rebuilder would
-verify this claim by compiling the source, comparing the hashed output to the
-claimed value.
+System<sup>CHECKSUM\*</sup> can be defined to make more specific claims.  Below
+is a reproducible builds example.
+
+### **System<sup>CHECKSUM-RB</sup>**:
+System<sup>CHECKSUM-RB</sup> is about the claims made by a _software publisher_
+that makes reproducible builds available.
+* **Claim<sup>CHECKSUM-RB</sup>**:
+	_I, software publisher, claim that the data_:
+	1. has cryptographic hash X
+	2. is the output of a reproducible build for which the source can be located
+	using X as an identifier
+* **Statement<sup>CHECKSUM-RB</sup>**: Statement<sup>CHECKSUM</sup>
+* **Claimant<sup>CHECKSUM-RB</sup>**: software publisher<br>
+* **Believer<sup>CHECKSUM-RB</sup>**: end-user<br>
+	Belief is based on seeing a valid Statement<sup>CHECKSUM-RB</sup>.
+* **Verifier<sup>CHECKSUM-RB</sup>**: any interested party<br>
+	These parties try to verify the above claims.  For example:
+	* the software publisher itself (_"has my identity been compromised?"_)
+	* rebuilders that check for locatability and reproducibility
+* **Arbiter<sup>CHECKSUM-RB</sup>**:<br>
+    There's no official body.  Invalidated claims would affect reputation.
 
 ## **System<sup>CHECKSUM-LOG</sup>**:
 System<sup>CHECKSUM-LOG</sup> is about the claims made by a _log operator_.
-It adds _discoverability_ into System<sup>CHECKSUM</sup>.  Discoverability means
-that Verifier<sup>CHECKSUM</sup> can see all Statement<sup>CHECKSUM</sup> that
-Believer<sup>CHECKSUM</sup> will accept.
+It adds _discoverability_ into System<sup>CHECKSUM\*</sup>.  Discoverability
+means that Verifier<sup>CHECKSUM\*</sup> can see all
+Statement<sup>CHECKSUM</sup> that Believer<sup>CHECKSUM\*</sup> accept.
 
 * **Claim<sup>CHECKSUM-LOG</sup>**:
 	_I, log operator, make available:_
@@ -42,12 +53,12 @@ Believer<sup>CHECKSUM</sup> will accept.
 	* a small subset of data publishers
 	* members of relevant consortia
 * **Believer<sup>CHECKSUM-LOG</sup>**:
-		Believer<sup>CHECKSUM</sup> and
-		Verifier<sup>CHECKSUM</sup><br>
+		Believer<sup>CHECKSUM\*</sup> and
+		Verifier<sup>CHECKSUM\*</sup><br>
 	Belief is based on two factors:
 	1. seeing a valid Statement<sup>CHECKSUM-LOG</sup>
 	2. seeing a number of valid Statement<sup>CHECKSUM-WITNESS</sup> from
-	independent instances on System<sup>CHECKSUM-WITNESS</sup>.
+	independent instances of System<sup>CHECKSUM-WITNESS</sup>.
 * **Verifier<sup>CHECKSUM-LOG</sup>**: System<sup>CHECKSUM-WITNESS</sup><br>
 	Witnesses verify the log's append-only property from their own local
 	vantage point(s).
@@ -73,8 +84,8 @@ _trustworthy_.
 	* monitors (cross-ecosystem)
 	* a small subset of data publishers (cross-ecosystem)
 * **Believer<sup>CHECKSUM-WITNESS</sup>**:
-		Believer<sup>CHECKSUM</sup> and
-		Verifier<sup>CHECKSUM</sup><br>
+		Believer<sup>CHECKSUM\*</sup> and
+		Verifier<sup>CHECKSUM\*</sup><br>
 	Belief is based on seeing a valid Statement<sup>CHECKSUM-WITNESS</sup>.
 * **Verifier<sup>CHECKSUM-WITNESS</sup>**: n/a <br>
 	Witnesses are trusted parties.  Security is based on _strength in numbers_.
