@@ -54,27 +54,39 @@ func (sth *SignedTreeHead) ToHTTP() ([]byte, error) {
 		hdr.Add(HeaderSignature, hex.EncodeToString(sigident.Signature[:]))
 		hdr.Add(HeaderKeyHash, hex.EncodeToString(sigident.KeyHash[:]))
 	}
-
-	buf := bytes.NewBuffer(nil)
-	if err := hdr.Write(buf); err != nil {
-		return nil, fmt.Errorf("hdr.Write(): %v", err) // should not happen
-	}
-	return buf.Bytes(), nil
+	return headerToBytes(hdr)
 }
 
 // ToHTTP returns a consistency proof as HTTP key-value pairs
-func (p *ConsistencyProof) ToHTTP() []byte {
-	return nil // TODO
+func (p *ConsistencyProof) ToHTTP() ([]byte, error) {
+	hdr := http.Header{}
+	hdr.Add(HeaderNewSize, strconv.FormatUint(p.NewSize, 10))
+	hdr.Add(HeaderOldSize, strconv.FormatUint(p.OldSize, 10))
+	for _, hash := range p.Path {
+		hdr.Add(HeaderConsistencyPath, hex.EncodeToString(hash[:]))
+	}
+	return headerToBytes(hdr)
 }
 
 // ToHTTP returns an inclusion proof as HTTP key-value pairs
-func (p *InclusionProof) ToHTTP() []byte {
-	return nil // TODO
+func (p *InclusionProof) ToHTTP() ([]byte, error) {
+	hdr := http.Header{}
+	hdr.Add(HeaderTreeSize, strconv.FormatUint(p.TreeSize, 10))
+	hdr.Add(HeaderLeafIndex, strconv.FormatUint(p.LeafIndex, 10))
+	for _, hash := range p.Path {
+		hdr.Add(HeaderInclusionPath, hex.EncodeToString(hash[:]))
+	}
+	return headerToBytes(hdr)
 }
 
 // ToHTTP returns a leaf as HTTP key-value pairs
-func (l *Leaf) ToHTTP() []byte {
-	return nil // TODO
+func (l *Leaf) ToHTTP() ([]byte, error) {
+	hdr := http.Header{}
+	hdr.Add(HeaderShardHint, strconv.FormatUint(l.ShardHint, 10))
+	hdr.Add(HeaderChecksum, hex.EncodeToString(l.Checksum[:]))
+	hdr.Add(HeaderSignature, hex.EncodeToString(l.Signature[:]))
+	hdr.Add(HeaderKeyHash, hex.EncodeToString(l.KeyHash[:]))
+	return headerToBytes(hdr)
 }
 
 // SignedTreeHeadFromHTTP parses a signed tree head from HTTP key-value pairs
@@ -164,4 +176,13 @@ func decodeHex(str string, out []byte) error {
 	}
 	copy(out, buf)
 	return nil
+}
+
+// headerToBytes encodes a header as HTTP key-value pairs
+func headerToBytes(hdr http.Header) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	if err := hdr.Write(buf); err != nil {
+		return nil, fmt.Errorf("hdr.Write(): %v", err) // should not happen
+	}
+	return buf.Bytes(), nil
 }

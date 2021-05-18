@@ -57,6 +57,15 @@ func TestSignedTreeHeadToHTTP(t *testing.T) {
 	compareHeaderWithMap(t, description, hdr, want)
 }
 
+func TestConsistencyProofToHTTP(t *testing.T) { // TODO
+}
+
+func TestInclusionProofToHTTP(t *testing.T) { // TODO
+}
+
+func TestLeafToHTTP(t *testing.T) { // TODO
+}
+
 func TestSignedTreeHeadFromHTTP(t *testing.T) {
 	for _, table := range []struct {
 		description string
