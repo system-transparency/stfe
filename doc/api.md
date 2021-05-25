@@ -9,11 +9,12 @@ It can be found
 This is a work-in-progress document that may be moved or modified.
 
 ## Overview
-The log implements an HTTP(S) API:
+Logs implement an HTTP(S) API for accepting requests and sending
+responses.
 
 - Input data in requests and output data in responses are expressed as
   ASCII-encoded key/value pairs.
-- Requests with input data use POST to send the data to the log.
+- Requests with input data use HTTP POST to send the data to a log.
 - Binary data is hex-encoded before being transmitted.
 
 The motivation for using a text based key/value format for request and
@@ -27,12 +28,12 @@ wire-format in use by the Tor project.
 
 ## Primitives
 ### Cryptography
-The log uses the same Merkle tree hash strategy as
+Logs use the same Merkle tree hash strategy as
 [RFC 6962,§2](https://tools.ietf.org/html/rfc6962#section-2).
 The hash functions must be
 [SHA256](https://csrc.nist.gov/csrc/media/publications/fips/180/4/final/documents/fips180-4-draft-aug2014.pdf).
-The log must sign tree heads using
-[Ed25519](https://tools.ietf.org/html/rfc8032).  The log's witnesses
+Logs must sign tree heads using
+[Ed25519](https://tools.ietf.org/html/rfc8032).  Log witnesses
 must also sign tree heads using Ed25519.
 
 All other parts that are not Merkle tree related also use SHA256 as
@@ -73,7 +74,7 @@ you may use it though.  The main point of using Trunnel is that it
 makes a simple format explicit and unambiguous.
 
 #### Merkle tree head
-Tree heads are signed by the log and its witnesses.  It contains a
+Tree heads are signed both by a log and its witnesses.  It contains a
 timestamp, a tree size, and a root hash.  The timestamp is included so
 that monitors can ensure _liveliness_.  It is the time since the UNIX
 epoch (January 1, 1970 00:00 UTC) in seconds.  The tree size
@@ -93,7 +94,7 @@ not cosign a tree head if it is inconsistent with prior history or if
 the timestamp is backdated or future-dated more than 12 hours.
 
 #### Merkle tree leaf
-The log supports a single leaf type.  It contains a shard hint, a
+Logs support a single leaf type.  It contains a shard hint, a
 checksum over whatever the submitter wants to log a checksum for, a
 signature that the submitter computed over the shard hint and the
 checksum, and a hash of the submitter's public verification key, that
@@ -113,8 +114,8 @@ struct tree_leaf {
 ```
 
 `message` is composed of the `shard_hint`, chosen by the submitter to
-match the shard interval for the log, and the submitter's `checksum`
-to be logged.
+match the shard interval for the log it's submitting to, and the
+submitter's `checksum` to be logged.
 
 `signature_over_message` is a signature over `message`, using the
 submitter's verification key. It must be possible to verify the
@@ -142,13 +143,13 @@ format as the input data, i.e. as ASCII key/value pairs on the format
 `Key=Value`
 
 The HTTP status code is 200 OK to indicate success.  A different HTTP
-status code is used to indicate failure, in which case the log should
+status code is used to indicate failure, in which case a log should
 respond with a human-readable string describing what went wrong using
 the key `error`. Example: `error=Invalid signature.`.
 
 ### get-tree-head-cosigned
 Returns the latest cosigned tree head. Used together with
-`get-proof-by-hash` and `get-consistency-proof` for verifying the log.
+`get-proof-by-hash` and `get-consistency-proof` for verifying the tree.
 
 ```
 GET <base url>/st/v0/get-tree-head-cosigned
@@ -306,7 +307,7 @@ value in each list refers to the first leaf, the second value in each
 list refers to the second leaf, etc.  The size of each list must
 match.
 
-The log may return fewer leaves than requested.  At least one leaf
+A log may return fewer leaves than requested.  At least one leaf
 must be returned on HTTP status code 200 OK.
 
 Example: `echo "start_size=42
@@ -340,11 +341,11 @@ match a hash over `verification_key`.
 
 The submission may also not be accepted if the second-level domain
 name exceeded its rate limit.  By coupling every add-leaf request to
-a second-level domain, it becomes more difficult to spam the log.  You
+a second-level domain, it becomes more difficult to spam logs.  You
 would need an excessive number of domain names.  This becomes costly
 if free domain names are rejected.
 
-The log does not publish domain-name to key bindings because key
+Logs don't publish domain-name to key bindings because key
 management is more complex than that.
 
 Public logging should not be assumed to have happened until an
@@ -373,7 +374,7 @@ Input:
 Output on success:
 - None
 
-`key_hash` can be used to identify which witness signed the log's tree
+`key_hash` can be used to identify which witness signed the tree
 head.  A key-hash, rather than the full verification key, is used to
 motivate verifiers to locate the appropriate key and make an explicit
 trust decision.
@@ -382,11 +383,13 @@ Example: `echo "signature=d1b15061d0f287847d066630339beaa0915a6bbb77332c3e839a32
 key_hash=662ce093682280f8fbea9939abe02fdba1f0dc39594c832b411ddafcffb75b1d" | curl --data-binary @- localhost/st/v0/add-cosignature`
 
 ## Summary of log parameters
-- **Public key**: an Ed25519 verification key that can be used to
-  verify the log's tree head signatures.
-- **Log identifier**: the hashed public verification key using SHA256.
-- **Shard interval**: the time during which the log accepts logging
-  requests.  The shard interval's start and end are inclusive and
-  expressed as the number of seconds since the UNIX epoch.
-- **Base URL**: where the log can be reached over HTTP(S).  It is the
-  prefix before a version-0 specific endpoint.
+- **Public key**: The Ed25519 verification key to be used for
+  verifying tree head signatures.
+- **Log identifier**: The public verification key `Public key` hashed
+  using SHA256.
+- **Shard interval start**: The earliest time at which logging
+  requests are accepted as the number of seconds since the UNIX epoch.
+- **Shard interval end**: The latest time at which logging
+  requests are accepted as the number of seconds since the UNIX epoch.
+- **Base URL**: Where the log can be reached over HTTP(S).  It is the
+  prefix to be used to construct a version 0 specific endpoint.
