@@ -11,11 +11,9 @@ This is a work-in-progress document that may be moved or modified.
 ## Overview
 The log implements an HTTP(S) API:
 
-- Requests to the log use the HTTP GET method.
-- Input data (in requests) and output data (in responses) are
-  expressed as ASCII-encoded key/value pairs.
-- Requests use HTTP entity headers for input data while responses use
-  the HTTP message body for output data.
+- Input data in requests and output data in responses are expressed as
+  ASCII-encoded key/value pairs.
+- Requests with input data use POST to send the data to the log.
 - Binary data is hex-encoded before being transmitted.
 
 The motivation for using a text based key/value format for request and
@@ -136,21 +134,17 @@ constraint is that it must be a valid HTTP(S) URL that can have the
 URL could be
 `https://log.example.com/2021/st/v0/get-signed-tree-head`.
 
-Input data (in requests) is sent as ASCII key/value pairs as HTTP
-entity headers, with their keys prefixed with the string
-`stlog-`. Example: For sending `treee_size=4711` as input a client
-would send the HTTP header `stlog-tree_size: 4711`.
+Input data (in requests) is POST:ed in the HTTP message body as ASCII
+key/value pairs.
 
 Output data (in replies) is sent in the HTTP message body in the same
 format as the input data, i.e. as ASCII key/value pairs on the format
-`Key: Value`. Example: For sending `tree_size=4711` as output a log
-would send an HTTP message body consisting of `stlog-tree_size: 4711`.
+`Key=Value`
 
 The HTTP status code is 200 OK to indicate success.  A different HTTP
-status code is used to indicate failure.  The log should set the value
-value for the key `error` to a human-readable string describing what
-went wrong.  For example, `error: invalid signature`, `error: rate
-limit exceeded`, or `error: unknown leaf hash`.
+status code is used to indicate failure, in which case the log should
+respond with a human-readable string describing what went wrong using
+the key `error`. Example: `error=Invalid signature.`.
 
 ### get-tree-head-cosigned
 Returns the latest cosigned tree head. Used together with
@@ -237,7 +231,7 @@ There is exactly one `signature` and one `key_hash` field. The
 
 ### get-proof-by-hash
 ```
-GET <base url>/st/v0/get-proof-by-hash
+POST <base url>/st/v0/get-proof-by-hash
 ```
 
 Input:
@@ -260,9 +254,12 @@ other words, `SHA256(0x00 | tree_leaf)`.
 proof of zero or more node hashes.  The order of node hashes follow
 from the hash strategy, see RFC 6962.
 
+Example: `echo "leaf_hash=241fd4538d0a35c2d0394e4710ea9e6916854d08f62602fb03b55221dcdac90f
+tree_size=4711" | curl --data-binary @- localhost/st/v0/get-proof-by-hash`
+
 ### get-consistency-proof
 ```
-GET <base url>/st/v0/get-consistency-proof
+POST <base url>/st/v0/get-consistency-proof
 ```
 
 Input:
@@ -283,9 +280,12 @@ Output on success:
 consistency proof of zero or more node hashes.  The order of node
 hashes follow from the hash strategy, see RFC 6962.
 
+Example: `echo "new_size=4711
+old_size=42" | curl --data-binary @- localhost/st/v0/get-consistency-proof`
+
 ### get-leaves
 ```
-GET <base url>/st/v0/get-leaves
+POST <base url>/st/v0/get-leaves
 ```
 
 Input:
@@ -309,9 +309,12 @@ match.
 The log may return fewer leaves than requested.  At least one leaf
 must be returned on HTTP status code 200 OK.
 
+Example: `echo "start_size=42
+end_size=4711" | curl --data-binary @- localhost/st/v0/get-leaves`
+
 ### add-leaf
 ```
-GET <base url>/st/v0/add-leaf
+POST <base url>/st/v0/add-leaf
 ```
 
 Input:
@@ -349,9 +352,15 @@ inclusion proof is available.  An inclusion proof should not be relied
 upon unless it leads up to a trustworthy signed tree head.  Witness
 cosigning can make a tree head trustworthy.
 
+Example: `echo "shard_hint=1640995200
+checksum=cfa2d8e78bf273ab85d3cef7bde62716261d1e42626d776f9b4e6aae7b6ff953
+signature_over_message=c026687411dea494539516ee0c4e790c24450f1a4440c2eb74df311ca9a7adf2847b99273af78b0bda65dfe9c4f7d23a5d319b596a8881d3bc2964749ae9ece3
+verification_key=c9a674888e905db1761ba3f10f3ad09586dddfe8581964b55787b44f318cbcdf
+domain_hint=example.com" | curl --data-binary @- localhost/st/v0/add-leaf`
+
 ### add-cosignature
 ```
-GET <base url>/st/v0/add-cosignature
+POST <base url>/st/v0/add-cosignature
 ```
 
 Input:
@@ -368,6 +377,9 @@ Output on success:
 head.  A key-hash, rather than the full verification key, is used to
 motivate verifiers to locate the appropriate key and make an explicit
 trust decision.
+
+Example: `echo "signature=d1b15061d0f287847d066630339beaa0915a6bbb77332c3e839a32f66f1831b69c678e8ca63afd24e436525554dbc6daa3b1201cc0c93721de24b778027d41af
+key_hash=662ce093682280f8fbea9939abe02fdba1f0dc39594c832b411ddafcffb75b1d" | curl --data-binary @- localhost/st/v0/add-cosignature`
 
 ## Summary of log parameters
 - **Public key**: an Ed25519 verification key that can be used to
