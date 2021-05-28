@@ -133,7 +133,7 @@ Every log has a base URL that identifies it uniquely.  The only
 constraint is that it must be a valid HTTP(S) URL that can have the
 `/st/v0/<endpoint>` suffix appended.  For example, a complete endpoint
 URL could be
-`https://log.example.com/2021/st/v0/get-signed-tree-head`.
+`https://log.example.com/2021/st/v0/get-tree-head-cosigned`.
 
 Input data (in requests) is POST:ed in the HTTP message body as ASCII
 key/value pairs.
