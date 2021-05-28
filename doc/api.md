@@ -163,8 +163,9 @@ Output on success:
   seconds since the UNIX epoch.
 - `tree_size`: `tree_head.tree_size` ASCII-encoded decimal number.
 - `root_hash`: `tree_head.root_hash` hex-encoded.
-- `signature`: hex-encoded Ed25519 signature over `tree_head`
-  serialzed as described in section `Merkle tree head`.
+- `signature`: hex-encoded Ed25519 signature over `timestamp`,
+  `tree_size` and `root_hash` serialized into a `tree_head` as
+  described in section `Merkle tree head`.
 - `key_hash`: a hash of the public verification key (belonging to
   either the log or to one of its witnesses), which can be used to
   verify the most recent `signature`.  The key is encoded as defined
@@ -192,8 +193,9 @@ Output on success:
   seconds since the UNIX epoch.
 - `tree_size`: `tree_head.tree_size` ASCII-encoded decimal number.
 - `root_hash`: `tree_head.root_hash` hex-encoded.
-- `signature`: hex-encoded Ed25519 signature over `tree_head`
-  serialzed as described in section `Merkle tree head`.
+- `signature`: hex-encoded Ed25519 signature over `timestamp`,
+  `tree_size` and `root_hash` serialized into a `tree_head` as
+  described in section `Merkle tree head`.
 - `key_hash`: a hash of the log's public verification key, which can
   be used to verify `signature`.  The key is encoded as defined in
   [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2),
@@ -219,8 +221,9 @@ Output on success:
   seconds since the UNIX epoch.
 - `tree_size`: `tree_head.tree_size` ASCII-encoded decimal number.
 - `root_hash`: `tree_head.root_hash` hex-encoded.
-- `signature`: hex-encoded Ed25519 signature over `tree_head`
-  serialzed as described in section `Merkle tree head`.
+- `signature`: hex-encoded Ed25519 signature over `timestamp`,
+  `tree_size` and `root_hash` serialized into a `tree_head` as
+  described in section `Merkle tree head`.
 - `key_hash`: a hash of the log's public verification key that can be
   used to verify `signature`.  The key is encoded as defined in
   [RFC 8032, section 5.1.2](https://tools.ietf.org/html/rfc8032#section-5.1.2),
