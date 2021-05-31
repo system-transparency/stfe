@@ -3,18 +3,18 @@ package main
 
 import (
 	"context"
+	"crypto"
+	"crypto/ed25519"
+	"encoding/hex"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
-
-	"crypto/ed25519"
-	"encoding/base64"
-	"net/http"
-	"os/signal"
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
@@ -25,18 +25,15 @@ import (
 )
 
 var (
-	httpEndpoint    = flag.String("http_endpoint", "localhost:6965", "host:port specification of where stfe serves clients")
-	rpcBackend      = flag.String("log_rpc_server", "localhost:6962", "host:port specification of where Trillian serves clients")
-	prefix          = flag.String("prefix", "st/v1", "a prefix that proceeds each endpoint path")
-	trillianID      = flag.Int64("trillian_id", 0, "log identifier in the Trillian database")
-	deadline        = flag.Duration("deadline", time.Second*10, "deadline for backend requests")
-	key             = flag.String("key", "", "base64-encoded Ed25519 signing key")
-	submitterPolicy = flag.Bool("submitter_policy", false, "whether there is any submitter namespace policy (default: none, accept unregistered submitter namespaces)")
-	witnessPolicy   = flag.Bool("witness_policy", false, "whether there is any witness namespace policy (default: none, accept unregistered witness namespaces)")
-	submitters      = flag.String("submitters", "", "comma-separated list of trusted submitter namespaces in base64 (default: none)")
-	witnesses       = flag.String("witnesses", "", "comma-separated list of trusted submitter namespaces in base64 (default: none)")
-	maxRange        = flag.Int64("max_range", 10, "maximum number of entries that can be retrived in a single request")
-	interval        = flag.Duration("interval", time.Minute*10, "interval used to rotate the log's cosigned STH")
+	httpEndpoint = flag.String("http_endpoint", "localhost:6965", "host:port specification of where stfe serves clients")
+	rpcBackend   = flag.String("log_rpc_server", "localhost:6962", "host:port specification of where Trillian serves clients")
+	prefix       = flag.String("prefix", "st/v0", "a prefix that proceeds each endpoint path")
+	trillianID   = flag.Int64("trillian_id", 0, "log identifier in the Trillian database")
+	deadline     = flag.Duration("deadline", time.Second*10, "deadline for backend requests")
+	key          = flag.String("key", "", "hex-encoded Ed25519 signing key")
+	witnesses    = flag.String("witnesses", "", "comma-separated list of trusted witness verification keys in hex")
+	maxRange     = flag.Int64("max_range", 10, "maximum number of entries that can be retrived in a single request")
+	interval     = flag.Duration("interval", time.Second*30, "interval used to rotate the log's cosigned STH")
 )
 
 func main() {
@@ -99,30 +96,27 @@ func setupInstanceFromFlags() (*stfe.Instance, error) {
 	// Prometheus metrics
 	glog.V(3).Infof("Adding prometheus handler on path: /metrics")
 	http.Handle("/metrics", promhttp.Handler())
-	// Trusted submitters
-	submitters, err := newNamespacePoolFromString(*submitters)
-	if err != nil {
-		return nil, fmt.Errorf("submitters: newNamespacePoolFromString: %v", err)
-	}
 	// Trusted witnesses
-	witnesses, err := newNamespacePoolFromString(*witnesses)
+	witnesses, err := newWitnessMap(*witnesses)
 	if err != nil {
-		return nil, fmt.Errorf("witnesses: NewNamespacePool: %v", err)
+		return nil, fmt.Errorf("newWitnessMap: %v", err)
 	}
-	// Log identity
-	sk, err := base64.StdEncoding.DecodeString(*key)
+	// Secret signing key
+	sk, err := hex.DecodeString(*key)
 	if err != nil {
 		return nil, fmt.Errorf("sk: DecodeString: %v", err)
 	}
-	signer := ed25519.PrivateKey(sk)
-	logId, err := types.NewNamespaceEd25519V1([]byte(ed25519.PrivateKey(sk).Public().(ed25519.PublicKey)))
-	if err != nil {
-		return nil, fmt.Errorf("NewNamespaceEd25519V1: %v", err)
-	}
 	// Setup log parameters
-	lp, err := stfe.NewLogParameters(signer, logId, *trillianID, *prefix, submitters, witnesses, *maxRange, *interval, *deadline, *submitterPolicy, *witnessPolicy)
-	if err != nil {
-		return nil, fmt.Errorf("NewLogParameters: %v", err)
+	lp := &stfe.LogParameters{
+		LogId:     hex.EncodeToString([]byte(ed25519.PrivateKey(sk).Public().(ed25519.PublicKey))),
+		TreeId:    *trillianID,
+		Prefix:    *prefix,
+		MaxRange:  *maxRange,
+		Deadline:  *deadline,
+		Interval:  *interval,
+		HashType:  crypto.SHA256,
+		Signer:    ed25519.PrivateKey(sk),
+		Witnesses: witnesses,
 	}
 	// Setup STH source
 	source, err := stfe.NewActiveSthSource(client, lp)
@@ -138,28 +132,24 @@ func setupInstanceFromFlags() (*stfe.Instance, error) {
 	return i, nil
 }
 
-// newNamespacePoolFromString creates a new namespace pool from a
-// comma-separated list of serialized and base64-encoded namespaces.
-func newNamespacePoolFromString(str string) (*types.NamespacePool, error) {
-	var namespaces []*types.Namespace
-	if len(str) > 0 {
-		for _, b64 := range strings.Split(str, ",") {
-			b, err := base64.StdEncoding.DecodeString(b64)
+// newWitnessMap creates a new map of trusted witnesses
+func newWitnessMap(witnesses string) (map[[types.HashSize]byte][types.VerificationKeySize]byte, error) {
+	w := make(map[[types.HashSize]byte][types.VerificationKeySize]byte)
+	if len(witnesses) > 0 {
+		for _, witness := range strings.Split(witnesses, ",") {
+			b, err := hex.DecodeString(witness)
 			if err != nil {
 				return nil, fmt.Errorf("DecodeString: %v", err)
 			}
-			var namespace types.Namespace
-			if err := types.Unmarshal(b, &namespace); err != nil {
-				return nil, fmt.Errorf("Unmarshal: %v", err)
+
+			var vk [types.VerificationKeySize]byte
+			if n := copy(vk[:], b); n != types.VerificationKeySize {
+				return nil, fmt.Errorf("Invalid verification key size: %v", n)
 			}
-			namespaces = append(namespaces, &namespace)
+			w[*types.Hash(vk[:])] = vk
 		}
 	}
-	pool, err := types.NewNamespacePool(namespaces)
-	if err != nil {
-		return nil, fmt.Errorf("NewNamespacePool: %v", err)
-	}
-	return pool, nil
+	return w, nil
 }
 
 // await waits for a shutdown signal and then runs a clean-up function

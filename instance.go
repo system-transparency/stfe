@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
+	"github.com/system-transparency/stfe/types"
 )
 
 // Instance is an instance of the system transparency front-end
@@ -26,9 +27,9 @@ func (i *Instance) Handlers() []Handler {
 		Handler{Instance: i, Handler: getLatestSth, Endpoint: EndpointGetLatestSth, Method: http.MethodGet},
 		Handler{Instance: i, Handler: getStableSth, Endpoint: EndpointGetStableSth, Method: http.MethodGet},
 		Handler{Instance: i, Handler: getCosignedSth, Endpoint: EndpointGetCosignedSth, Method: http.MethodGet},
-		Handler{Instance: i, Handler: getProofByHash, Endpoint: EndpointGetProofByHash, Method: http.MethodPost},
+		//Handler{Instance: i, Handler: getProofByHash, Endpoint: EndpointGetProofByHash, Method: http.MethodPost},
 		Handler{Instance: i, Handler: getConsistencyProof, Endpoint: EndpointGetConsistencyProof, Method: http.MethodPost},
-		Handler{Instance: i, Handler: getEntries, Endpoint: EndpointGetEntries, Method: http.MethodPost},
+		//Handler{Instance: i, Handler: getEntries, Endpoint: EndpointGetEntries, Method: http.MethodPost},
 	}
 }
 
@@ -52,10 +53,10 @@ func (a Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var now time.Time = time.Now()
 	var statusCode int
 	defer func() {
-		rspcnt.Inc(a.Instance.LogParameters.LogIdStr, string(a.Endpoint), fmt.Sprintf("%d", statusCode))
-		latency.Observe(time.Now().Sub(now).Seconds(), a.Instance.LogParameters.LogIdStr, string(a.Endpoint), fmt.Sprintf("%d", statusCode))
+		rspcnt.Inc(a.Instance.LogParameters.LogId, string(a.Endpoint), fmt.Sprintf("%d", statusCode))
+		latency.Observe(time.Now().Sub(now).Seconds(), a.Instance.LogParameters.LogId, string(a.Endpoint), fmt.Sprintf("%d", statusCode))
 	}()
-	reqcnt.Inc(a.Instance.LogParameters.LogIdStr, string(a.Endpoint))
+	reqcnt.Inc(a.Instance.LogParameters.LogId, string(a.Endpoint))
 
 	ctx, cancel := context.WithDeadline(r.Context(), now.Add(a.Instance.LogParameters.Deadline))
 	defer cancel()
@@ -69,6 +70,6 @@ func (a Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	statusCode, err := a.Handler(ctx, a.Instance, w, r)
 	if err != nil {
 		glog.Warningf("handler error %s/%s: %v", a.Instance.LogParameters.Prefix, a.Endpoint, err)
-		http.Error(w, "", statusCode)
+		http.Error(w, fmt.Sprintf("%s%s%s%s", "Error", types.Delim, err.Error(), types.EOL), statusCode)
 	}
 }

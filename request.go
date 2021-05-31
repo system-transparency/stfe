@@ -3,114 +3,90 @@ package stfe
 import (
 	"fmt"
 
-	"io/ioutil"
+	"crypto/ed25519"
 	"net/http"
 
 	"github.com/system-transparency/stfe/types"
 )
 
-func (lp *LogParameters) parseAddEntryV1Request(r *http.Request) (*types.StItem, error) {
-	var item types.StItem
-	if err := unpackOctetPost(r, &item); err != nil {
+func (lp *LogParameters) parseAddEntryV1Request(r *http.Request) (*types.Leaf, error) {
+	var req types.LeafRequest
+	if err := req.UnmarshalASCII(r.Body); err != nil {
+		return nil, fmt.Errorf("UnmarshalASCII: %v", err)
+	}
+
+	if pub, msg, sig := ed25519.PublicKey(req.VerificationKey[:]), req.Message.Marshal(), req.Signature[:]; !ed25519.Verify(pub, msg, sig) {
+		return nil, fmt.Errorf("Invalid signature")
+	}
+	// TODO: check shard hint
+	// TODO: check domain hint
+	return &types.Leaf{
+		Message: req.Message,
+		SigIdent: types.SigIdent{
+			Signature: req.Signature,
+			KeyHash:   types.Hash(req.VerificationKey[:]),
+		},
+	}, nil
+}
+
+func (lp *LogParameters) parseAddCosignatureRequest(r *http.Request) (*types.CosignatureRequest, error) {
+	var req types.CosignatureRequest
+	if err := req.UnmarshalASCII(r.Body); err != nil {
 		return nil, fmt.Errorf("unpackOctetPost: %v", err)
 	}
-	if item.Format != types.StFormatSignedChecksumV1 {
-		return nil, fmt.Errorf("invalid StItem format: %v", item.Format)
+	if _, ok := lp.Witnesses[*req.KeyHash]; !ok {
+		return nil, fmt.Errorf("Unknown witness: %x", req.KeyHash)
 	}
-
-	// Check that submitter namespace is valid
-	namespace := &item.SignedChecksumV1.Signature.Namespace
-	if lp.SubmitterPolicy {
-		var ok bool
-		if namespace, ok = lp.Submitters.Find(namespace); !ok {
-			return nil, fmt.Errorf("unknown submitter namespace: %v", namespace)
-		}
-	}
-	// Check that namespace signed add-entry request
-	if msg, err := types.Marshal(item.SignedChecksumV1.Data); err != nil {
-		return nil, fmt.Errorf("Marshal: %v", err) // should never happen
-	} else if err := namespace.Verify(msg, item.SignedChecksumV1.Signature.Signature); err != nil {
-		return nil, fmt.Errorf("Verify: %v", err)
-	}
-	return &item, nil
+	return &req, nil
 }
 
-func (lp *LogParameters) parseAddCosignatureV1Request(r *http.Request) (*types.StItem, error) {
-	var item types.StItem
-	if err := unpackOctetPost(r, &item); err != nil {
-		return nil, fmt.Errorf("unpackOctetPost: %v", err)
+func (lp *LogParameters) parseGetConsistencyProofRequest(r *http.Request) (*types.ConsistencyProofRequest, error) {
+	var req types.ConsistencyProofRequest
+	if err := req.UnmarshalASCII(r.Body); err != nil {
+		return nil, fmt.Errorf("UnmarshalASCII: %v", err)
 	}
-	if item.Format != types.StFormatCosignedTreeHeadV1 {
-		return nil, fmt.Errorf("invalid StItem format: %v", item.Format)
+	if req.OldSize < 1 {
+		return nil, fmt.Errorf("OldSize(%d) must be larger than zero", req.OldSize)
 	}
-	if got, want := len(item.CosignedTreeHeadV1.Cosignatures), 1; got != want {
-		return nil, fmt.Errorf("invalid number of cosignatures: %d", got)
+	if req.NewSize <= req.OldSize {
+		return nil, fmt.Errorf("NewSize(%d) must be larger than OldSize(%d)", req.NewSize, req.OldSize)
 	}
-
-	// Check that witness namespace is valid
-	namespace := &item.CosignedTreeHeadV1.Cosignatures[0].Namespace
-	if lp.WitnessPolicy {
-		var ok bool
-		if namespace, ok = lp.Witnesses.Find(namespace); !ok {
-			return nil, fmt.Errorf("unknown witness namespace: %v", namespace)
-		}
-	}
-	// Check that namespace signed add-cosignature request
-	if msg, err := types.Marshal(*types.NewSignedTreeHeadV1(&item.CosignedTreeHeadV1.SignedTreeHead.TreeHead, &item.CosignedTreeHeadV1.SignedTreeHead.Signature).SignedTreeHeadV1); err != nil {
-		return nil, fmt.Errorf("Marshal: %v", err) // should never happen
-	} else if err := namespace.Verify(msg, item.CosignedTreeHeadV1.Cosignatures[0].Signature); err != nil {
-		return nil, fmt.Errorf("Verify: %v", err)
-	}
-	return &item, nil
+	return &req, nil
 }
 
-func (lp *LogParameters) parseGetConsistencyProofV1Request(r *http.Request) (*types.GetConsistencyProofV1, error) {
-	var item types.GetConsistencyProofV1
-	if err := unpackOctetPost(r, &item); err != nil {
-		return nil, fmt.Errorf("unpackOctetPost: %v", err)
-	}
-	if item.First < 1 {
-		return nil, fmt.Errorf("first(%d) must be larger than zero", item.First)
-	}
-	if item.Second <= item.First {
-		return nil, fmt.Errorf("second(%d) must be larger than first(%d)", item.Second, item.First)
-	}
-	return &item, nil
-}
-
-func (lp *LogParameters) parseGetProofByHashV1Request(r *http.Request) (*types.GetProofByHashV1, error) {
-	var item types.GetProofByHashV1
-	if err := unpackOctetPost(r, &item); err != nil {
-		return nil, fmt.Errorf("unpackOctetPost: %v", err)
-	}
-	if item.TreeSize < 1 {
-		return nil, fmt.Errorf("TreeSize(%d) must be larger than zero", item.TreeSize)
-	}
-	return &item, nil
-}
-
-func (lp *LogParameters) parseGetEntriesV1Request(r *http.Request) (*types.GetEntriesV1, error) {
-	var item types.GetEntriesV1
-	if err := unpackOctetPost(r, &item); err != nil {
-		return nil, fmt.Errorf("unpackOctetPost: %v", err)
-	}
-
-	if item.Start > item.End {
-		return nil, fmt.Errorf("start(%v) must be less than or equal to end(%v)", item.Start, item.End)
-	}
-	if item.End-item.Start+1 > uint64(lp.MaxRange) {
-		item.End = item.Start + uint64(lp.MaxRange) - 1
-	}
-	return &item, nil
-}
-
-func unpackOctetPost(r *http.Request, out interface{}) error {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return fmt.Errorf("failed reading request body: %v", err)
-	}
-	if err := types.Unmarshal(body, out); err != nil {
-		return fmt.Errorf("Unmarshal: %v", err)
-	}
-	return nil
-}
+//func (lp *LogParameters) parseGetProofByHashV1Request(r *http.Request) (*types.GetProofByHashV1, error) {
+//	var item types.GetProofByHashV1
+//	if err := unpackOctetPost(r, &item); err != nil {
+//		return nil, fmt.Errorf("unpackOctetPost: %v", err)
+//	}
+//	if item.TreeSize < 1 {
+//		return nil, fmt.Errorf("TreeSize(%d) must be larger than zero", item.TreeSize)
+//	}
+//	return &item, nil
+//}
+//
+//func (lp *LogParameters) parseGetEntriesV1Request(r *http.Request) (*types.GetEntriesV1, error) {
+//	var item types.GetEntriesV1
+//	if err := unpackOctetPost(r, &item); err != nil {
+//		return nil, fmt.Errorf("unpackOctetPost: %v", err)
+//	}
+//
+//	if item.Start > item.End {
+//		return nil, fmt.Errorf("start(%v) must be less than or equal to end(%v)", item.Start, item.End)
+//	}
+//	if item.End-item.Start+1 > uint64(lp.MaxRange) {
+//		item.End = item.Start + uint64(lp.MaxRange) - 1
+//	}
+//	return &item, nil
+//}
+//
+//func unpackOctetPost(r *http.Request, out interface{}) error {
+//	body, err := ioutil.ReadAll(r.Body)
+//	if err != nil {
+//		return fmt.Errorf("failed reading request body: %v", err)
+//	}
+//	if err := types.Unmarshal(body, out); err != nil {
+//		return fmt.Errorf("Unmarshal: %v", err)
+//	}
+//	return nil
+//}

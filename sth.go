@@ -2,6 +2,7 @@ package stfe
 
 import (
 	"context"
+	"crypto/ed25519"
 	"fmt"
 	"reflect"
 	"sync"
@@ -13,34 +14,32 @@ import (
 	"github.com/system-transparency/stfe/types"
 )
 
-// SthSource provides access to the log's STHs.
+// SthSource provides access to the log's (co)signed tree heads
 type SthSource interface {
-	// Latest returns the most reccent signed_tree_head_v*.
-	Latest(context.Context) (*types.StItem, error)
-	// Stable returns the most recent signed_tree_head_v* that is stable for
-	// some period of time, e.g., 10 minutes.
-	Stable(context.Context) (*types.StItem, error)
-	// Cosigned returns the most recent cosigned_tree_head_v*.
-	Cosigned(context.Context) (*types.StItem, error)
-	// AddCosignature attempts to add a cosignature to the stable STH.  The
-	// passed cosigned_tree_head_v* must have a single verified cosignature.
-	AddCosignature(context.Context, *types.StItem) error
-	// Run keeps the STH source updated until cancelled
+	Latest(context.Context) (*types.SignedTreeHead, error)
+	Stable(context.Context) (*types.SignedTreeHead, error)
+	Cosigned(context.Context) (*types.SignedTreeHead, error)
+	AddCosignature(context.Context, ed25519.PublicKey, *[types.SignatureSize]byte) error
 	Run(context.Context)
 }
 
 // ActiveSthSource implements the SthSource interface for an STFE instance that
 // accepts new logging requests, i.e., the log is running in read+write mode.
 type ActiveSthSource struct {
-	client          trillian.TrillianLogClient
-	logParameters   *LogParameters
-	currCosth       *types.StItem                                 // current cosigned_tree_head_v1 (already finalized)
-	nextCosth       *types.StItem                                 // next cosigned_tree_head_v1 (under preparation)
-	cosignatureFrom map[[types.NamespaceFingerprintSize]byte]bool // track who we got cosignatures from in nextCosth
-	mutex           sync.RWMutex
+	client        trillian.TrillianLogClient
+	logParameters *LogParameters
+	sync.RWMutex
+
+	// cosigned is the current cosigned tree head that is served
+	cosigned types.SignedTreeHead
+
+	// tosign is the current tree head that is being cosigned
+	tosign types.SignedTreeHead
+
+	// cosignature keeps track of all collected cosignatures for tosign
+	cosignature map[[types.HashSize]byte]*types.SigIdent
 }
 
-// NewActiveSthSource returns an initialized ActiveSthSource
 func NewActiveSthSource(cli trillian.TrillianLogClient, lp *LogParameters) (*ActiveSthSource, error) {
 	s := ActiveSthSource{
 		client:        cli,
@@ -53,10 +52,9 @@ func NewActiveSthSource(cli trillian.TrillianLogClient, lp *LogParameters) (*Act
 		return nil, fmt.Errorf("Latest: %v", err)
 	}
 
-	// TODO: load persisted cosigned STH?
-	s.currCosth = types.NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
-	s.nextCosth = types.NewCosignedTreeHeadV1(sth.SignedTreeHeadV1, nil)
-	s.cosignatureFrom = make(map[[types.NamespaceFingerprintSize]byte]bool)
+	s.cosigned = *sth
+	s.tosign = *sth
+	s.cosignature = make(map[[types.HashSize]byte]*types.SigIdent)
 	return &s, nil
 }
 
@@ -70,16 +68,13 @@ func (s *ActiveSthSource) Run(ctx context.Context) {
 			return
 		}
 		// rotate
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
-		if err := s.rotate(sth); err != nil {
-			glog.Warningf("rotate failed: %v", err)
-		}
-		// TODO: persist cosigned STH?
+		s.Lock()
+		defer s.Unlock()
+		s.rotate(sth)
 	})
 }
 
-func (s *ActiveSthSource) Latest(ctx context.Context) (*types.StItem, error) {
+func (s *ActiveSthSource) Latest(ctx context.Context) (*types.SignedTreeHead, error) {
 	trsp, err := s.client.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{
 		LogId: s.logParameters.TreeId,
 	})
@@ -87,69 +82,62 @@ func (s *ActiveSthSource) Latest(ctx context.Context) (*types.StItem, error) {
 	if errInner := checkGetLatestSignedLogRoot(s.logParameters, trsp, err, &lr); errInner != nil {
 		return nil, fmt.Errorf("invalid signed log root response: %v", errInner)
 	}
-	return s.logParameters.SignTreeHeadV1(NewTreeHeadV1FromLogRoot(&lr))
+	return s.logParameters.Sign(NewTreeHeadFromLogRoot(&lr))
 }
 
-func (s *ActiveSthSource) Stable(_ context.Context) (*types.StItem, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	if s.nextCosth == nil {
-		return nil, fmt.Errorf("no stable sth available")
-	}
-	return types.NewSignedTreeHeadV1(&s.nextCosth.CosignedTreeHeadV1.SignedTreeHead.TreeHead, &s.nextCosth.CosignedTreeHeadV1.SignedTreeHead.Signature), nil
+func (s *ActiveSthSource) Stable(_ context.Context) (*types.SignedTreeHead, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return &s.tosign, nil
 }
 
-func (s *ActiveSthSource) Cosigned(_ context.Context) (*types.StItem, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	if s.currCosth == nil {
-		return nil, fmt.Errorf("no cosigned sth available")
-	}
-	return s.currCosth, nil
+func (s *ActiveSthSource) Cosigned(_ context.Context) (*types.SignedTreeHead, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return &s.cosigned, nil
 }
 
-func (s *ActiveSthSource) AddCosignature(_ context.Context, costh *types.StItem) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	if !reflect.DeepEqual(s.nextCosth.CosignedTreeHeadV1.SignedTreeHead, costh.CosignedTreeHeadV1.SignedTreeHead) {
-		return fmt.Errorf("cosignature covers a different tree head")
+func (s *ActiveSthSource) AddCosignature(_ context.Context, vk ed25519.PublicKey, sig *[types.SignatureSize]byte) error {
+	s.Lock()
+	defer s.Unlock()
+
+	if msg := s.tosign.TreeHead.Marshal(); !ed25519.Verify(vk, msg, sig[:]) {
+		return fmt.Errorf("Invalid signature for tree head with timestamp: %d", s.tosign.TreeHead.Timestamp)
 	}
-	witness, err := costh.CosignedTreeHeadV1.Cosignatures[0].Namespace.Fingerprint()
-	if err != nil {
-		return fmt.Errorf("namespace without fingerprint: %v", err)
-	}
-	if _, ok := s.cosignatureFrom[*witness]; ok {
+	witness := types.Hash(vk[:])
+	if _, ok := s.cosignature[*witness]; ok {
+		glog.V(3).Infof("received cosignature again (duplicate)")
 		return nil // duplicate
 	}
-	s.cosignatureFrom[*witness] = true
-	s.nextCosth.CosignedTreeHeadV1.Cosignatures = append(s.nextCosth.CosignedTreeHeadV1.Cosignatures, costh.CosignedTreeHeadV1.Cosignatures[0])
+	s.cosignature[*witness] = &types.SigIdent{
+		Signature: sig,
+		KeyHash:   witness,
+	}
+	glog.V(3).Infof("accepted new cosignature")
 	return nil
 }
 
 // rotate rotates the log's cosigned and stable STH.  The caller must aquire the
 // source's read-write lock if there are concurrent reads and/or writes.
-func (s *ActiveSthSource) rotate(fixedSth *types.StItem) error {
-	// rotate stable -> cosigned
-	if reflect.DeepEqual(&s.currCosth.CosignedTreeHeadV1.SignedTreeHead, &s.nextCosth.CosignedTreeHeadV1.SignedTreeHead) {
-		for _, sigv1 := range s.currCosth.CosignedTreeHeadV1.Cosignatures {
-			witness, err := sigv1.Namespace.Fingerprint()
-			if err != nil {
-				return fmt.Errorf("namespace without fingerprint: %v", err)
-			}
-			if _, ok := s.cosignatureFrom[*witness]; !ok {
-				s.cosignatureFrom[*witness] = true
-				s.nextCosth.CosignedTreeHeadV1.Cosignatures = append(s.nextCosth.CosignedTreeHeadV1.Cosignatures, sigv1)
+func (s *ActiveSthSource) rotate(next *types.SignedTreeHead) {
+	if reflect.DeepEqual(s.cosigned.TreeHead, s.tosign.TreeHead) {
+		for _, sigident := range s.cosigned.SigIdent[1:] { // skip log sigident
+			if _, ok := s.cosignature[*sigident.KeyHash]; !ok {
+				s.cosignature[*sigident.KeyHash] = sigident
 			}
 		}
 	}
-	s.currCosth.CosignedTreeHeadV1.SignedTreeHead = s.nextCosth.CosignedTreeHeadV1.SignedTreeHead
-	s.currCosth.CosignedTreeHeadV1.Cosignatures = make([]types.SignatureV1, len(s.nextCosth.CosignedTreeHeadV1.Cosignatures))
-	copy(s.currCosth.CosignedTreeHeadV1.Cosignatures, s.nextCosth.CosignedTreeHeadV1.Cosignatures)
+	var cosignatures []*types.SigIdent
+	for _, sigident := range s.cosignature {
+		cosignatures = append(cosignatures, sigident)
+	} // cosignatures contains all cosignatures, even if repeated tree head
 
-	// rotate new stable -> stable
-	if !reflect.DeepEqual(&s.nextCosth.CosignedTreeHeadV1.SignedTreeHead, fixedSth.SignedTreeHeadV1) {
-		s.nextCosth = types.NewCosignedTreeHeadV1(fixedSth.SignedTreeHeadV1, nil)
-		s.cosignatureFrom = make(map[[types.NamespaceFingerprintSize]byte]bool)
-	}
-	return nil
+	// Update cosigned tree head
+	s.cosigned.TreeHead = s.tosign.TreeHead
+	s.cosigned.SigIdent = append(s.tosign.SigIdent, cosignatures...)
+
+	// Update to-sign tree head
+	s.tosign = *next
+	s.cosignature = make(map[[types.HashSize]byte]*types.SigIdent)
+	glog.V(3).Infof("rotated sth")
 }

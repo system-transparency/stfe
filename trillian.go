@@ -26,7 +26,7 @@ func checkQueueLeaf(rsp *trillian.QueueLeafResponse, err error) error {
 	return nil
 }
 
-func checkGetLeavesByRange(req *stfetypes.GetEntriesV1, rsp *trillian.GetLeavesByRangeResponse, err error) error {
+func checkGetLeavesByRange(req *stfetypes.LeavesRequest, rsp *trillian.GetLeavesByRangeResponse, err error) error {
 	if err != nil {
 		return fmt.Errorf("Trillian Error: %v", err)
 	}
@@ -42,8 +42,8 @@ func checkGetLeavesByRange(req *stfetypes.GetEntriesV1, rsp *trillian.GetLeavesB
 	if len(rsp.Leaves) == 0 {
 		return fmt.Errorf("Trillian error: no leaves")
 	}
-	if len(rsp.Leaves) > int(req.End-req.Start+1) {
-		return fmt.Errorf("too many leaves: %d for [%d,%d]", len(rsp.Leaves), req.Start, req.End)
+	if len(rsp.Leaves) > int(req.EndSize-req.StartSize+1) {
+		return fmt.Errorf("too many leaves: %d for [%d,%d]", len(rsp.Leaves), req.StartSize, req.EndSize)
 	}
 
 	// Ensure that a bad start parameter results in an error
@@ -51,13 +51,13 @@ func checkGetLeavesByRange(req *stfetypes.GetEntriesV1, rsp *trillian.GetLeavesB
 	if err := lr.UnmarshalBinary(rsp.SignedLogRoot.LogRoot); err != nil {
 		return fmt.Errorf("cannot unmarshal log root: %v", err)
 	}
-	if uint64(req.Start) >= lr.TreeSize {
-		return fmt.Errorf("invalid start(%d): tree size is %d", req.Start, lr.TreeSize)
+	if uint64(req.StartSize) >= lr.TreeSize {
+		return fmt.Errorf("invalid start(%d): tree size is %d", req.StartSize, lr.TreeSize)
 	}
 
 	// Ensure that we got and return expected leaf indices
 	for i, leaf := range rsp.Leaves {
-		if got, want := leaf.LeafIndex, int64(req.Start+uint64(i)); got != want {
+		if got, want := leaf.LeafIndex, int64(req.StartSize+uint64(i)); got != want {
 			return fmt.Errorf("invalid leaf index(%d): wanted %d", got, want)
 		}
 	}
