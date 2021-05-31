@@ -46,12 +46,15 @@ func (l *Leaf) Unmarshal(buf []byte) error {
 	l.ShardHint = binary.BigEndian.Uint64(buf)
 	offset := 8
 	// Checksum
+	l.Checksum = &[HashSize]byte{}
 	copy(l.Checksum[:], buf[offset:offset+HashSize])
 	offset += HashSize
 	// Signature
+	l.Signature = &[SignatureSize]byte{}
 	copy(l.Signature[:], buf[offset:offset+SignatureSize])
 	offset += SignatureSize
 	// KeyHash
+	l.KeyHash = &[HashSize]byte{}
 	copy(l.KeyHash[:], buf[offset:])
 	return nil
 }
