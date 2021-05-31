@@ -200,7 +200,7 @@ func (l *Leaf) MarshalASCII(w io.Writer) error {
 	if err := writeASCII(w, Checksum, hex.EncodeToString(l.Checksum[:])); err != nil {
 		return fmt.Errorf("writeASCII: %v", err)
 	}
-	if err := writeASCII(w, Signature, hex.EncodeToString(l.Signature[:])); err != nil {
+	if err := writeASCII(w, SignatureOverMessage, hex.EncodeToString(l.Signature[:])); err != nil {
 		return fmt.Errorf("writeASCII: %v", err)
 	}
 	if err := writeASCII(w, KeyHash, hex.EncodeToString(l.KeyHash[:])); err != nil {
@@ -220,12 +220,19 @@ func (sth *SignedTreeHead) MarshalASCII(w io.Writer) error {
 		return fmt.Errorf("writeASCII: %v", err)
 	}
 	for _, sigident := range sth.SigIdent {
-		if err := writeASCII(w, Signature, hex.EncodeToString(sigident.Signature[:])); err != nil {
-			return fmt.Errorf("writeASCII: %v", err)
+		if err := sigident.MarshalASCII(w); err != nil {
+			return fmt.Errorf("MarshalASCII: %v", err)
 		}
-		if err := writeASCII(w, KeyHash, hex.EncodeToString(sigident.KeyHash[:])); err != nil {
-			return fmt.Errorf("writeASCII: %v", err)
-		}
+	}
+	return nil
+}
+
+func (si *SigIdent) MarshalASCII(w io.Writer) error {
+	if err := writeASCII(w, Signature, hex.EncodeToString(si.Signature[:])); err != nil {
+		return fmt.Errorf("writeASCII: %v", err)
+	}
+	if err := writeASCII(w, KeyHash, hex.EncodeToString(si.KeyHash[:])); err != nil {
+		return fmt.Errorf("writeASCII: %v", err)
 	}
 	return nil
 }
@@ -385,7 +392,7 @@ func (req *LeafRequest) UnmarshalASCII(r io.Reader) error {
 	if req.Checksum, err = msg.GetHash(Checksum); err != nil {
 		return fmt.Errorf("GetHash(Checksum): %v", err)
 	}
-	if req.Signature, err = msg.GetSignature(Signature); err != nil {
+	if req.Signature, err = msg.GetSignature(SignatureOverMessage); err != nil {
 		return fmt.Errorf("GetSignature: %v", err)
 	}
 	if req.VerificationKey, err = msg.GetVerificationKey(VerificationKey); err != nil {
