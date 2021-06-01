@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strconv"
 )
 
@@ -64,7 +65,7 @@ type MessageASCII struct {
 
 // NewMessageASCII unpacks an incoming ASCII message
 func NewMessageASCII(r io.Reader, numFieldExpected int) (*MessageASCII, error) {
-	buf, err := io.ReadAll(r)
+	buf, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("ReadAll: %v", err)
 	}
