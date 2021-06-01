@@ -27,9 +27,9 @@ func (i *Instance) Handlers() []Handler {
 		Handler{Instance: i, Handler: getLatestSth, Endpoint: EndpointGetLatestSth, Method: http.MethodGet},
 		Handler{Instance: i, Handler: getStableSth, Endpoint: EndpointGetStableSth, Method: http.MethodGet},
 		Handler{Instance: i, Handler: getCosignedSth, Endpoint: EndpointGetCosignedSth, Method: http.MethodGet},
-		//Handler{Instance: i, Handler: getProofByHash, Endpoint: EndpointGetProofByHash, Method: http.MethodPost},
+		Handler{Instance: i, Handler: getProofByHash, Endpoint: EndpointGetProofByHash, Method: http.MethodPost},
 		Handler{Instance: i, Handler: getConsistencyProof, Endpoint: EndpointGetConsistencyProof, Method: http.MethodPost},
-		//Handler{Instance: i, Handler: getEntries, Endpoint: EndpointGetEntries, Method: http.MethodPost},
+		Handler{Instance: i, Handler: getEntries, Endpoint: EndpointGetEntries, Method: http.MethodPost},
 	}
 }
 

@@ -54,39 +54,28 @@ func (lp *LogParameters) parseGetConsistencyProofRequest(r *http.Request) (*type
 	return &req, nil
 }
 
-//func (lp *LogParameters) parseGetProofByHashV1Request(r *http.Request) (*types.GetProofByHashV1, error) {
-//	var item types.GetProofByHashV1
-//	if err := unpackOctetPost(r, &item); err != nil {
-//		return nil, fmt.Errorf("unpackOctetPost: %v", err)
-//	}
-//	if item.TreeSize < 1 {
-//		return nil, fmt.Errorf("TreeSize(%d) must be larger than zero", item.TreeSize)
-//	}
-//	return &item, nil
-//}
-//
-//func (lp *LogParameters) parseGetEntriesV1Request(r *http.Request) (*types.GetEntriesV1, error) {
-//	var item types.GetEntriesV1
-//	if err := unpackOctetPost(r, &item); err != nil {
-//		return nil, fmt.Errorf("unpackOctetPost: %v", err)
-//	}
-//
-//	if item.Start > item.End {
-//		return nil, fmt.Errorf("start(%v) must be less than or equal to end(%v)", item.Start, item.End)
-//	}
-//	if item.End-item.Start+1 > uint64(lp.MaxRange) {
-//		item.End = item.Start + uint64(lp.MaxRange) - 1
-//	}
-//	return &item, nil
-//}
-//
-//func unpackOctetPost(r *http.Request, out interface{}) error {
-//	body, err := ioutil.ReadAll(r.Body)
-//	if err != nil {
-//		return fmt.Errorf("failed reading request body: %v", err)
-//	}
-//	if err := types.Unmarshal(body, out); err != nil {
-//		return fmt.Errorf("Unmarshal: %v", err)
-//	}
-//	return nil
-//}
+func (lp *LogParameters) parseGetProofByHashRequest(r *http.Request) (*types.InclusionProofRequest, error) {
+	var req types.InclusionProofRequest
+	if err := req.UnmarshalASCII(r.Body); err != nil {
+		return nil, fmt.Errorf("UnmarshalASCII: %v", err)
+	}
+	if req.TreeSize < 1 {
+		return nil, fmt.Errorf("TreeSize(%d) must be larger than zero", req.TreeSize)
+	}
+	return &req, nil
+}
+
+func (lp *LogParameters) parseGetEntriesRequest(r *http.Request) (*types.LeavesRequest, error) {
+	var req types.LeavesRequest
+	if err := req.UnmarshalASCII(r.Body); err != nil {
+		return nil, fmt.Errorf("UnmarshalASCII: %v", err)
+	}
+
+	if req.StartSize > req.EndSize {
+		return nil, fmt.Errorf("StartSize(%d) must be less than or equal to EndSize(%d)", req.StartSize, req.EndSize)
+	}
+	if req.EndSize-req.StartSize+1 > uint64(lp.MaxRange) {
+		req.EndSize = req.StartSize + uint64(lp.MaxRange) - 1
+	}
+	return &req, nil
+}

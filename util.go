@@ -1,9 +1,6 @@
 package stfe
 
 import (
-	//"fmt"
-
-	//"github.com/google/trillian"
 	ttypes "github.com/google/trillian/types"
 	"github.com/system-transparency/stfe/types"
 )
@@ -28,15 +25,3 @@ func NodePathFromHashes(hashes [][]byte) []*[types.HashSize]byte {
 	}
 	return path
 }
-
-//func NewStItemListFromLeaves(leaves []*trillian.LogLeaf) (*types.StItemList, error) {
-//	items := make([]types.StItem, 0, len(leaves))
-//	for _, leaf := range leaves {
-//		var item types.StItem
-//		if err := types.Unmarshal(leaf.LeafValue, &item); err != nil {
-//			return nil, fmt.Errorf("Unmarshal failed: %v", err)
-//		}
-//		items = append(items, item)
-//	}
-//	return &types.StItemList{items}, nil
-//}

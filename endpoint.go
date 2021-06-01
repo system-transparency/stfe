@@ -127,61 +127,58 @@ func getConsistencyProof(ctx context.Context, i *Instance, w http.ResponseWriter
 	return http.StatusOK, nil
 }
 
-//func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
-//	glog.V(3).Info("handling get-proof-by-hash request")
-//	req, err := i.LogParameters.parseGetProofByHashV1Request(r)
-//	if err != nil {
-//		return http.StatusBadRequest, err
-//	}
-//
-//	trsp, err := i.Client.GetInclusionProofByHash(ctx, &trillian.GetInclusionProofByHashRequest{
-//		LogId:           i.LogParameters.TreeId,
-//		LeafHash:        req.Hash[:],
-//		TreeSize:        int64(req.TreeSize),
-//		OrderBySequence: true,
-//	})
-//	if errInner := checkGetInclusionProofByHash(i.LogParameters, trsp, err); errInner != nil {
-//		return http.StatusInternalServerError, fmt.Errorf("bad GetInclusionProofByHashResponse: %v", errInner)
-//	}
-//
-//	if err := writeOctetResponse(w, *types.NewInclusionProofV1(i.LogParameters.LogId, req.TreeSize, uint64(trsp.Proof[0].LeafIndex), NewNodePathFromHashPath(trsp.Proof[0].Hashes))); err != nil {
-//		return http.StatusInternalServerError, fmt.Errorf("writeOctetResponse: %v", err)
-//	}
-//	return http.StatusOK, nil
-//}
-//
-//func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
-//	glog.V(3).Info("handling get-entries request")
-//	req, err := i.LogParameters.parseGetEntriesV1Request(r)
-//	if err != nil {
-//		return http.StatusBadRequest, err
-//	}
-//
-//	trsp, err := i.Client.GetLeavesByRange(ctx, &trillian.GetLeavesByRangeRequest{
-//		LogId:      i.LogParameters.TreeId,
-//		StartIndex: int64(req.Start),
-//		Count:      int64(req.End-req.Start) + 1,
-//	})
-//	if errInner := checkGetLeavesByRange(req, trsp, err); errInner != nil {
-//		return http.StatusInternalServerError, fmt.Errorf("checkGetLeavesByRangeResponse: %v", errInner) // there is one StatusBadRequest in here tho..
-//	}
-//
-//	if rsp, err := NewStItemListFromLeaves(trsp.Leaves); err != nil {
-//		return http.StatusInternalServerError, fmt.Errorf("NewStItemListFromLeaves: %v", err) // should never happen
-//	} else if err := writeOctetResponse(w, *rsp); err != nil {
-//		return http.StatusInternalServerError, fmt.Errorf("writeOctetResponse: %v", err)
-//	}
-//	return http.StatusOK, nil
-//}
-//
-//func writeOctetResponse(w http.ResponseWriter, i interface{}) error {
-//	b, err := types.Marshal(i)
-//	if err != nil {
-//		return fmt.Errorf("Marshal: %v", err)
-//	}
-//	w.Header().Set("Content-Type", "application/octet-stream")
-//	if _, err := w.Write(b); err != nil {
-//		return fmt.Errorf("Write: %v", err)
-//	}
-//	return nil
-//}
+func getProofByHash(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
+	glog.V(3).Info("handling get-proof-by-hash request")
+	req, err := i.LogParameters.parseGetProofByHashRequest(r)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+
+	trsp, err := i.Client.GetInclusionProofByHash(ctx, &trillian.GetInclusionProofByHashRequest{
+		LogId:           i.LogParameters.TreeId,
+		LeafHash:        req.LeafHash[:],
+		TreeSize:        int64(req.TreeSize),
+		OrderBySequence: true,
+	})
+	if errInner := checkGetInclusionProofByHash(i.LogParameters, trsp, err); errInner != nil {
+		return http.StatusInternalServerError, fmt.Errorf("bad GetInclusionProofByHashResponse: %v", errInner)
+	}
+
+	proof := &types.InclusionProof{
+		TreeSize:  req.TreeSize,
+		LeafIndex: uint64(trsp.Proof[0].LeafIndex),
+		Path:      NodePathFromHashes(trsp.Proof[0].Hashes),
+	}
+	if err := proof.MarshalASCII(w); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("MarshalASCII: %v", err)
+	}
+	return http.StatusOK, nil
+}
+
+func getEntries(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
+	glog.V(3).Info("handling get-entries request")
+	req, err := i.LogParameters.parseGetEntriesRequest(r)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+
+	trsp, err := i.Client.GetLeavesByRange(ctx, &trillian.GetLeavesByRangeRequest{
+		LogId:      i.LogParameters.TreeId,
+		StartIndex: int64(req.StartSize),
+		Count:      int64(req.EndSize-req.StartSize) + 1,
+	})
+	if errInner := checkGetLeavesByRange(req, trsp, err); errInner != nil {
+		return http.StatusInternalServerError, fmt.Errorf("checkGetLeavesByRangeResponse: %v", errInner) // there is one StatusBadRequest in here tho..
+	}
+
+	for _, serialized := range trsp.Leaves {
+		var leaf types.Leaf
+		if err := leaf.Unmarshal(serialized.LeafValue); err != nil {
+			return http.StatusInternalServerError, fmt.Errorf("Unmarshal: %v", err)
+		}
+		if err := leaf.MarshalASCII(w); err != nil {
+			return http.StatusInternalServerError, fmt.Errorf("MarshalASCII: %v", err)
+		}
+	}
+	return http.StatusOK, nil
+}
