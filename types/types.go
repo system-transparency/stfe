@@ -3,17 +3,34 @@ package types
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
+	"strings"
 )
 
 const (
 	HashSize            = sha256.Size
 	SignatureSize       = ed25519.SignatureSize
 	VerificationKeySize = ed25519.PublicKeySize
+
+	EndpointAddLeaf             = Endpoint("add-leaf")
+	EndpointAddCosignature      = Endpoint("add-cosignature")
+	EndpointGetTreeHeadLatest   = Endpoint("get-tree-head-latest")
+	EndpointGetTreeHeadToSign   = Endpoint("get-tree-head-to-sign")
+	EndpointGetTreeHeadCosigned = Endpoint("get-tree-head-cosigned")
+	EndpointGetProofByHash      = Endpoint("get-proof-by-hash")
+	EndpointGetConsistencyProof = Endpoint("get-consistency-proof")
+	EndpointGetLeaves           = Endpoint("get-leaves")
 )
 
+// Endpoint is a named HTTP API endpoint
+type Endpoint string
+
+// Path joins a number of components to form a full endpoint path.  For example,
+// EndpointAddLeaf.Path("example.com", "st/v0") -> example.com/st/v0/add-leaf.
+func (e Endpoint) Path(components ...string) string {
+	return strings.Join(append(components, string(e)), "/")
+}
+
 // Leaf is the log's Merkle tree leaf.
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#merkle-tree-leaf
 type Leaf struct {
 	Message
 	SigIdent
@@ -35,18 +52,12 @@ type SigIdent struct {
 
 // SignedTreeHead is composed of a tree head and a list of signature-signer
 // pairs.  Each signature is computed over the Trunnel-serialized tree head.
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#get-tree-head-cosigned
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#get-tree-head-to-sign
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#get-tree-head-latest
 type SignedTreeHead struct {
 	TreeHead
 	SigIdent []*SigIdent
 }
 
 // TreeHead is the log's tree head.
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#merkle-tree-head
 type TreeHead struct {
 	Timestamp uint64
 	TreeSize  uint64
@@ -55,8 +66,6 @@ type TreeHead struct {
 
 // ConsistencyProof is a consistency proof that proves the log's append-only
 // property.
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#get-consistency-proof
 type ConsistencyProof struct {
 	NewSize uint64
 	OldSize uint64
@@ -65,8 +74,6 @@ type ConsistencyProof struct {
 
 // InclusionProof is an inclusion proof that proves a leaf is included in the
 // log.
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#get-proof-by-hash
 type InclusionProof struct {
 	TreeSize  uint64
 	LeafIndex uint64
@@ -77,32 +84,24 @@ type InclusionProof struct {
 type LeafList []*Leaf
 
 // ConsistencyProofRequest is a get-consistency-proof request
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#get-consistency-proof
 type ConsistencyProofRequest struct {
 	NewSize uint64
 	OldSize uint64
 }
 
 // InclusionProofRequest is a get-proof-by-hash request
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#get-proof-by-hash
 type InclusionProofRequest struct {
 	LeafHash *[HashSize]byte
 	TreeSize uint64
 }
 
 // LeavesRequest is a get-leaves request
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#get-leaves
 type LeavesRequest struct {
 	StartSize uint64
 	EndSize   uint64
 }
 
 // LeafRequest is an add-leaf request
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#add-leaf
 type LeafRequest struct {
 	Message
 	Signature       *[SignatureSize]byte
@@ -111,8 +110,6 @@ type LeafRequest struct {
 }
 
 // CosignatureRequest is an add-cosignature request
-//
-// Ref: https://github.com/system-transparency/stfe/blob/design/doc/api.md#add-cosignature
 type CosignatureRequest struct {
 	SigIdent
 }

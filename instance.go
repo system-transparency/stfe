@@ -22,14 +22,14 @@ type Instance struct {
 // Handlers returns a list of STFE handlers
 func (i *Instance) Handlers() []Handler {
 	return []Handler{
-		Handler{Instance: i, Handler: addEntry, Endpoint: EndpointAddEntry, Method: http.MethodPost},
-		Handler{Instance: i, Handler: addCosignature, Endpoint: EndpointAddCosignature, Method: http.MethodPost},
-		Handler{Instance: i, Handler: getLatestSth, Endpoint: EndpointGetLatestSth, Method: http.MethodGet},
-		Handler{Instance: i, Handler: getStableSth, Endpoint: EndpointGetStableSth, Method: http.MethodGet},
-		Handler{Instance: i, Handler: getCosignedSth, Endpoint: EndpointGetCosignedSth, Method: http.MethodGet},
-		Handler{Instance: i, Handler: getProofByHash, Endpoint: EndpointGetProofByHash, Method: http.MethodPost},
-		Handler{Instance: i, Handler: getConsistencyProof, Endpoint: EndpointGetConsistencyProof, Method: http.MethodPost},
-		Handler{Instance: i, Handler: getEntries, Endpoint: EndpointGetEntries, Method: http.MethodPost},
+		Handler{Instance: i, Handler: addEntry, Endpoint: types.EndpointAddLeaf, Method: http.MethodPost},
+		Handler{Instance: i, Handler: addCosignature, Endpoint: types.EndpointAddCosignature, Method: http.MethodPost},
+		Handler{Instance: i, Handler: getLatestSth, Endpoint: types.EndpointGetTreeHeadLatest, Method: http.MethodGet},
+		Handler{Instance: i, Handler: getStableSth, Endpoint: types.EndpointGetTreeHeadToSign, Method: http.MethodGet},
+		Handler{Instance: i, Handler: getCosignedSth, Endpoint: types.EndpointGetTreeHeadCosigned, Method: http.MethodGet},
+		Handler{Instance: i, Handler: getProofByHash, Endpoint: types.EndpointGetProofByHash, Method: http.MethodPost},
+		Handler{Instance: i, Handler: getConsistencyProof, Endpoint: types.EndpointGetConsistencyProof, Method: http.MethodPost},
+		Handler{Instance: i, Handler: getEntries, Endpoint: types.EndpointGetLeaves, Method: http.MethodPost},
 	}
 }
 
@@ -37,7 +37,7 @@ func (i *Instance) Handlers() []Handler {
 // to an STFE server instance as well as a function that uses it.
 type Handler struct {
 	Instance *Instance
-	Endpoint Endpoint
+	Endpoint types.Endpoint
 	Method   string
 	Handler  func(context.Context, *Instance, http.ResponseWriter, *http.Request) (int, error)
 }

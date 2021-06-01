@@ -452,54 +452,6 @@ func TestEndpointGetEntriesV1(t *testing.T) {
 	}
 }
 
-func TestEndpointPath(t *testing.T) {
-	base, prefix, proto := "http://example.com", "test", "st/v1"
-	for _, table := range []struct {
-		endpoint Endpoint
-		want     string
-	}{
-		{
-			endpoint: EndpointAddEntry,
-			want:     "http://example.com/test/st/v1/add-entry",
-		},
-		{
-			endpoint: EndpointAddCosignature,
-			want:     "http://example.com/test/st/v1/add-cosignature",
-		},
-		{
-			endpoint: EndpointGetLatestSth,
-			want:     "http://example.com/test/st/v1/get-latest-sth",
-		},
-		{
-			endpoint: EndpointGetStableSth,
-			want:     "http://example.com/test/st/v1/get-stable-sth",
-		},
-		{
-			endpoint: EndpointGetCosignedSth,
-			want:     "http://example.com/test/st/v1/get-cosigned-sth",
-		},
-		{
-			endpoint: EndpointGetConsistencyProof,
-			want:     "http://example.com/test/st/v1/get-consistency-proof",
-		},
-		{
-			endpoint: EndpointGetProofByHash,
-			want:     "http://example.com/test/st/v1/get-proof-by-hash",
-		},
-		{
-			endpoint: EndpointGetEntries,
-			want:     "http://example.com/test/st/v1/get-entries",
-		},
-	} {
-		if got, want := table.endpoint.Path(base+"/"+prefix+"/"+proto), table.want; got != want {
-			t.Errorf("got endpoint\n%s\n\tbut wanted\n%s\n\twith one component", got, want)
-		}
-		if got, want := table.endpoint.Path(base, prefix, proto), table.want; got != want {
-			t.Errorf("got endpoint\n%s\n\tbut wanted\n%s\n\tmultiple components", got, want)
-		}
-	}
-}
-
 // TODO: TestWriteOctetResponse
 func TestWriteOctetResponse(t *testing.T) {
 }

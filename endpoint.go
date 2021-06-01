@@ -5,32 +5,11 @@ import (
 	"crypto/ed25519"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/golang/glog"
 	"github.com/google/trillian"
 	"github.com/system-transparency/stfe/types"
 )
-
-// Endpoint is a named HTTP API endpoint
-type Endpoint string
-
-const (
-	EndpointAddEntry            = Endpoint("add-leaf")
-	EndpointAddCosignature      = Endpoint("add-cosignature")
-	EndpointGetLatestSth        = Endpoint("get-tree-head-latest")
-	EndpointGetStableSth        = Endpoint("get-tree-head-to-sign")
-	EndpointGetCosignedSth      = Endpoint("get-tree-head-cosigned")
-	EndpointGetProofByHash      = Endpoint("get-proof-by-hash")
-	EndpointGetConsistencyProof = Endpoint("get-consistency-proof")
-	EndpointGetEntries          = Endpoint("get-leaves")
-)
-
-// Path joins a number of components to form a full endpoint path, e.g., base
-// ("example.com"), prefix ("st/v1"), and the endpoint itself ("get-sth").
-func (e Endpoint) Path(components ...string) string {
-	return strings.Join(append(components, string(e)), "/")
-}
 
 func addEntry(ctx context.Context, i *Instance, w http.ResponseWriter, r *http.Request) (int, error) {
 	glog.V(3).Info("handling add-entry request")
