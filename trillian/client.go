@@ -139,5 +139,32 @@ func (c *Client) GetInclusionProof(ctx context.Context, req *types.InclusionProo
 }
 
 func (c *Client) GetLeaves(ctx context.Context, req *types.LeavesRequest) (*types.LeafList, error) {
-	return nil, fmt.Errorf("TODO")
+	rsp, err := c.GRPC.GetLeavesByRange(ctx, &trillian.GetLeavesByRangeRequest{
+		LogId:      c.TreeID,
+		StartIndex: int64(req.StartSize),
+		Count:      int64(req.EndSize-req.StartSize) + 1,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("backend failure: %v", err)
+	}
+	if rsp == nil {
+		return nil, fmt.Errorf("no response")
+	}
+	if got, want := len(rsp.Leaves), int(req.EndSize-req.StartSize+1); got != want {
+		return nil, fmt.Errorf("unexpected number of leaves: %d", got)
+	}
+	var list types.LeafList
+	for i, leaf := range rsp.Leaves {
+		leafIndex := int64(req.StartSize + uint64(i))
+		if leafIndex != leaf.LeafIndex {
+			return nil, fmt.Errorf("unexpected leaf(%d): got index %d", leafIndex, leaf.LeafIndex)
+		}
+
+		var l types.Leaf
+		if err := l.Unmarshal(leaf.LeafValue); err != nil {
+			return nil, fmt.Errorf("unexpected leaf(%d): %v", leafIndex, err)
+		}
+		list = append(list[:], &l)
+	}
+	return &list, nil
 }
