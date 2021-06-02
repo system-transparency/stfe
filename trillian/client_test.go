@@ -287,5 +287,114 @@ func TestGetConsistencyProof(t *testing.T) {
 	}
 }
 
-func TestGetInclusionProof(t *testing.T) {}
-func TestGetLeaves(t *testing.T)         {}
+func TestGetInclusionProof(t *testing.T) {
+	req := &types.InclusionProofRequest{
+		TreeSize: 4,
+		LeafHash: &[types.HashSize]byte{},
+	}
+	for _, table := range []struct {
+		description string
+		req         *types.InclusionProofRequest
+		rsp         *trillian.GetInclusionProofByHashResponse
+		err         error
+		wantErr     bool
+		wantProof   *types.InclusionProof
+	}{
+		{
+			description: "invalid: backend failure",
+			req:         req,
+			err:         fmt.Errorf("something went wrong"),
+			wantErr:     true,
+		},
+		{
+			description: "invalid: no response",
+			req:         req,
+			wantErr:     true,
+		},
+		{
+			description: "invalid: bad proof count",
+			req:         req,
+			rsp: &trillian.GetInclusionProofByHashResponse{
+				Proof: []*trillian.Proof{
+					&trillian.Proof{},
+					&trillian.Proof{},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			description: "invalid: not an inclusion proof (1/2)",
+			req:         req,
+			rsp: &trillian.GetInclusionProofByHashResponse{
+				Proof: []*trillian.Proof{
+					&trillian.Proof{
+						LeafIndex: 1,
+						Hashes:    [][]byte{},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			description: "invalid: not an inclusion proof (2/2)",
+			req:         req,
+			rsp: &trillian.GetInclusionProofByHashResponse{
+				Proof: []*trillian.Proof{
+					&trillian.Proof{
+						LeafIndex: 1,
+						Hashes: [][]byte{
+							make([]byte, types.HashSize),
+							make([]byte, types.HashSize+1),
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			description: "valid",
+			req:         req,
+			rsp: &trillian.GetInclusionProofByHashResponse{
+				Proof: []*trillian.Proof{
+					&trillian.Proof{
+						LeafIndex: 1,
+						Hashes: [][]byte{
+							make([]byte, types.HashSize),
+							make([]byte, types.HashSize),
+						},
+					},
+				},
+			},
+			wantProof: &types.InclusionProof{
+				TreeSize:  4,
+				LeafIndex: 1,
+				Path: []*[types.HashSize]byte{
+					&[types.HashSize]byte{},
+					&[types.HashSize]byte{},
+				},
+			},
+		},
+	} {
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			grpc := mockclient.NewMockTrillianLogClient(ctrl)
+			grpc.EXPECT().GetInclusionProofByHash(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
+			client := Client{GRPC: grpc}
+
+			proof, err := client.GetInclusionProof(context.Background(), table.req)
+			if got, want := err != nil, table.wantErr; got != want {
+				t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
+			}
+			if err != nil {
+				return
+			}
+			if got, want := proof, table.wantProof; !reflect.DeepEqual(got, want) {
+				t.Errorf("got proof\n\t%v\nbut wanted\n\t%v\nin test %q", got, want, table.description)
+			}
+		}()
+	}
+}
+
+func TestGetLeaves(t *testing.T) {}

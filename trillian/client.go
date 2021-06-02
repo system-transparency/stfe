@@ -108,7 +108,34 @@ func (c *Client) GetConsistencyProof(ctx context.Context, req *types.Consistency
 }
 
 func (c *Client) GetInclusionProof(ctx context.Context, req *types.InclusionProofRequest) (*types.InclusionProof, error) {
-	return nil, fmt.Errorf("TODO")
+	rsp, err := c.GRPC.GetInclusionProofByHash(ctx, &trillian.GetInclusionProofByHashRequest{
+		LogId:           c.TreeID,
+		LeafHash:        req.LeafHash[:],
+		TreeSize:        int64(req.TreeSize),
+		OrderBySequence: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("backend failure: %v", err)
+	}
+	if rsp == nil {
+		return nil, fmt.Errorf("no response")
+	}
+	if len(rsp.Proof) != 1 {
+		return nil, fmt.Errorf("bad proof count: %d", len(rsp.Proof))
+	}
+	proof := rsp.Proof[0]
+	if len(proof.Hashes) == 0 {
+		return nil, fmt.Errorf("not an inclusion proof: empty")
+	}
+	path, err := nodePathFromHashes(proof.Hashes)
+	if err != nil {
+		return nil, fmt.Errorf("not an inclusion proof: %v", err)
+	}
+	return &types.InclusionProof{
+		TreeSize:  req.TreeSize,
+		LeafIndex: uint64(proof.LeafIndex),
+		Path:      path,
+	}, nil
 }
 
 func (c *Client) GetLeaves(ctx context.Context, req *types.LeavesRequest) (*types.LeafList, error) {
