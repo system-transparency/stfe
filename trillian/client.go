@@ -75,19 +75,36 @@ func (c *Client) GetTreeHead(ctx context.Context) (*types.TreeHead, error) {
 	if len(r.RootHash) != types.HashSize {
 		return nil, fmt.Errorf("unexpected hash length: %d", len(r.RootHash))
 	}
-
-	var hash [types.HashSize]byte
-	th := types.TreeHead{
-		Timestamp: uint64(r.TimestampNanos / 1000 / 1000 / 1000),
-		TreeSize:  uint64(r.TreeSize),
-		RootHash:  &hash,
-	}
-	copy(th.RootHash[:], r.RootHash)
-	return &th, nil
+	return treeHeadFromLogRoot(&r), nil
 }
 
 func (c *Client) GetConsistencyProof(ctx context.Context, req *types.ConsistencyProofRequest) (*types.ConsistencyProof, error) {
-	return nil, fmt.Errorf("TODO")
+	rsp, err := c.GRPC.GetConsistencyProof(ctx, &trillian.GetConsistencyProofRequest{
+		LogId:          c.TreeID,
+		FirstTreeSize:  int64(req.OldSize),
+		SecondTreeSize: int64(req.NewSize),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("backend failure: %v", err)
+	}
+	if rsp == nil {
+		return nil, fmt.Errorf("no response")
+	}
+	if rsp.Proof == nil {
+		return nil, fmt.Errorf("no consistency proof")
+	}
+	if len(rsp.Proof.Hashes) == 0 {
+		return nil, fmt.Errorf("not a consistency proof: empty")
+	}
+	path, err := nodePathFromHashes(rsp.Proof.Hashes)
+	if err != nil {
+		return nil, fmt.Errorf("not a consistency proof: %v", err)
+	}
+	return &types.ConsistencyProof{
+		OldSize: req.OldSize,
+		NewSize: req.NewSize,
+		Path:    path,
+	}, nil
 }
 
 func (c *Client) GetInclusionProof(ctx context.Context, req *types.InclusionProofRequest) (*types.InclusionProof, error) {

@@ -191,6 +191,101 @@ func TestGetTreeHead(t *testing.T) {
 	}
 }
 
-func TestGetConsistencyProof(t *testing.T) {}
-func TestGetInclusionProof(t *testing.T)   {}
-func TestGetLeaves(t *testing.T)           {}
+func TestGetConsistencyProof(t *testing.T) {
+	req := &types.ConsistencyProofRequest{
+		OldSize: 1,
+		NewSize: 3,
+	}
+	for _, table := range []struct {
+		description string
+		req         *types.ConsistencyProofRequest
+		rsp         *trillian.GetConsistencyProofResponse
+		err         error
+		wantErr     bool
+		wantProof   *types.ConsistencyProof
+	}{
+		{
+			description: "invalid: backend failure",
+			req:         req,
+			err:         fmt.Errorf("something went wrong"),
+			wantErr:     true,
+		},
+		{
+			description: "invalid: no response",
+			req:         req,
+			wantErr:     true,
+		},
+		{
+			description: "invalid: no consistency proof",
+			req:         req,
+			rsp:         &trillian.GetConsistencyProofResponse{},
+			wantErr:     true,
+		},
+		{
+			description: "invalid: not a consistency proof (1/2)",
+			req:         req,
+			rsp: &trillian.GetConsistencyProofResponse{
+				Proof: &trillian.Proof{
+					Hashes: [][]byte{},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			description: "invalid: not a consistency proof (2/2)",
+			req:         req,
+			rsp: &trillian.GetConsistencyProofResponse{
+				Proof: &trillian.Proof{
+					Hashes: [][]byte{
+						make([]byte, types.HashSize),
+						make([]byte, types.HashSize+1),
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			description: "valid",
+			req:         req,
+			rsp: &trillian.GetConsistencyProofResponse{
+				Proof: &trillian.Proof{
+					Hashes: [][]byte{
+						make([]byte, types.HashSize),
+						make([]byte, types.HashSize),
+					},
+				},
+			},
+			wantProof: &types.ConsistencyProof{
+				OldSize: 1,
+				NewSize: 3,
+				Path: []*[types.HashSize]byte{
+					&[types.HashSize]byte{},
+					&[types.HashSize]byte{},
+				},
+			},
+		},
+	} {
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			grpc := mockclient.NewMockTrillianLogClient(ctrl)
+			grpc.EXPECT().GetConsistencyProof(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
+			client := Client{GRPC: grpc}
+
+			proof, err := client.GetConsistencyProof(context.Background(), table.req)
+			if got, want := err != nil, table.wantErr; got != want {
+				t.Errorf("got error %v but wanted %v in test %q: %v", got, want, table.description, err)
+			}
+			if err != nil {
+				return
+			}
+			if got, want := proof, table.wantProof; !reflect.DeepEqual(got, want) {
+				t.Errorf("got proof\n\t%v\nbut wanted\n\t%v\nin test %q", got, want, table.description)
+			}
+		}()
+	}
+}
+
+func TestGetInclusionProof(t *testing.T) {}
+func TestGetLeaves(t *testing.T)         {}
