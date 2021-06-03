@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/google/certificate-transparency-go/trillian/mockclient"
 	"github.com/google/trillian"
 	ttypes "github.com/google/trillian/types"
+	"github.com/system-transparency/stfe/trillian/mocks"
 	"github.com/system-transparency/stfe/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -79,9 +79,9 @@ func TestAddLeaf(t *testing.T) {
 		func() {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			grpc := mockclient.NewMockTrillianLogClient(ctrl)
+			grpc := mocks.NewMockTrillianLogClient(ctrl)
 			grpc.EXPECT().QueueLeaf(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
-			client := Client{GRPC: grpc}
+			client := TrillianClient{GRPC: grpc}
 
 			err := client.AddLeaf(context.Background(), table.req)
 			if got, want := err != nil, table.wantErr; got != want {
@@ -173,9 +173,9 @@ func TestGetTreeHead(t *testing.T) {
 		func() {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			grpc := mockclient.NewMockTrillianLogClient(ctrl)
+			grpc := mocks.NewMockTrillianLogClient(ctrl)
 			grpc.EXPECT().GetLatestSignedLogRoot(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
-			client := Client{GRPC: grpc}
+			client := TrillianClient{GRPC: grpc}
 
 			th, err := client.GetTreeHead(context.Background())
 			if got, want := err != nil, table.wantErr; got != want {
@@ -269,9 +269,9 @@ func TestGetConsistencyProof(t *testing.T) {
 		func() {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			grpc := mockclient.NewMockTrillianLogClient(ctrl)
+			grpc := mocks.NewMockTrillianLogClient(ctrl)
 			grpc.EXPECT().GetConsistencyProof(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
-			client := Client{GRPC: grpc}
+			client := TrillianClient{GRPC: grpc}
 
 			proof, err := client.GetConsistencyProof(context.Background(), table.req)
 			if got, want := err != nil, table.wantErr; got != want {
@@ -379,9 +379,9 @@ func TestGetInclusionProof(t *testing.T) {
 		func() {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			grpc := mockclient.NewMockTrillianLogClient(ctrl)
+			grpc := mocks.NewMockTrillianLogClient(ctrl)
 			grpc.EXPECT().GetInclusionProofByHash(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
-			client := Client{GRPC: grpc}
+			client := TrillianClient{GRPC: grpc}
 
 			proof, err := client.GetInclusionProof(context.Background(), table.req)
 			if got, want := err != nil, table.wantErr; got != want {
@@ -514,9 +514,9 @@ func TestGetLeaves(t *testing.T) {
 		func() {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			grpc := mockclient.NewMockTrillianLogClient(ctrl)
+			grpc := mocks.NewMockTrillianLogClient(ctrl)
 			grpc.EXPECT().GetLeavesByRange(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
-			client := Client{GRPC: grpc}
+			client := TrillianClient{GRPC: grpc}
 
 			leaves, err := client.GetLeaves(context.Background(), table.req)
 			if got, want := err != nil, table.wantErr; got != want {

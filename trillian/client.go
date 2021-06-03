@@ -11,8 +11,16 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// Client is a wrapper around the Trillian gRPC client
-type Client struct {
+type Client interface {
+	AddLeaf(context.Context, *types.LeafRequest) error
+	GetConsistencyProof(context.Context, *types.ConsistencyProofRequest) (*types.ConsistencyProof, error)
+	GetTreeHead(context.Context) (*types.TreeHead, error)
+	GetInclusionProof(context.Context, *types.InclusionProofRequest) (*types.InclusionProof, error)
+	GetLeaves(context.Context, *types.LeavesRequest) (*types.LeafList, error)
+}
+
+// TrillianClient is a wrapper around the Trillian gRPC client.
+type TrillianClient struct {
 	// TreeID is a Merkle tree identifier that Trillian uses
 	TreeID int64
 
@@ -20,7 +28,7 @@ type Client struct {
 	GRPC trillian.TrillianLogClient
 }
 
-func (c *Client) AddLeaf(ctx context.Context, req *types.LeafRequest) error {
+func (c *TrillianClient) AddLeaf(ctx context.Context, req *types.LeafRequest) error {
 	leaf := types.Leaf{
 		Message: req.Message,
 		SigIdent: types.SigIdent{
@@ -52,7 +60,7 @@ func (c *Client) AddLeaf(ctx context.Context, req *types.LeafRequest) error {
 	return nil
 }
 
-func (c *Client) GetTreeHead(ctx context.Context) (*types.TreeHead, error) {
+func (c *TrillianClient) GetTreeHead(ctx context.Context) (*types.TreeHead, error) {
 	rsp, err := c.GRPC.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{
 		LogId: c.TreeID,
 	})
@@ -78,7 +86,7 @@ func (c *Client) GetTreeHead(ctx context.Context) (*types.TreeHead, error) {
 	return treeHeadFromLogRoot(&r), nil
 }
 
-func (c *Client) GetConsistencyProof(ctx context.Context, req *types.ConsistencyProofRequest) (*types.ConsistencyProof, error) {
+func (c *TrillianClient) GetConsistencyProof(ctx context.Context, req *types.ConsistencyProofRequest) (*types.ConsistencyProof, error) {
 	rsp, err := c.GRPC.GetConsistencyProof(ctx, &trillian.GetConsistencyProofRequest{
 		LogId:          c.TreeID,
 		FirstTreeSize:  int64(req.OldSize),
@@ -107,7 +115,7 @@ func (c *Client) GetConsistencyProof(ctx context.Context, req *types.Consistency
 	}, nil
 }
 
-func (c *Client) GetInclusionProof(ctx context.Context, req *types.InclusionProofRequest) (*types.InclusionProof, error) {
+func (c *TrillianClient) GetInclusionProof(ctx context.Context, req *types.InclusionProofRequest) (*types.InclusionProof, error) {
 	rsp, err := c.GRPC.GetInclusionProofByHash(ctx, &trillian.GetInclusionProofByHashRequest{
 		LogId:           c.TreeID,
 		LeafHash:        req.LeafHash[:],
@@ -138,7 +146,7 @@ func (c *Client) GetInclusionProof(ctx context.Context, req *types.InclusionProo
 	}, nil
 }
 
-func (c *Client) GetLeaves(ctx context.Context, req *types.LeavesRequest) (*types.LeafList, error) {
+func (c *TrillianClient) GetLeaves(ctx context.Context, req *types.LeavesRequest) (*types.LeafList, error) {
 	rsp, err := c.GRPC.GetLeavesByRange(ctx, &trillian.GetLeavesByRangeRequest{
 		LogId:      c.TreeID,
 		StartIndex: int64(req.StartSize),
