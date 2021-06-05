@@ -9,7 +9,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/google/trillian"
 	ttypes "github.com/google/trillian/types"
-	"github.com/system-transparency/stfe/trillian/mocks"
+	"github.com/system-transparency/stfe/mocks"
 	"github.com/system-transparency/stfe/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
