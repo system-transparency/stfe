@@ -1,9 +1,12 @@
 package types
 
 import (
+	"crypto"
+	"fmt"
+	"strings"
+
 	"crypto/ed25519"
 	"crypto/sha256"
-	"strings"
 )
 
 const (
@@ -112,4 +115,39 @@ type LeafRequest struct {
 // CosignatureRequest is an add-cosignature request
 type CosignatureRequest struct {
 	SigIdent
+}
+
+// Sign signs the tree head using the log's signature scheme
+func (th *TreeHead) Sign(signer crypto.Signer) (*SignedTreeHead, error) {
+	sig, err := signer.Sign(nil, th.Marshal(), crypto.Hash(0))
+	if err != nil {
+		return nil, fmt.Errorf("Sign: %v", err)
+	}
+
+	sigident := SigIdent{
+		KeyHash:   Hash(signer.Public().(ed25519.PublicKey)[:]),
+		Signature: &[SignatureSize]byte{},
+	}
+	copy(sigident.Signature[:], sig)
+	return &SignedTreeHead{
+		TreeHead: *th,
+		SigIdent: []*SigIdent{
+			&sigident,
+		},
+	}, nil
+}
+
+// Verify verifies the tree head signature using the log's signature scheme
+func (th *TreeHead) Verify(pub crypto.PublicKey) error { // TODO
+	return nil
+}
+
+// Verify checks if a leaf is included in the log
+func (p *InclusionProof) Verify(leaf *Leaf, th *TreeHead) error { // TODO
+	return nil
+}
+
+// Verify checks if two tree heads are consistent
+func (p *ConsistencyProof) Verify(oldTH, newTH *TreeHead) error { // TODO
+	return nil
 }
