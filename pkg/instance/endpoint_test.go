@@ -2,479 +2,431 @@ package stfe
 
 import (
 	"bytes"
-	"context"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	cttestdata "github.com/google/certificate-transparency-go/trillian/testdata"
-	"github.com/google/trillian"
-	"github.com/system-transparency/stfe/pkg/testdata"
+	"github.com/system-transparency/stfe/pkg/mocks"
 	"github.com/system-transparency/stfe/pkg/types"
 )
 
-func TestEndpointAddEntry(t *testing.T) {
+var (
+	testWitVK  = [types.VerificationKeySize]byte{}
+	testConfig = Config{
+		LogID:    hex.EncodeToString(types.Hash([]byte("logid"))[:]),
+		TreeID:   0,
+		Prefix:   "testonly",
+		MaxRange: 3,
+		Deadline: 10,
+		Interval: 10,
+		Witnesses: map[[types.HashSize]byte][types.VerificationKeySize]byte{
+			*types.Hash(testWitVK[:]): testWitVK,
+		},
+	}
+	testSTH = &types.SignedTreeHead{
+		TreeHead: types.TreeHead{
+			Timestamp: 0,
+			TreeSize:  0,
+			RootHash:  types.Hash(nil),
+		},
+		SigIdent: []*types.SigIdent{
+			&types.SigIdent{
+				Signature: &[types.SignatureSize]byte{},
+				KeyHash:   &[types.HashSize]byte{},
+			},
+		},
+	}
+)
+
+func mustHandle(t *testing.T, i Instance, e types.Endpoint) Handler {
+	for _, handler := range i.Handlers() {
+		if handler.Endpoint == e {
+			return handler
+		}
+	}
+	t.Fatalf("must handle endpoint: %v", e)
+	return Handler{}
+}
+
+func TestAddLeaf(t *testing.T) {
+	buf := func() io.Reader {
+		// A valid leaf request that was created manually
+		return bytes.NewBufferString(fmt.Sprintf(
+			"%s%s%s%s"+"%s%s%s%s"+"%s%s%s%s"+"%s%s%s%s"+"%s%s%s%s",
+			types.ShardHint, types.Delim, "0", types.EOL,
+			types.Checksum, types.Delim, "0000000000000000000000000000000000000000000000000000000000000000", types.EOL,
+			types.SignatureOverMessage, types.Delim, "4cb410a4d48f52f761a7c01abcc28fd71811b84ded5403caed5e21b374f6aac9637cecd36828f17529fd503413d30ab66d7bb37a31dbf09a90d23b9241c45009", types.EOL,
+			types.VerificationKey, types.Delim, "f2b7a00b625469d32502e06e8b7fad1ef258d4ad0c6cd87b846142ab681957d5", types.EOL,
+			types.DomainHint, types.Delim, "example.com", types.EOL,
+		))
+	}
 	for _, table := range []struct {
 		description string
-		breq        *bytes.Buffer
-		trsp        *trillian.QueueLeafResponse
-		terr        error
-		wantCode    int
+		ascii       io.Reader // buffer used to populate HTTP request
+		expect      bool      // set if a mock answer is expected
+		err         error     // error from Trillian client
+		wantCode    int       // HTTP status ok
 	}{
 		{
-			description: "invalid: bad request: empty",
-			breq:        bytes.NewBuffer(nil),
+			description: "invalid: bad request (parser error)",
+			ascii:       bytes.NewBufferString("key=value\n"),
 			wantCode:    http.StatusBadRequest,
 		},
 		{
-			description: "invalid: bad Trillian response: error",
-			breq:        testdata.AddSignedChecksumBuffer(t, testdata.Ed25519SkSubmitter, testdata.Ed25519VkSubmitter),
-			terr:        fmt.Errorf("backend failure"),
+			description: "invalid: bad request (signature error)",
+			ascii: bytes.NewBufferString(fmt.Sprintf(
+				"%s%s%s%s"+"%s%s%s%s"+"%s%s%s%s"+"%s%s%s%s"+"%s%s%s%s",
+				types.ShardHint, types.Delim, "1", types.EOL,
+				types.Checksum, types.Delim, "1111111111111111111111111111111111111111111111111111111111111111", types.EOL,
+				types.SignatureOverMessage, types.Delim, "4cb410a4d48f52f761a7c01abcc28fd71811b84ded5403caed5e21b374f6aac9637cecd36828f17529fd503413d30ab66d7bb37a31dbf09a90d23b9241c45009", types.EOL,
+				types.VerificationKey, types.Delim, "f2b7a00b625469d32502e06e8b7fad1ef258d4ad0c6cd87b846142ab681957d5", types.EOL,
+				types.DomainHint, types.Delim, "example.com", types.EOL,
+			)),
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			description: "invalid: backend failure",
+			ascii:       buf(),
+			expect:      true,
+			err:         fmt.Errorf("something went wrong"),
 			wantCode:    http.StatusInternalServerError,
 		},
 		{
 			description: "valid",
-			breq:        testdata.AddSignedChecksumBuffer(t, testdata.Ed25519SkSubmitter, testdata.Ed25519VkSubmitter),
-			trsp:        testdata.DefaultTQlr(t, false),
+			ascii:       buf(),
+			expect:      true,
 			wantCode:    http.StatusOK,
 		},
 	} {
-		func() { // run deferred functions at the end of each iteration
-			ti := newTestInstance(t, nil)
-			defer ti.ctrl.Finish()
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			client := mocks.NewMockClient(ctrl)
+			if table.expect {
+				client.EXPECT().AddLeaf(gomock.Any(), gomock.Any()).Return(table.err)
+			}
+			i := Instance{
+				Config: testConfig,
+				Client: client,
+			}
 
-			url := EndpointAddEntry.Path("http://example.com", ti.instance.LogParameters.Prefix)
-			req, err := http.NewRequest("POST", url, table.breq)
+			// Create HTTP request
+			url := types.EndpointAddLeaf.Path("http://example.com", i.Prefix)
+			req, err := http.NewRequest("POST", url, table.ascii)
 			if err != nil {
 				t.Fatalf("must create http request: %v", err)
 			}
-			req.Header.Set("Content-Type", "application/octet-stream")
-			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().QueueLeaf(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
-			}
 
+			// Run HTTP request
 			w := httptest.NewRecorder()
-			ti.postHandler(t, EndpointAddEntry).ServeHTTP(w, req)
+			mustHandle(t, i, types.EndpointAddLeaf).ServeHTTP(w, req)
 			if got, want := w.Code, table.wantCode; got != want {
-				t.Errorf("got error code %d but wanted %d in test %q", got, want, table.description)
+				t.Errorf("got HTTP status code %v but wanted %v in test %q", got, want, table.description)
 			}
 		}()
 	}
 }
 
-func TestEndpointAddCosignature(t *testing.T) {
+func TestAddCosignature(t *testing.T) {
+	buf := func() io.Reader {
+		return bytes.NewBufferString(fmt.Sprintf(
+			"%s%s%x%s"+"%s%s%x%s",
+			types.Signature, types.Delim, make([]byte, types.SignatureSize), types.EOL,
+			types.KeyHash, types.Delim, *types.Hash(testWitVK[:]), types.EOL,
+		))
+	}
 	for _, table := range []struct {
 		description string
-		breq        *bytes.Buffer
-		wantCode    int
+		ascii       io.Reader // buffer used to populate HTTP request
+		expect      bool      // set if a mock answer is expected
+		err         error     // error from Trillian client
+		wantCode    int       // HTTP status ok
 	}{
 		{
-			description: "invalid: bad request: empty",
-			breq:        bytes.NewBuffer(nil),
+			description: "invalid: bad request (parser error)",
+			ascii:       bytes.NewBufferString("key=value\n"),
 			wantCode:    http.StatusBadRequest,
 		},
 		{
-			description: "invalid: signed wrong sth", // newLogParameters() use testdata.Ed25519VkLog as default
-			breq:        testdata.AddCosignatureBuffer(t, testdata.DefaultSth(t, testdata.Ed25519VkLog2), &testdata.Ed25519SkWitness, &testdata.Ed25519VkWitness),
+			description: "invalid: bad request (unknown witness)",
+			ascii: bytes.NewBufferString(fmt.Sprintf(
+				"%s%s%x%s"+"%s%s%x%s",
+				types.Signature, types.Delim, make([]byte, types.SignatureSize), types.EOL,
+				types.KeyHash, types.Delim, *types.Hash(testWitVK[1:]), types.EOL,
+			)),
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			description: "invalid: backend failure",
+			ascii:       buf(),
+			expect:      true,
+			err:         fmt.Errorf("something went wrong"),
 			wantCode:    http.StatusBadRequest,
 		},
 		{
 			description: "valid",
-			breq:        testdata.AddCosignatureBuffer(t, testdata.DefaultSth(t, testdata.Ed25519VkLog), &testdata.Ed25519SkWitness, &testdata.Ed25519VkWitness),
+			ascii:       buf(),
+			expect:      true,
 			wantCode:    http.StatusOK,
 		},
 	} {
-		func() { // run deferred functions at the end of each iteration
-			ti := newTestInstance(t, nil)
-			defer ti.ctrl.Finish()
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			stateman := mocks.NewMockStateManager(ctrl)
+			if table.expect {
+				stateman.EXPECT().AddCosignature(gomock.Any(), gomock.Any(), gomock.Any()).Return(table.err)
+			}
+			i := Instance{
+				Config:   testConfig,
+				Stateman: stateman,
+			}
 
-			url := EndpointAddCosignature.Path("http://example.com", ti.instance.LogParameters.Prefix)
-			req, err := http.NewRequest("POST", url, table.breq)
+			// Create HTTP request
+			url := types.EndpointAddCosignature.Path("http://example.com", i.Prefix)
+			req, err := http.NewRequest("POST", url, table.ascii)
 			if err != nil {
 				t.Fatalf("must create http request: %v", err)
 			}
-			req.Header.Set("Content-Type", "application/octet-stream")
 
+			// Run HTTP request
 			w := httptest.NewRecorder()
-			ti.postHandler(t, EndpointAddCosignature).ServeHTTP(w, req)
+			mustHandle(t, i, types.EndpointAddCosignature).ServeHTTP(w, req)
 			if got, want := w.Code, table.wantCode; got != want {
-				t.Errorf("got error code %d but wanted %d in test %q", got, want, table.description)
+				t.Errorf("got HTTP status code %v but wanted %v in test %q", got, want, table.description)
 			}
 		}()
 	}
 }
 
-func TestEndpointGetLatestSth(t *testing.T) {
+func TestGetTreeHeadLatest(t *testing.T) {
 	for _, table := range []struct {
 		description string
-		trsp        *trillian.GetLatestSignedLogRootResponse
-		terr        error
-		wantCode    int
-		wantItem    *types.StItem
+		expect      bool                  // set if a mock answer is expected
+		rsp         *types.SignedTreeHead // signed tree head from Trillian client
+		err         error                 // error from Trillian client
+		wantCode    int                   // HTTP status ok
 	}{
 		{
-			description: "backend failure",
-			terr:        fmt.Errorf("backend failure"),
+			description: "invalid: backend failure",
+			expect:      true,
+			err:         fmt.Errorf("something went wrong"),
 			wantCode:    http.StatusInternalServerError,
 		},
 		{
 			description: "valid",
-			trsp:        testdata.DefaultTSlr(t),
+			expect:      true,
+			rsp:         testSTH,
 			wantCode:    http.StatusOK,
-			wantItem:    testdata.DefaultSth(t, testdata.Ed25519VkLog),
 		},
 	} {
-		func() { // run deferred functions at the end of each iteration
-			ti := newTestInstance(t, cttestdata.NewSignerWithFixedSig(nil, testdata.Signature))
-			ti.ctrl.Finish()
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			stateman := mocks.NewMockStateManager(ctrl)
+			if table.expect {
+				stateman.EXPECT().Latest(gomock.Any()).Return(table.rsp, table.err)
+			}
+			i := Instance{
+				Config:   testConfig,
+				Stateman: stateman,
+			}
 
-			// Setup and run client query
-			url := EndpointGetLatestSth.Path("http://example.com", ti.instance.LogParameters.Prefix)
+			// Create HTTP request
+			url := types.EndpointGetTreeHeadLatest.Path("http://example.com", i.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("must create http request: %v", err)
 			}
-			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetLatestSignedLogRoot(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
-			}
 
+			// Run HTTP request
 			w := httptest.NewRecorder()
-			ti.getHandler(t, EndpointGetLatestSth).ServeHTTP(w, req)
+			mustHandle(t, i, types.EndpointGetTreeHeadLatest).ServeHTTP(w, req)
 			if got, want := w.Code, table.wantCode; got != want {
-				t.Errorf("got error code %d but wanted %d in test %q", got, want, table.description)
-			}
-			if w.Code != http.StatusOK {
-				return
-			}
-
-			var item types.StItem
-			if err := types.Unmarshal([]byte(w.Body.String()), &item); err != nil {
-				t.Errorf("valid response cannot be unmarshalled in test %q: %v", table.description, err)
-			}
-			if got, want := item, *table.wantItem; !reflect.DeepEqual(got, want) {
-				t.Errorf("got item\n%v\n\tbut wanted\n%v\n\tin test %q", got, want, table.description)
+				t.Errorf("got HTTP status code %v but wanted %v in test %q", got, want, table.description)
 			}
 		}()
 	}
 }
 
-func TestEndpointGetStableSth(t *testing.T) {
+func TestGetTreeToSign(t *testing.T) {
 	for _, table := range []struct {
-		description  string
-		useBadSource bool
-		wantCode     int
-		wantItem     *types.StItem
+		description string
+		expect      bool                  // set if a mock answer is expected
+		rsp         *types.SignedTreeHead // signed tree head from Trillian client
+		err         error                 // error from Trillian client
+		wantCode    int                   // HTTP status ok
 	}{
 		{
-			description:  "invalid: sth source failure",
-			useBadSource: true,
-			wantCode:     http.StatusInternalServerError,
+			description: "invalid: backend failure",
+			expect:      true,
+			err:         fmt.Errorf("something went wrong"),
+			wantCode:    http.StatusInternalServerError,
 		},
 		{
 			description: "valid",
+			expect:      true,
+			rsp:         testSTH,
 			wantCode:    http.StatusOK,
-			wantItem:    testdata.DefaultSth(t, testdata.Ed25519VkLog),
 		},
 	} {
-		func() { // run deferred functions at the end of each iteration
-			ti := newTestInstance(t, nil)
-			ti.ctrl.Finish()
-			if table.useBadSource {
-				ti.instance.SthSource = &ActiveSthSource{}
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			stateman := mocks.NewMockStateManager(ctrl)
+			if table.expect {
+				stateman.EXPECT().ToSign(gomock.Any()).Return(table.rsp, table.err)
+			}
+			i := Instance{
+				Config:   testConfig,
+				Stateman: stateman,
 			}
 
-			// Setup and run client query
-			url := EndpointGetStableSth.Path("http://example.com", ti.instance.LogParameters.Prefix)
+			// Create HTTP request
+			url := types.EndpointGetTreeHeadToSign.Path("http://example.com", i.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("must create http request: %v", err)
 			}
 
+			// Run HTTP request
 			w := httptest.NewRecorder()
-			ti.getHandler(t, EndpointGetStableSth).ServeHTTP(w, req)
+			mustHandle(t, i, types.EndpointGetTreeHeadToSign).ServeHTTP(w, req)
 			if got, want := w.Code, table.wantCode; got != want {
-				t.Errorf("got error code %d but wanted %d in test %q", got, want, table.description)
-			}
-			if w.Code != http.StatusOK {
-				return
-			}
-
-			var item types.StItem
-			if err := types.Unmarshal([]byte(w.Body.String()), &item); err != nil {
-				t.Errorf("valid response cannot be unmarshalled in test %q: %v", table.description, err)
-			}
-			if got, want := item, *table.wantItem; !reflect.DeepEqual(got, want) {
-				t.Errorf("got item\n%v\n\tbut wanted\n%v\n\tin test %q", got, want, table.description)
+				t.Errorf("got HTTP status code %v but wanted %v in test %q", got, want, table.description)
 			}
 		}()
 	}
 }
 
-func TestEndpointGetCosignedSth(t *testing.T) {
+func TestGetTreeCosigned(t *testing.T) {
 	for _, table := range []struct {
-		description  string
-		useBadSource bool
-		wantCode     int
-		wantItem     *types.StItem
+		description string
+		expect      bool                  // set if a mock answer is expected
+		rsp         *types.SignedTreeHead // signed tree head from Trillian client
+		err         error                 // error from Trillian client
+		wantCode    int                   // HTTP status ok
 	}{
 		{
-			description:  "invalid: sth source failure",
-			useBadSource: true,
-			wantCode:     http.StatusInternalServerError,
+			description: "invalid: backend failure",
+			expect:      true,
+			err:         fmt.Errorf("something went wrong"),
+			wantCode:    http.StatusInternalServerError,
 		},
 		{
 			description: "valid",
+			expect:      true,
+			rsp:         testSTH,
 			wantCode:    http.StatusOK,
-			wantItem:    testdata.DefaultCosth(t, testdata.Ed25519VkLog, [][32]byte{testdata.Ed25519VkWitness}),
 		},
 	} {
-		func() { // run deferred functions at the end of each iteration
-			ti := newTestInstance(t, nil)
-			ti.ctrl.Finish()
-			if table.useBadSource {
-				ti.instance.SthSource = &ActiveSthSource{}
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			stateman := mocks.NewMockStateManager(ctrl)
+			if table.expect {
+				stateman.EXPECT().Cosigned(gomock.Any()).Return(table.rsp, table.err)
+			}
+			i := Instance{
+				Config:   testConfig,
+				Stateman: stateman,
 			}
 
-			// Setup and run client query
-			url := EndpointGetCosignedSth.Path("http://example.com", ti.instance.LogParameters.Prefix)
+			// Create HTTP request
+			url := types.EndpointGetTreeHeadCosigned.Path("http://example.com", i.Prefix)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				t.Fatalf("must create http request: %v", err)
 			}
 
+			// Run HTTP request
 			w := httptest.NewRecorder()
-			ti.getHandler(t, EndpointGetCosignedSth).ServeHTTP(w, req)
+			mustHandle(t, i, types.EndpointGetTreeHeadCosigned).ServeHTTP(w, req)
 			if got, want := w.Code, table.wantCode; got != want {
-				t.Errorf("got error code %d but wanted %d in test %q", got, want, table.description)
-			}
-			if w.Code != http.StatusOK {
-				return
-			}
-
-			var item types.StItem
-			if err := types.Unmarshal([]byte(w.Body.String()), &item); err != nil {
-				t.Errorf("valid response cannot be unmarshalled in test %q: %v", table.description, err)
-			}
-			if got, want := item, *table.wantItem; !reflect.DeepEqual(got, want) {
-				t.Errorf("got item\n%v\n\tbut wanted\n%v\n\tin test %q", got, want, table.description)
+				t.Errorf("got HTTP status code %v but wanted %v in test %q", got, want, table.description)
 			}
 		}()
 	}
 }
 
-func TestEndpointGetProofByHash(t *testing.T) {
+func TestGetConsistencyProof(t *testing.T) {
+	buf := func(oldSize, newSize int) io.Reader {
+		return bytes.NewBufferString(fmt.Sprintf(
+			"%s%s%d%s"+"%s%s%d%s",
+			types.OldSize, types.Delim, oldSize, types.EOL,
+			types.NewSize, types.Delim, newSize, types.EOL,
+		))
+	}
+	// values in testProof are not relevant for the test, just need a path
+	testProof := &types.ConsistencyProof{
+		OldSize: 1,
+		NewSize: 2,
+		Path: []*[types.HashSize]byte{
+			types.Hash(nil),
+		},
+	}
 	for _, table := range []struct {
 		description string
-		breq        *bytes.Buffer
-		trsp        *trillian.GetInclusionProofByHashResponse
-		terr        error
-		wantCode    int
-		wantItem    *types.StItem
+		ascii       io.Reader               // buffer used to populate HTTP request
+		expect      bool                    // set if a mock answer is expected
+		rsp         *types.ConsistencyProof // consistency proof from Trillian client
+		err         error                   // error from Trillian client
+		wantCode    int                     // HTTP status ok
 	}{
 		{
-			description: "invalid: bad request: empty",
-			breq:        bytes.NewBuffer(nil),
+			description: "invalid: bad request (parser error)",
+			ascii:       bytes.NewBufferString("key=value\n"),
 			wantCode:    http.StatusBadRequest,
-		},
-		{
-			description: "invalid: bad Trillian response: error",
-			breq:        bytes.NewBuffer(marshal(t, types.GetProofByHashV1{TreeSize: 1, Hash: testdata.LeafHash})),
-			terr:        fmt.Errorf("backend failure"),
-			wantCode:    http.StatusInternalServerError,
 		},
 		{
 			description: "valid",
-			breq:        bytes.NewBuffer(marshal(t, types.GetProofByHashV1{TreeSize: 1, Hash: testdata.LeafHash})),
-			trsp:        testdata.DefaultTGipbhr(t),
+			ascii:       buf(1, 2),
+			expect:      true,
+			rsp:         testProof,
 			wantCode:    http.StatusOK,
-			wantItem:    testdata.DefaultInclusionProof(t, 1),
 		},
 	} {
-		func() { // run deferred functions at the end of each iteration
-			ti := newTestInstance(t, nil)
-			defer ti.ctrl.Finish()
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			client := mocks.NewMockClient(ctrl)
+			if table.expect {
+				client.EXPECT().GetConsistencyProof(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
+			}
+			i := Instance{
+				Config: testConfig,
+				Client: client,
+			}
 
-			url := EndpointGetProofByHash.Path("http://example.com", ti.instance.LogParameters.Prefix)
-			req, err := http.NewRequest("POST", url, table.breq)
+			// Create HTTP request
+			url := types.EndpointGetConsistencyProof.Path("http://example.com", i.Prefix)
+			req, err := http.NewRequest("POST", url, table.ascii)
 			if err != nil {
 				t.Fatalf("must create http request: %v", err)
 			}
-			req.Header.Set("Content-Type", "application/octet-stream")
-			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetInclusionProofByHash(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
-			}
 
+			// Run HTTP request
 			w := httptest.NewRecorder()
-			ti.postHandler(t, EndpointGetProofByHash).ServeHTTP(w, req)
+			mustHandle(t, i, types.EndpointGetConsistencyProof).ServeHTTP(w, req)
 			if got, want := w.Code, table.wantCode; got != want {
-				t.Errorf("got error code %d but wanted %d in test %q", got, want, table.description)
-			}
-			if w.Code != http.StatusOK {
-				return
-			}
-
-			var item types.StItem
-			if err := types.Unmarshal([]byte(w.Body.String()), &item); err != nil {
-				t.Errorf("valid response cannot be unmarshalled in test %q: %v", table.description, err)
-			}
-			if got, want := item, *table.wantItem; !reflect.DeepEqual(got, want) {
-				t.Errorf("got item\n%v\n\tbut wanted\n%v\n\tin test %q", got, want, table.description)
+				t.Errorf("got HTTP status code %v but wanted %v in test %q", got, want, table.description)
 			}
 		}()
 	}
 }
 
-func TestEndpointGetConsistencyProof(t *testing.T) {
-	for _, table := range []struct {
-		description string
-		breq        *bytes.Buffer
-		trsp        *trillian.GetConsistencyProofResponse
-		terr        error
-		wantCode    int
-		wantItem    *types.StItem
-	}{
-		{
-			description: "invalid: bad request: empty",
-			breq:        bytes.NewBuffer(nil),
-			wantCode:    http.StatusBadRequest,
-		},
-		{
-			description: "invalid: bad Trillian response: error",
-			breq:        bytes.NewBuffer(marshal(t, types.GetConsistencyProofV1{First: 1, Second: 2})),
-			terr:        fmt.Errorf("backend failure"),
-			wantCode:    http.StatusInternalServerError,
-		},
-		{
-			description: "valid",
-			breq:        bytes.NewBuffer(marshal(t, types.GetConsistencyProofV1{First: 1, Second: 2})),
-			trsp:        testdata.DefaultTGcpr(t),
-			wantCode:    http.StatusOK,
-			wantItem:    testdata.DefaultConsistencyProof(t, 1, 2),
-		},
-	} {
-		func() { // run deferred functions at the end of each iteration
-			ti := newTestInstance(t, nil)
-			defer ti.ctrl.Finish()
-
-			url := EndpointGetConsistencyProof.Path("http://example.com", ti.instance.LogParameters.Prefix)
-			req, err := http.NewRequest("POST", url, table.breq)
-			if err != nil {
-				t.Fatalf("must create http request: %v", err)
-			}
-			req.Header.Set("Content-Type", "application/octet-stream")
-			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetConsistencyProof(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
-			}
-
-			w := httptest.NewRecorder()
-			ti.postHandler(t, EndpointGetConsistencyProof).ServeHTTP(w, req)
-			if got, want := w.Code, table.wantCode; got != want {
-				t.Errorf("got error code %d but wanted %d in test %q", got, want, table.description)
-			}
-			if w.Code != http.StatusOK {
-				return
-			}
-
-			var item types.StItem
-			if err := types.Unmarshal([]byte(w.Body.String()), &item); err != nil {
-				t.Errorf("valid response cannot be unmarshalled in test %q: %v", table.description, err)
-			}
-			if got, want := item, *table.wantItem; !reflect.DeepEqual(got, want) {
-				t.Errorf("got item\n%v\n\tbut wanted\n%v\n\tin test %q", got, want, table.description)
-			}
-		}()
-	}
+func TestGetInclusionProof(t *testing.T) {
 }
 
-func TestEndpointGetEntriesV1(t *testing.T) {
-	for _, table := range []struct {
-		description string
-		breq        *bytes.Buffer
-		trsp        *trillian.GetLeavesByRangeResponse
-		terr        error
-		wantCode    int
-		wantItem    *types.StItemList
-	}{
-		{
-			description: "invalid: bad request: empty",
-			breq:        bytes.NewBuffer(nil),
-			wantCode:    http.StatusBadRequest,
-		},
-		{
-			description: "invalid: bad Trillian response: error",
-			breq:        bytes.NewBuffer(marshal(t, types.GetEntriesV1{Start: 0, End: 0})),
-			terr:        fmt.Errorf("backend failure"),
-			wantCode:    http.StatusInternalServerError,
-		},
-		{
-			description: "valid", // remember that newLogParameters() have testdata.MaxRange configured
-			breq:        bytes.NewBuffer(marshal(t, types.GetEntriesV1{Start: 0, End: uint64(testdata.MaxRange - 1)})),
-			trsp:        testdata.DefaultTGlbrr(t, 0, testdata.MaxRange-1),
-			wantCode:    http.StatusOK,
-			wantItem:    testdata.DefaultStItemList(t, 0, uint64(testdata.MaxRange)-1),
-		},
-	} {
-		func() { // run deferred functions at the end of each iteration
-			ti := newTestInstance(t, nil)
-			defer ti.ctrl.Finish()
-
-			url := EndpointGetEntries.Path("http://example.com", ti.instance.LogParameters.Prefix)
-			req, err := http.NewRequest("POST", url, table.breq)
-			if err != nil {
-				t.Fatalf("must create http request: %v", err)
-			}
-			req.Header.Set("Content-Type", "application/octet-stream")
-			if table.trsp != nil || table.terr != nil {
-				ti.client.EXPECT().GetLeavesByRange(newDeadlineMatcher(), gomock.Any()).Return(table.trsp, table.terr)
-			}
-
-			w := httptest.NewRecorder()
-			ti.postHandler(t, EndpointGetEntries).ServeHTTP(w, req)
-			if got, want := w.Code, table.wantCode; got != want {
-				t.Errorf("got error code %d but wanted %d in test %q", got, want, table.description)
-			}
-			if w.Code != http.StatusOK {
-				return
-			}
-
-			var item types.StItemList
-			if err := types.Unmarshal([]byte(w.Body.String()), &item); err != nil {
-				t.Errorf("valid response cannot be unmarshalled in test %q: %v", table.description, err)
-			}
-			if got, want := item, *table.wantItem; !reflect.DeepEqual(got, want) {
-				t.Errorf("got item\n%v\n\tbut wanted\n%v\n\tin test %q", got, want, table.description)
-			}
-		}()
-	}
-}
-
-// TODO: TestWriteOctetResponse
-func TestWriteOctetResponse(t *testing.T) {
-}
-
-// deadlineMatcher implements gomock.Matcher, such that an error is raised if
-// there is no context.Context deadline set
-type deadlineMatcher struct{}
-
-// newDeadlineMatcher returns a new DeadlineMatcher
-func newDeadlineMatcher() gomock.Matcher {
-	return &deadlineMatcher{}
-}
-
-// Matches returns true if the passed interface is a context with a deadline
-func (dm *deadlineMatcher) Matches(i interface{}) bool {
-	ctx, ok := i.(context.Context)
-	if !ok {
-		return false
-	}
-	_, ok = ctx.Deadline()
-	return ok
-}
-
-// String is needed to implement gomock.Matcher
-func (dm *deadlineMatcher) String() string {
-	return fmt.Sprintf("deadlineMatcher{}")
+func TestGetLeaves(t *testing.T) {
 }
