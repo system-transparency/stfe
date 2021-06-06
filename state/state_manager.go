@@ -3,7 +3,6 @@ package stfe
 import (
 	"context"
 	"crypto"
-	"crypto/ed25519"
 	"fmt"
 	"reflect"
 	"sync"
@@ -20,14 +19,14 @@ type StateManager interface {
 	Latest(context.Context) (*types.SignedTreeHead, error)
 	ToSign(context.Context) (*types.SignedTreeHead, error)
 	Cosigned(context.Context) (*types.SignedTreeHead, error)
-	AddCosignature(context.Context, ed25519.PublicKey, *[types.SignatureSize]byte) error
+	AddCosignature(context.Context, *[types.VerificationKeySize]byte, *[types.SignatureSize]byte) error
 	Run(context.Context)
 }
 
 // StateManagerSingle implements the StateManager interface.  It is assumed that
 // the log server is running on a single-instance machine.  So, no coordination.
 type StateManagerSingle struct {
-	client   *trillian.Client
+	client   trillian.Client
 	signer   crypto.Signer
 	interval time.Duration
 	deadline time.Duration
@@ -43,7 +42,7 @@ type StateManagerSingle struct {
 	cosignature map[[types.HashSize]byte]*types.SigIdent
 }
 
-func NewStateManagerSingle(client *trillian.Client, signer crypto.Signer, interval, deadline time.Duration) (*StateManagerSingle, error) {
+func NewStateManagerSingle(client trillian.Client, signer crypto.Signer, interval, deadline time.Duration) (*StateManagerSingle, error) {
 	sm := &StateManagerSingle{
 		client:   client,
 		signer:   signer,
@@ -59,7 +58,9 @@ func NewStateManagerSingle(client *trillian.Client, signer crypto.Signer, interv
 
 	sm.cosigned = *sth
 	sm.tosign = *sth
-	sm.cosignature = make(map[[types.HashSize]byte]*types.SigIdent)
+	sm.cosignature = map[[types.HashSize]byte]*types.SigIdent{
+		*sth.SigIdent[0].KeyHash: sth.SigIdent[0], // log signature
+	}
 	return sm, nil
 }
 
@@ -83,7 +84,7 @@ func (sm *StateManagerSingle) Latest(ctx context.Context) (*types.SignedTreeHead
 	if err != nil {
 		return nil, fmt.Errorf("LatestTreeHead: %v", err)
 	}
-	sth, err := sign(sm.signer, th)
+	sth, err := th.Sign(sm.signer)
 	if err != nil {
 		return nil, fmt.Errorf("sign: %v", err)
 	}
@@ -102,12 +103,12 @@ func (sm *StateManagerSingle) Cosigned(_ context.Context) (*types.SignedTreeHead
 	return &sm.cosigned, nil
 }
 
-func (sm *StateManagerSingle) AddCosignature(_ context.Context, vk ed25519.PublicKey, sig *[types.SignatureSize]byte) error {
+func (sm *StateManagerSingle) AddCosignature(_ context.Context, vk *[types.VerificationKeySize]byte, sig *[types.SignatureSize]byte) error {
 	sm.Lock()
 	defer sm.Unlock()
 
-	if msg := sm.tosign.TreeHead.Marshal(); !ed25519.Verify(vk, msg, sig[:]) {
-		return fmt.Errorf("invalid signature for tree head with timestamp: %d", sm.tosign.Timestamp)
+	if err := sm.tosign.TreeHead.Verify(vk, sig); err != nil {
+		return fmt.Errorf("Verify: %v", err)
 	}
 	witness := types.Hash(vk[:])
 	if _, ok := sm.cosignature[*witness]; ok {
@@ -126,13 +127,15 @@ func (sm *StateManagerSingle) AddCosignature(_ context.Context, vk ed25519.Publi
 // source's read-write lock if there are concurrent reads and/or writes.
 func (sm *StateManagerSingle) rotate(next *types.SignedTreeHead) {
 	if reflect.DeepEqual(sm.cosigned.TreeHead, sm.tosign.TreeHead) {
-		for _, sigident := range sm.cosigned.SigIdent[1:] { // skip log sigident
+		// cosigned and tosign are the same.  So, we need to merge all
+		// cosignatures that we already had with the new collected ones.
+		for _, sigident := range sm.cosigned.SigIdent {
 			if _, ok := sm.cosignature[*sigident.KeyHash]; !ok {
 				sm.cosignature[*sigident.KeyHash] = sigident
 			}
 		}
+		glog.V(3).Infof("cosigned tree head repeated, merged signatures")
 	}
-	// cosignatures will contain all cosignatures (even if repeated tree head)
 	var cosignatures []*types.SigIdent
 	for _, sigident := range sm.cosignature {
 		cosignatures = append(cosignatures, sigident)
@@ -140,29 +143,12 @@ func (sm *StateManagerSingle) rotate(next *types.SignedTreeHead) {
 
 	// Update cosigned tree head
 	sm.cosigned.TreeHead = sm.tosign.TreeHead
-	sm.cosigned.SigIdent = append(sm.tosign.SigIdent, cosignatures...)
+	sm.cosigned.SigIdent = cosignatures
 
 	// Update to-sign tree head
 	sm.tosign = *next
-	sm.cosignature = make(map[[types.HashSize]byte]*types.SigIdent)
-	glog.V(3).Infof("rotated sth")
-}
-
-func sign(signer crypto.Signer, th *types.TreeHead) (*types.SignedTreeHead, error) {
-	sig, err := signer.Sign(nil, th.Marshal(), crypto.Hash(0))
-	if err != nil {
-		return nil, fmt.Errorf("Sign: %v", err)
+	sm.cosignature = map[[types.HashSize]byte]*types.SigIdent{
+		*next.SigIdent[0].KeyHash: next.SigIdent[0], // log signature
 	}
-
-	sigident := types.SigIdent{
-		KeyHash:   types.Hash(signer.Public().(ed25519.PublicKey)[:]),
-		Signature: &[types.SignatureSize]byte{},
-	}
-	copy(sigident.Signature[:], sig)
-	return &types.SignedTreeHead{
-		TreeHead: *th,
-		SigIdent: []*types.SigIdent{
-			&sigident,
-		},
-	}, nil
+	glog.V(3).Infof("rotated tree heads")
 }

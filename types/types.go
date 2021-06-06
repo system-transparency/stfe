@@ -2,11 +2,10 @@ package types
 
 import (
 	"crypto"
-	"fmt"
-	"strings"
-
 	"crypto/ed25519"
 	"crypto/sha256"
+	"fmt"
+	"strings"
 )
 
 const (
@@ -138,7 +137,10 @@ func (th *TreeHead) Sign(signer crypto.Signer) (*SignedTreeHead, error) {
 }
 
 // Verify verifies the tree head signature using the log's signature scheme
-func (th *TreeHead) Verify(pub crypto.PublicKey) error { // TODO
+func (th *TreeHead) Verify(vk *[VerificationKeySize]byte, sig *[SignatureSize]byte) error {
+	if !ed25519.Verify(ed25519.PublicKey(vk[:]), th.Marshal(), sig[:]) {
+		return fmt.Errorf("invalid tree head signature")
+	}
 	return nil
 }
 

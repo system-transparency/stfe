@@ -52,7 +52,7 @@ func TestEndpointPath(t *testing.T) {
 	}
 }
 
-func TestTreeHeadSign(t *testing.T) {}
-func TestTreeHeadVerify(t *testing.T) {}
-func TestInclusionProofVerify(t *testing.T) {}
+func TestTreeHeadSign(t *testing.T)           {}
+func TestTreeHeadVerify(t *testing.T)         {}
+func TestInclusionProofVerify(t *testing.T)   {}
 func TestConsistencyProofVerify(t *testing.T) {}
