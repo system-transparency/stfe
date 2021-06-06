@@ -1,8 +1,8 @@
 # System Transparency Front-End (STFE)
-**Heads-up**: a refactor is happening in the `design` branch.  The most
-up-to-date design [motivation](https://github.com/system-transparency/stfe/blob/design/doc/design.md)
-and [specification](https://github.com/system-transparency/stfe/blob/design/doc/api.md)
-can be found there.
+**TODO:** update README to reflect the most up-to-date design
+[motivation](https://github.com/system-transparency/stfe/blob/design/doc/design.md),
+[specification](https://github.com/system-transparency/stfe/blob/design/doc/api.md),
+and current status.
 
 STFE is a [Trillian](https://transparency.dev/#trillian)
 [personality](https://github.com/google/trillian/blob/master/docs/Personalities.md)
