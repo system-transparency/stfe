@@ -1,140 +1,68 @@
 # System Transparency Front-End (STFE)
-**TODO:** update README to reflect the most up-to-date design
-[motivation](https://github.com/system-transparency/stfe/blob/design/doc/design.md),
-[specification](https://github.com/system-transparency/stfe/blob/design/doc/api.md),
-and current status.
-
 STFE is a [Trillian](https://transparency.dev/#trillian)
 [personality](https://github.com/google/trillian/blob/master/docs/Personalities.md)
-that allows you to log signed checksums.  What a checksum represents is up to
-the submitter.  For example, it could be a Firefox update, a Debian package, or
-a document.  A log leaf contains:
-- A _checksum_ that represents a data item of opaque type.
-- An _identifier_ that is tied to what the checksum represents.
-- A _signature_ over `checksum` and `identifier` using the submitter's secret
-signing key.
-- A _namespace_ that is tied to the submitter's verification key, e.g., think of
-it as a hashed public key.
+that allows you to log signed checksums. What a checksum represents is up to the
+submitter.  For example, it could be a Firefox update, a Debian package, or a
+document.  You can use STFE to:
+1. Discover which signatures were produced by what secret signing keys.
+2. Be sure that everyone observes the same signed checksums.
 
-The log only verifies that an entry's checksum and identifier are
-cryptographically signed based on the specified namespace.  A client that wishes
-to enforce transparency logging could require that, say, a valid Debian package
-is only used if its checksum appears in the log with a correct namespace and
-identifier.  This allows us to:
-1. **Facilitate detection of compromised signing keys**, e.g., a software
-publisher can inspect the log to see if there are any unexpected checksums in
-their own signing namespace(s).
-2. **Ensure that everyone observe the same checksums**, e.g., there should never
-be two log entries with identical namespaces and identifiers but checksums that
-differ.
+**It works as follows.**
+Suppose that you develop software and publish binaries.  You sign those binaries
+and make them available to users in a database.  You are committed to distribute
+the same non-malicious binaries to every user.  That is an easy claim to make.
+However, word is cheap and sometimes things go wrong.  How would you even know
+if your secret signing key or build environment got compromised?  A few select
+users might receive maliciously signed binaries that include back-doors.
+This is where STFE can help by adding transparency.
 
-## Current status
-STFE is at the proof-of-concept stage.  We have a
-[sketch](https://github.com/system-transparency/stfe/blob/main/doc/sketch.md) of
-the log's API, which basically defines data structures, data formats, and
-HTTP(S) endpoints.   Be warned that it is a living design document that may be
-incomplete and subject to major revisions.  For example, we are currently
-thinking about data formats and which parsers are reasonable to (not) force onto
-client-side tooling as well as server-side implementers and operators.
+For each binary you can log a signed checksum.  If a signed checksum appears in
+the log that you did not expect: excellent, now you know that your secret
+signing key or build environment was compromised at some point.  Anyone can also
+detect if a logged checksum is unaccounted for in your database by inspecting
+the log.  In other words, the claim that the same non-malicious binaries are
+published for everyone can be _verified_.
 
-There is a (very) basic client which can be used to interact with the
-log, e.g., to add entries and verify inclusion proofs against an STH.  We have
-yet to add client-side support for STFE's witness cosigning APIs.  Witness
-cosigning is part of the log's _gossip-audit model_, which must be well-defined
-to keep the log honest.<sup>[1](#footnote-1)</sup>
+## Design
+We had several design considerations in mind while developing STFE.  A short
+preview is listed below.  Please refer to our [design document](https://github.com/system-transparency/stfe/blob/main/doc/design.md)
+and [API specification](https://github.com/system-transparency/stfe/blob/main/doc/api.md)
+for additional details.  Feedback is welcomed and encouraged!
+- **Preserved data flows:** an end-user can enforce transparency logging without
+making additional outbound connections.  The data publisher should distribute
+proofs of public logging as part of their database.
+- **Sharding to simplify log life cycles:** starting to operate a log is easier
+than closing it down in a reliable way.  We have a predefined sharding interval
+that determines the time during which the log will be active.
+- **Defenses against log spam and poisoning:** to maximize a log's utility it
+should be open for anyone to use.  However, accepting logging requests from
+anyone at arbitrary rates can lead to abusive usage patterns.  We store as
+little metadata as possible to combat log poisoning.  We piggyback on DNS to
+combat log spam.
+- **Built-in mechanisms that ensure a globally consistent log:** transparency
+logs rely on gossip protocols to detect forks.  We built a proactive gossip
+protocol directly into the log.  It is based on witness cosigning.
+- **No cryptographic agility**: the only supported signature scheme is Ed25519.
+The only supported hash function is SHA256.  Not having any cryptographic
+agility makes the protocol simpler and more secure.
+- **Few simple (de)serialization parsers:** complex (de)serialization
+parsers would increase our attack surface and make the system more difficult
+to use in constrained environments.  End-users need a small subset of Trunnel to
+work with signed and logged data.  Log clients additionally need to parse ASCII
+key-value pairs.
 
-In the near future we will set up a public STFE prototype with zero promises of
-uptime, stability, etc.  In the meantime you may get your hands dirty by running
-STFE locally.  Rough documentation is available
-[here](https://github.com/system-transparency/stfe/blob/main/server/README.md).
+## Public Prototype
+We have a public prototype that is up and running with zero promises of uptime,
+stability, etc.  You can talk to the log by passing ASCII-encoded key-value
+pairs.  For example, go ahead and fetch the latest tree head:
+```
+$ curl http://tlog-poc.system-transparency.org:4780/st/v0/get-tree-head-latest
+timestamp=1623053394
+tree_size=1
+root_hash=f337c7045b3233a921acc64688b729816a10f95f8be00910418aaa3c71245d5d
+signature=50e88b935f6010dedb61314685371d16bf180be99bbd3463a0b6934be78c11ebf8cc81688e7d11b0dc593f2ea0453f6be8ed60abb825b5a08535a68cc007e20e
+key_hash=2c27a6bafcbe210753c64666ca108025c68f28ded8933ebb2c4ef0987d7a6302
+```
 
-## Design considerations
-The following is a non-exhaustive list of design considerations that we had in
-mind while developing STFE.
-
-### Gossip-audit model
-Simply adding something into a transparency log is a great start that has merit
-on its own.  But, to make the most of a transparency log we should keep the
-following factors in mind as the ecosystem bootstraps and develops:
-1. Clients should verify that the signed checksums appear in a log.  This
-requires inclusion proof verification.  STFE forces inclusion proof verification
-by not issuing _promises to log_ as in [Certificate
-Transparency](https://tools.ietf.org/html/rfc6962).<sup>[2](#footnote-2)</sup>
-2. Clients should verify that the log is append-only.  This requires consistency
-proof verification.
-3. Clients should verify that they see the _same_ append-only log as everyone
-else.  This requires a well-defined gossip-audit model.
-
-The third point is often overlooked.  While transparency logs are verifiable in
-theory due to inclusion and consistency proofs, _it is paramount that the
-different parties interacting with the log see the same entries and
-cryptographic proofs_.  Therefore, we built a proactive gossip-audit model
-directly into STFE: _witness cosigning_.<sup>[3](#footnote-3)</sup>
-The idea is that many independent witnesses _cosign_ the log's STH if and only
-if they see a consistent append-only log.  If enough reputable parties run
-witnesses that signed-off the same STH, you can be pretty sure that you see the
-same log (and thus the same checksums) as everyone else.
-
-Moreover, if you rely on witness cosigning for security, all you need from, say,
-a software publisher, is an artifact, a public verification key, a cosigned STH,
-and an inclusion proof up to that STH.  To clarify why that is excellent:
-client-side verification becomes completely non-interactive!
-
-### Ecosystem robustness
-Our long-term aspiration is that clients should _fail-closed_ if a checksum is
-not transparency logged.  This requires a _robust log ecosystem_.  As more
-parties get involved by operating compatible logs and witnesses, the overall
-reliability and availability improves for everyone.  An important factor to
-consider is therefore the _minimal common denominator_ to transparency log
-checksums.  As far as we can tell the log's leaf entry must at minimum indicate:
-1. What public key should the checksum be attributed to.
-2. What opaque data does the checksum _refer to_ such that the log entry can be
-analyzed by monitors.
-
-Additional metadata needs can be included in the data that the checksum
-represents, and the data itself can be stored in a public unauthenticated
-archive.  Log APIs and data formats should also follow the principle of minimal
-common denominator.  We are still in the process of analyzing this further.
-
-### Spam and log poisoning
-Trillian personalities usually have an _admission criteria_ that determines who
-can include what in the log.  Without an admission criteria, the log is subject
-to both spam (large volumes of data) and poisoning (harmful data).
-
-The advantage of a small leaf is that spamming the log to such an extend that it
-becomes a significant storage and bandwidth burden becomes harder.  It also
-makes the log's policy easier, e.g., a max data limit is not necessary.
-
-Because every leaf is signed it is possible to apply rate limits per namespace.
-As a toy example one could require that a namespace is registered before use,
-and that the registration component enforces a single namespace per top-level
-domain.  To spam the log you would need an excessive number of domain names.
-
-A more subtle advantage of not logging the actual data is that it becomes more
-difficult to poison the log with something harmful.  Transparency logs are
-really cryptographic, append-only, and tamper-evident data structures: nothing
-can be removed or modified until the log shuts down.  Therefore, as few bytes as
-possible should be arbitrary in the log's leaf.  A reasonable goal could be to
-not take on a larger risk than Certificate Transparency.
-
-##
-<a name="footnote-1">1</a>:
-The lack of gossip-audit models that prevent and/or detect _split-views_ is
-documented quite well with regards to Certificate Transparency.  See, for
-example, the work of
-[Chuat _et al._](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7346853),
-[Nordberg _et al._](https://tools.ietf.org/html/draft-ietf-trans-gossip-05), and
-[Dahlberg et al.](https://sciendo.com/article/10.2478/popets-2021-0024).
-
-<a name="footnote-2">2</a>:
-So-called SCTs are signed promises that the log will merge a submitted entry
-within a Maximum Merge Delay (MMD), e.g., 24 hours.  This adds significant system
-complexity because the client needs to either verify that these promises were
-honored after the MMD has passed, or the client must trust that the log is
-honest.
-
-<a name="footnote-3">3</a>:
-Witness cosigning was initially proposed by [Syta _et al._](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7546521).
-The approach of [Meiklejohn _et al._](https://arxiv.org/pdf/2011.04551.pdf)
-is closer to ours but the details differ.  For example, witnesses poll STFE for
-STHs rather than waiting for a single broadcast.
+We are currently working on tooling that makes it easier to interact with the
+log.
