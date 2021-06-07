@@ -110,7 +110,7 @@ func (i *Instance) leafRequestFromHTTP(r *http.Request) (*types.LeafRequest, err
 func (i *Instance) cosignatureRequestFromHTTP(r *http.Request) (*types.CosignatureRequest, error) {
 	var req types.CosignatureRequest
 	if err := req.UnmarshalASCII(r.Body); err != nil {
-		return nil, fmt.Errorf("unpackOctetPost: %v", err)
+		return nil, fmt.Errorf("UnmarshalASCII: %v", err)
 	}
 	if _, ok := i.Witnesses[*req.KeyHash]; !ok {
 		return nil, fmt.Errorf("Unknown witness: %x", req.KeyHash)
@@ -137,8 +137,10 @@ func (i *Instance) inclusionProofRequestFromHTTP(r *http.Request) (*types.Inclus
 	if err := req.UnmarshalASCII(r.Body); err != nil {
 		return nil, fmt.Errorf("UnmarshalASCII: %v", err)
 	}
-	if req.TreeSize < 1 {
-		return nil, fmt.Errorf("TreeSize(%d) must be larger than zero", req.TreeSize)
+	if req.TreeSize < 2 {
+		// TreeSize:0 => not possible to prove inclusion of anything
+		// TreeSize:1 => you don't need an inclusion proof (it is always empty)
+		return nil, fmt.Errorf("TreeSize(%d) must be larger than one", req.TreeSize)
 	}
 	return &req, nil
 }

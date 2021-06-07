@@ -1,6 +1,7 @@
 package stfe
 
 import (
+	//"reflect"
 	"bytes"
 	"encoding/hex"
 	"fmt"
@@ -366,14 +367,6 @@ func TestGetConsistencyProof(t *testing.T) {
 			types.NewSize, types.Delim, newSize, types.EOL,
 		))
 	}
-	// values in testProof are not relevant for the test, just need a path
-	testProof := &types.ConsistencyProof{
-		OldSize: 1,
-		NewSize: 2,
-		Path: []*[types.HashSize]byte{
-			types.Hash(nil),
-		},
-	}
 	for _, table := range []struct {
 		description string
 		ascii       io.Reader               // buffer used to populate HTTP request
@@ -388,11 +381,34 @@ func TestGetConsistencyProof(t *testing.T) {
 			wantCode:    http.StatusBadRequest,
 		},
 		{
+			description: "invalid: bad request (OldSize is zero)",
+			ascii:       buf(0, 1),
+			wantCode:    http.StatusBadRequest,
+		},
+		{
+			description: "invalid: bad request (OldSize > NewSize)",
+			ascii:       buf(2, 1),
+			wantCode:    http.StatusBadRequest,
+		},
+		{
+			description: "invalid: backend failure",
+			ascii:       buf(1, 2),
+			expect:      true,
+			err:         fmt.Errorf("something went wrong"),
+			wantCode:    http.StatusInternalServerError,
+		},
+		{
 			description: "valid",
 			ascii:       buf(1, 2),
 			expect:      true,
-			rsp:         testProof,
-			wantCode:    http.StatusOK,
+			rsp: &types.ConsistencyProof{
+				OldSize: 1,
+				NewSize: 2,
+				Path: []*[types.HashSize]byte{
+					types.Hash(nil),
+				},
+			},
+			wantCode: http.StatusOK,
 		},
 	} {
 		// Run deferred functions at the end of each iteration
@@ -426,7 +442,180 @@ func TestGetConsistencyProof(t *testing.T) {
 }
 
 func TestGetInclusionProof(t *testing.T) {
+	buf := func(hash *[types.HashSize]byte, treeSize int) io.Reader {
+		return bytes.NewBufferString(fmt.Sprintf(
+			"%s%s%x%s"+"%s%s%d%s",
+			types.LeafHash, types.Delim, hash[:], types.EOL,
+			types.TreeSize, types.Delim, treeSize, types.EOL,
+		))
+	}
+	for _, table := range []struct {
+		description string
+		ascii       io.Reader             // buffer used to populate HTTP request
+		expect      bool                  // set if a mock answer is expected
+		rsp         *types.InclusionProof // inclusion proof from Trillian client
+		err         error                 // error from Trillian client
+		wantCode    int                   // HTTP status ok
+	}{
+		{
+			description: "invalid: bad request (parser error)",
+			ascii:       bytes.NewBufferString("key=value\n"),
+			wantCode:    http.StatusBadRequest,
+		},
+		{
+			description: "invalid: bad request (no proof for tree size)",
+			ascii:       buf(types.Hash(nil), 1),
+			wantCode:    http.StatusBadRequest,
+		},
+		{
+			description: "invalid: backend failure",
+			ascii:       buf(types.Hash(nil), 2),
+			expect:      true,
+			err:         fmt.Errorf("something went wrong"),
+			wantCode:    http.StatusInternalServerError,
+		},
+		{
+			description: "valid",
+			ascii:       buf(types.Hash(nil), 2),
+			expect:      true,
+			rsp: &types.InclusionProof{
+				TreeSize:  2,
+				LeafIndex: 0,
+				Path: []*[types.HashSize]byte{
+					types.Hash(nil),
+				},
+			},
+			wantCode: http.StatusOK,
+		},
+	} {
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			client := mocks.NewMockClient(ctrl)
+			if table.expect {
+				client.EXPECT().GetInclusionProof(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
+			}
+			i := Instance{
+				Config: testConfig,
+				Client: client,
+			}
+
+			// Create HTTP request
+			url := types.EndpointGetProofByHash.Path("http://example.com", i.Prefix)
+			req, err := http.NewRequest("POST", url, table.ascii)
+			if err != nil {
+				t.Fatalf("must create http request: %v", err)
+			}
+
+			// Run HTTP request
+			w := httptest.NewRecorder()
+			mustHandle(t, i, types.EndpointGetProofByHash).ServeHTTP(w, req)
+			if got, want := w.Code, table.wantCode; got != want {
+				t.Errorf("got HTTP status code %v but wanted %v in test %q", got, want, table.description)
+			}
+		}()
+	}
 }
 
 func TestGetLeaves(t *testing.T) {
+	buf := func(startSize, endSize int64) io.Reader {
+		return bytes.NewBufferString(fmt.Sprintf(
+			"%s%s%d%s"+"%s%s%d%s",
+			types.StartSize, types.Delim, startSize, types.EOL,
+			types.EndSize, types.Delim, endSize, types.EOL,
+		))
+	}
+	for _, table := range []struct {
+		description string
+		ascii       io.Reader       // buffer used to populate HTTP request
+		expect      bool            // set if a mock answer is expected
+		rsp         *types.LeafList // list of leaves from Trillian client
+		err         error           // error from Trillian client
+		wantCode    int             // HTTP status ok
+	}{
+		{
+			description: "invalid: bad request (parser error)",
+			ascii:       bytes.NewBufferString("key=value\n"),
+			wantCode:    http.StatusBadRequest,
+		},
+		{
+			description: "invalid: bad request (StartSize > EndSize)",
+			ascii:       buf(1, 0),
+			wantCode:    http.StatusBadRequest,
+		},
+		{
+			description: "invalid: backend failure",
+			ascii:       buf(0, 0),
+			expect:      true,
+			err:         fmt.Errorf("something went wrong"),
+			wantCode:    http.StatusInternalServerError,
+		},
+		{
+			description: "valid: one more entry than the configured MaxRange",
+			ascii:       buf(0, testConfig.MaxRange), // query will be pruned
+			expect:      true,
+			rsp: func() *types.LeafList {
+				var list types.LeafList
+				for i := int64(0); i < testConfig.MaxRange; i++ {
+					list = append(list[:], &types.Leaf{
+						Message: types.Message{
+							ShardHint: 0,
+							Checksum:  types.Hash(nil),
+						},
+						SigIdent: types.SigIdent{
+							Signature: &[types.SignatureSize]byte{},
+							KeyHash:   types.Hash(nil),
+						},
+					})
+				}
+				return &list
+			}(),
+			wantCode: http.StatusOK,
+		},
+	} {
+		// Run deferred functions at the end of each iteration
+		func() {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			client := mocks.NewMockClient(ctrl)
+			if table.expect {
+				client.EXPECT().GetLeaves(gomock.Any(), gomock.Any()).Return(table.rsp, table.err)
+			}
+			i := Instance{
+				Config: testConfig,
+				Client: client,
+			}
+
+			// Create HTTP request
+			url := types.EndpointGetLeaves.Path("http://example.com", i.Prefix)
+			req, err := http.NewRequest("POST", url, table.ascii)
+			if err != nil {
+				t.Fatalf("must create http request: %v", err)
+			}
+
+			// Run HTTP request
+			w := httptest.NewRecorder()
+			mustHandle(t, i, types.EndpointGetLeaves).ServeHTTP(w, req)
+			if got, want := w.Code, table.wantCode; got != want {
+				t.Errorf("got HTTP status code %v but wanted %v in test %q", got, want, table.description)
+			}
+			if w.Code != http.StatusOK {
+				return
+			}
+
+			// TODO: check that we got the right leaves back.  It is especially
+			// important that we check that we got the right number of leaves.
+			//
+			// Pseuducode for when we have types.LeafList.UnmarshalASCII()
+			//
+			//list := &types.LeafList{}
+			//if err := list.UnmarshalASCII(w.Body); err != nil {
+			//	t.Fatalf("must unmarshal leaf list: %v", err)
+			//}
+			//if got, want := list, table.rsp; !reflect.DeepEqual(got, want) {
+			//	t.Errorf("got leaf list\n\t%v\nbut wanted\n\t%v\nin test %q", got, want, table.description)
+			//}
+		}()
+	}
 }
