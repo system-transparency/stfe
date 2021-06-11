@@ -10,19 +10,21 @@ We abbreviate Signature Transparency Logging as _siglog_.
 
 ## How it works
 Suppose that you develop software and publish binaries.  You sign those binaries
-and make them available to users in a package repository.  You are committed to
-distribute the same signed binaries to every user.  That is an easy claim to
-make.  However, word is cheap and sometimes things go wrong.  How would you even
-know if your signing infrastructure got compromised?  A few select users might
-already receive maliciously signed binaries that include a backdoor.  This is
-where siglog can help by adding transparency in the future.
+and make them available to users in a package repository and on your website.
+You are committed to distribute the same signed binaries to every user.  That is
+an easy claim to make.  However, word is cheap and sometimes things go wrong.
+How would you even know if your signing infrastructure got compromised?  A few
+select users might already receive maliciously signed binaries that include a
+backdoor.  This is where siglog can help by adding transparency in the future.
 
 For each binary you can log a signed checksum that corresponds to that binary.
 If a signed checksum appears in the log that you did not expect: excellent, now
-you know that your signing infrastructure was compromised at some point.  Anyone
-can also detect if a logged checksum is unaccounted for in your package
-repository by inspecting the log.  In other words, the claim that the same
-binaries are published for everyone can be _verified_.
+you know that your signing infrastructure was compromised at some point.  The
+same goes for binaries that show up for download on your website but don't have
+a corresponding log entry.  Anyone can also detect if a logged checksum is
+unaccounted for in your package repository or a binary on your website is
+missing a corresponing log entry just by inspecting the log.  In other words,
+the claim that the same binaries are published for everyone can be _verified_.
 
 Adding signed checksums into a log is already an improvement without any
 end-user enforcement.  Honest mistakes can be detected.  However, end-users need
