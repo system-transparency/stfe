@@ -25,13 +25,12 @@ repository misses a corresponding log entry by inspecting the log.  The claim
 that the same binaries are published for everyone can be _verified_.
 
 Starting to apply the pattern of transparent logging is already an improvement
-without any end-user enforcement.  TODO: fixme.
+without any end-user enforcement.  It becomes easier to detect honest mistakes
+and attacks against your website or package repository.
 
-For example, binaries (maliciously signed or not) that have yet to be logged can
-be detected by a monitor.  To make the most out of siglog, end-users should
-enforce public logging sometime in the future.  This means that a binary in the
-above example would be _rejected_ unless a corresponding signed checksum is
-logged.  Such enforcement will require a gradual roll-out to be realistic.
+To make the most out of siglog in the future, end-users should start to enforce
+public logging.  This means that a binary in the above example would be
+_rejected_ unless a corresponding signed checksum is publicly logged.
 
 ## Design considerations
 We had several design considerations in mind while developing siglog.  A short
