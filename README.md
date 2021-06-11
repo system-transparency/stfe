@@ -15,22 +15,23 @@ You are committed to distribute the same signed binaries to every user.  That is
 an easy claim to make.  However, word is cheap and sometimes things go wrong.
 How would you even know if your signing infrastructure got compromised?  A few
 select users might already receive maliciously signed binaries that include a
-backdoor.  This is where siglog can help by adding transparency in the future.
+backdoor.  This is where siglog can help by adding transparency.
 
 For each binary you can log a signed checksum that corresponds to that binary.
 If a signed checksum appears in the log that you did not expect: excellent, now
-you know that your signing infrastructure was compromised at some point.  The
-same goes for binaries that show up for download on your website but don't have
-a corresponding log entry.  Anyone can also detect if a logged checksum is
-unaccounted for in your package repository or a binary on your website is
-missing a corresponding log entry just by inspecting the log.  In other words,
-the claim that the same binaries are published for everyone can be _verified_.
+you know that your signing infrastructure was compromised at some point.
+Similarly, you can also detect if a binary from your website or package
+repository misses a corresponding log entry by inspecting the log.  The claim
+that the same binaries are published for everyone can be _verified_.
 
-Adding signed checksums into a log is already an improvement without any
-end-user enforcement.  Honest mistakes can be detected.  However, end-users need
-to enforce public logging to get the most out of siglog.  This means that a
-binary in the above example would be rejected unless a corresponding signed
-checksum is logged.
+Starting to apply the pattern of transparent logging is already an improvement
+without any end-user enforcement.  TODO: fixme.
+
+For example, binaries (maliciously signed or not) that have yet to be logged can
+be detected by a monitor.  To make the most out of siglog, end-users should
+enforce public logging sometime in the future.  This means that a binary in the
+above example would be _rejected_ unless a corresponding signed checksum is
+logged.  Such enforcement will require a gradual roll-out to be realistic.
 
 ## Design considerations
 We had several design considerations in mind while developing siglog.  A short
