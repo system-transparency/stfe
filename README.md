@@ -23,7 +23,7 @@ you know that your signing infrastructure was compromised at some point.  The
 same goes for binaries that show up for download on your website but don't have
 a corresponding log entry.  Anyone can also detect if a logged checksum is
 unaccounted for in your package repository or a binary on your website is
-missing a corresponing log entry just by inspecting the log.  In other words,
+missing a corresponding log entry just by inspecting the log.  In other words,
 the claim that the same binaries are published for everyone can be _verified_.
 
 Adding signed checksums into a log is already an improvement without any
