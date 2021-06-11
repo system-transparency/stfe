@@ -55,7 +55,7 @@ logs rely on gossip protocols to detect forks.  We built a proactive gossip
 protocol directly into the log.  It is based on witness cosigning.
 - **No cryptographic agility**: the only supported signature scheme is Ed25519.
 The only supported hash function is SHA256.  Not having any cryptographic
-agility makes the protocol simpler and more secure.
+agility makes the protocol and the data formats simpler and more secure.
 - **Few and simple (de)serialization parsers:** complex (de)serialization
 parsers increase attack surfaces and make the system more difficult to use in
 constrained environments.  End-users need a small subset of Trunnel to work with
