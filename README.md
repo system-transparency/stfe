@@ -69,6 +69,10 @@ A public prototype is up and running with zero promises of uptime, stability,
 etc.  The log's base URL is `http://tlog-poc.system-transparency.org:4780/st/v0`.
 The log's public verification key is `bc9308dab23781b8a13d59a9e67bc1b8c1585550e72956525a20e479b1f74404`.
 
+An [experimental witness](https://github.com/system-transparency/siglog-witness-py)
+is also up and running with zero promises of uptime, stability, etc.  The
+public verification key is `777528f5fd96f95713b8c2bb48bce2c83628e39ad3bfbd95bc0045b143fe5c34`.
+
 You can talk to the log by passing ASCII key-value pairs.  For example,
 fetch a tree head and a log entry:
 ```
@@ -85,6 +89,7 @@ checksum=0000000000000000000000000000000000000000000000000000000000000000
 signature_over_message=0e0424c7288dc8ebec6b2ebd45e14e7d7f86dd7b0abc03861976a1c0ad8ca6120d4efd58aeab167e5e84fcffd0fab5861ceae85dec7f4e244e7465e41c5d5207
 key_hash=9d6c91319b27ff58043ff6e6e654438a4ca15ee11dd2780b63211058b274f1f6
 ```
+
 
 We are currently working on tooling that makes it easier to interact with the
 log.
